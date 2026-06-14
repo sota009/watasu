@@ -133,7 +133,8 @@ async function createSignedDeliveryRequest(
       writeDeliveryAttempt() {}
     },
     clock: () => overrides.deliveredAt ?? new Date("2026-06-14T12:00:00.000Z"),
-    signingSecret: "receiver-fixture-secret"
+    signingSecret: "receiver-fixture-secret",
+    resolveDeliveryHost: async () => ["203.0.113.10"]
   });
 
   const request = requests[0];

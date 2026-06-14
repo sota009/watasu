@@ -7,7 +7,7 @@ import {
   createFetchDeliveryClient,
   InMemoryDeliveryCircuitBreaker,
   InMemoryDeliveryConcurrencyLimiter,
-  deliverAcceptedSubmission,
+  deliverAcceptedSubmission as deliverAcceptedSubmissionCore,
   type AcceptedSubmission,
   type DeliveryClient,
   type DeliveryLogEvent,
@@ -132,6 +132,19 @@ function createClient(responseStatus: number): DeliveryClient & { requests: Deli
   };
 }
 
+function deliverAcceptedSubmission(
+  input: Parameters<typeof deliverAcceptedSubmissionCore>[0]
+): ReturnType<typeof deliverAcceptedSubmissionCore> {
+  if (input.mode !== "hosted" || input.resolveDeliveryHost !== undefined) {
+    return deliverAcceptedSubmissionCore(input);
+  }
+
+  return deliverAcceptedSubmissionCore({
+    ...input,
+    resolveDeliveryHost: async () => ["203.0.113.10"]
+  });
+}
+
 describe("webhook delivery and metadata-only ledger", () => {
   test("test_delivery_uses_https_for_hosted_mode", async () => {
     const published = createPublished({
@@ -223,6 +236,64 @@ describe("webhook delivery and metadata-only ledger", () => {
       status: "rejected",
       error: {
         code: "unsafe_delivery_url"
+      }
+    });
+    expect(client.requests).toHaveLength(0);
+    expect(ledger.rows).toHaveLength(0);
+  });
+
+  test("test_hosted_delivery_rejects_dns_rebinding_to_private_address", async () => {
+    const published = createPublished();
+    const ledger = createLedger();
+    const client = createClient(200);
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope: createEnvelope(published),
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      clock: () => now,
+      signingSecret: "test-signing-secret",
+      resolveDeliveryHost: async () => ["169.254.169.254"]
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "unsafe_delivery_host"
+      }
+    });
+    expect(client.requests).toHaveLength(0);
+    expect(ledger.rows).toHaveLength(0);
+  });
+
+  test("test_hosted_delivery_rejects_unresolvable_destination_before_webhook", async () => {
+    const published = createPublished();
+    const ledger = createLedger();
+    const client = createClient(200);
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope: createEnvelope(published),
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      clock: () => now,
+      signingSecret: "test-signing-secret",
+      resolveDeliveryHost: async () => {
+        throw new Error("lookup failed");
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "delivery_host_resolution_failed"
       }
     });
     expect(client.requests).toHaveLength(0);
@@ -808,9 +879,115 @@ describe("fetch delivery client adapter", () => {
     });
 
     expect(response).toEqual({
-      status: 302
+      status: 302,
+      headers: {
+        location: "http://169.254.169.254/latest/meta-data"
+      }
     });
     expect(calls[0]?.init.redirect).toBe("manual");
+  });
+
+  test("test_fetch_delivery_client_exposes_redirect_location_to_delivery_layer", async () => {
+    const client = createFetchDeliveryClient({
+      fetch: async () => new Response(null, {
+        status: 302,
+        headers: {
+          location: "http://169.254.169.254/latest/meta-data"
+        }
+      })
+    });
+
+    await expect(client.post({
+      url: "https://receiver.example.com/watasu/intake",
+      headers: {},
+      body: "{}"
+    })).resolves.toEqual({
+      status: 302,
+      headers: {
+        location: "http://169.254.169.254/latest/meta-data"
+      }
+    });
+  });
+
+  test("test_hosted_delivery_rejects_unsafe_redirect_target_without_following_it", async () => {
+    const published = createPublished();
+    const ledger = createLedger();
+    const client: DeliveryClient & { requests: DeliveryRequest[] } = {
+      requests: [],
+      async post(request) {
+        this.requests.push(request);
+        return {
+          status: 302,
+          headers: {
+            location: "http://169.254.169.254/latest/meta-data"
+          }
+        };
+      }
+    };
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope: createEnvelope(published),
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "unsafe_delivery_redirect"
+      }
+    });
+    expect(client.requests).toHaveLength(1);
+    expect(ledger.rows).toHaveLength(0);
+  });
+
+  test("test_hosted_delivery_follows_one_safe_redirect_after_rechecking_target", async () => {
+    const published = createPublished();
+    const ledger = createLedger();
+    const client: DeliveryClient & { requests: DeliveryRequest[] } = {
+      requests: [],
+      async post(request) {
+        this.requests.push(request);
+        if (this.requests.length === 1) {
+          return {
+            status: 307,
+            headers: {
+              location: "https://receiver.example.com/watasu/redirected-intake"
+            }
+          };
+        }
+
+        return {
+          status: 204
+        };
+      }
+    };
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope: createEnvelope(published),
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "delivered"
+    });
+    expect(client.requests.map((request) => request.url)).toEqual([
+      "https://receiver.example.com/watasu/intake",
+      "https://receiver.example.com/watasu/redirected-intake"
+    ]);
   });
 
   test("test_fetch_delivery_client_returns_non_2xx_status_to_delivery_layer", async () => {

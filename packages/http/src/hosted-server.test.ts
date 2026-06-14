@@ -1,9 +1,11 @@
+import { Readable } from "node:stream";
 import { describe, expect, test } from "vitest";
 import {
   buildHostedProductionRequest,
   createHostedProductionServer,
   loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig,
+  readHostedRequestBody,
   type HostedProductionRequest
 } from "./hosted-server.js";
 
@@ -116,5 +118,15 @@ describe("hosted production server runtime", () => {
 
     expect(server.listening).toBe(false);
     server.close();
+  });
+
+  test("test_read_hosted_request_body_rejects_body_over_limit", async () => {
+    const stream = Readable.from(["123", "45"]);
+
+    await expect(readHostedRequestBody(stream, {
+      maxBytes: 4
+    })).rejects.toMatchObject({
+      code: "request_body_too_large"
+    });
   });
 });

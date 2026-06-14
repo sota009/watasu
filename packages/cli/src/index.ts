@@ -488,7 +488,7 @@ async function runFixtureDelivery(
   const submittedAt = "2026-06-14T11:59:00.000Z";
 
   const result = await deliverAcceptedSubmission({
-    mode: "hosted",
+    mode: "local_demo",
     published: publishResult.published,
     envelope: {
       request_id: publishResult.published.request_id,
@@ -602,7 +602,7 @@ async function submitFixtureForFileDefinition(
   };
 
   const delivery = await deliverAcceptedSubmission({
-    mode: "hosted",
+    mode: "local_demo",
     published: publishResult.published,
     envelope,
     submission: {

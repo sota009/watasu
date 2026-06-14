@@ -364,13 +364,6 @@ function validateSenderTrust(
   }
 
   if (trustProfile === "verified_sender") {
-    if (envelope.sender_signature === undefined) {
-      return {
-        code: "sender_signature_required",
-        message: "verified_sender submissions require a sender signature."
-      };
-    }
-
     return validateTrustedSenderKey(envelope, context, trustProfile);
   }
 
@@ -399,7 +392,7 @@ function validateSenderTrust(
     };
   }
 
-  return undefined;
+  return validateTrustedSenderKey(envelope, context, trustProfile);
 }
 
 function validateTrustedSenderKey(
@@ -422,10 +415,24 @@ function validateTrustedSenderKey(
     };
   }
 
+  if (envelope.sender_signature === undefined) {
+    return {
+      code: "sender_signature_required",
+      message: `${trustProfile} submissions require a sender signature.`
+    };
+  }
+
   const trustedSenderPublicKey = context.trustedSenderPublicKeys?.find(
     (key) => key.sender_key_id === envelope.sender_key_id
   );
-  if (trustedSenderPublicKey !== undefined && !verifySenderSignature({
+  if (trustedSenderPublicKey === undefined) {
+    return {
+      code: "sender_public_key_required",
+      message: "Sender public key is required to verify the sender signature."
+    };
+  }
+
+  if (!verifySenderSignature({
     envelope,
     publicKey: trustedSenderPublicKey
   })) {

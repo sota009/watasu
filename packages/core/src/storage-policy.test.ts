@@ -472,8 +472,9 @@ describe("storage policy controlled delivery ledger", () => {
     expect(schemaSql).toContain("request_version text not null");
     expect(schemaSql).toContain("idempotency_key text not null");
     expect(schemaSql).toContain("encrypted_payload_hash text not null");
-    expect(schemaSql).toContain("primary key (tenant_id, request_id, request_version, idempotency_key)");
+    expect(schemaSql).toContain("primary key (tenant_id, request_id, request_version, idempotency_key, delivered_at)");
     expect(schemaSql).toContain("create index if not exists watasu_delivery_ledger_request_idx");
+    expect(schemaSql).toContain("create index if not exists watasu_delivery_ledger_idempotency_idx");
     expect(schemaSql).toContain("create index if not exists watasu_delivery_ledger_delivered_at_idx");
     expect(schemaSql).not.toContain("encrypted_payload ");
     expect(schemaSql).not.toContain("ciphertext");
