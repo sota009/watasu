@@ -45,7 +45,7 @@ export interface TrustedInviteBinding {
 
 export interface TrustedSenderPublicKey {
   sender_key_id: string;
-  alg: "ES256";
+  alg: "ES256" | "EdDSA";
   public_jwk: JsonWebKey;
 }
 
@@ -455,7 +455,7 @@ function verifySenderSignature(input: {
   envelope: SubmissionEnvelope;
   publicKey: TrustedSenderPublicKey;
 }): boolean {
-  if (input.envelope.sender_signature === undefined || input.publicKey.alg !== "ES256") {
+  if (input.envelope.sender_signature === undefined) {
     return false;
   }
 
@@ -470,7 +470,7 @@ function verifySenderSignature(input: {
   }
 
   const protectedHeader = parseProtectedHeader(encodedProtected);
-  if (protectedHeader?.alg !== "ES256") {
+  if (protectedHeader?.alg !== input.publicKey.alg) {
     return false;
   }
 
@@ -479,10 +479,16 @@ function verifySenderSignature(input: {
   const signingInput = Buffer.from(`${encodedProtected}.${payload}`, "ascii");
 
   try {
-    return verify("sha256", signingInput, {
-      key: createPublicKey({ key: input.publicKey.public_jwk, format: "jwk" }),
-      dsaEncoding: "ieee-p1363"
-    }, Buffer.from(encodedSignature, "base64url"));
+    const key = createPublicKey({ key: input.publicKey.public_jwk, format: "jwk" });
+    const signature = Buffer.from(encodedSignature, "base64url");
+    if (input.publicKey.alg === "ES256") {
+      return verify("sha256", signingInput, {
+        key,
+        dsaEncoding: "ieee-p1363"
+      }, signature);
+    }
+
+    return verify(null, signingInput, key, signature);
   } catch {
     return false;
   }

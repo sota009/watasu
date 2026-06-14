@@ -131,6 +131,15 @@ function createSenderKeyPair() {
   };
 }
 
+function createEd25519SenderKeyPair() {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+
+  return {
+    privateJwk: privateKey.export({ format: "jwk" }),
+    publicJwk: publicKey.export({ format: "jwk" })
+  };
+}
+
 function signSenderEnvelope(
   envelope: SubmissionEnvelope,
   privateJwk: JsonWebKey,
@@ -147,6 +156,26 @@ function signSenderEnvelope(
   const signature = sign("sha256", Buffer.from(signingInput, "ascii"), {
     key: createPrivateKey({ key: privateJwk, format: "jwk" }),
     dsaEncoding: "ieee-p1363"
+  }).toString("base64url");
+
+  return `${protectedHeader}..${signature}`;
+}
+
+function signEdDsaSenderEnvelope(
+  envelope: SubmissionEnvelope,
+  privateJwk: JsonWebKey,
+  protectedHeaderOverrides: Record<string, unknown> = {}
+): string {
+  const protectedHeader = Buffer.from(JSON.stringify({
+    alg: "EdDSA",
+    typ: "watasu-sender-signature+jws",
+    ...protectedHeaderOverrides
+  })).toString("base64url");
+  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(envelope)))
+    .toString("base64url");
+  const signingInput = `${protectedHeader}.${payload}`;
+  const signature = sign(null, Buffer.from(signingInput, "ascii"), {
+    key: createPrivateKey({ key: privateJwk, format: "jwk" })
   }).toString("base64url");
 
   return `${protectedHeader}..${signature}`;
@@ -506,6 +535,70 @@ describe("submission envelope validation", () => {
       status: "accepted",
       submission: {
         sender_key_id: "sender-key-001"
+      }
+    });
+  });
+
+  test("test_verified_sender_with_valid_eddsa_detached_signature_is_accepted", () => {
+    const published = createPublished("verified_sender");
+    const senderKeys = createEd25519SenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-eddsa-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      sender_signature: signEdDsaSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-eddsa-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-eddsa-001",
+          alg: "EdDSA",
+          public_jwk: senderKeys.publicJwk
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "accepted",
+      submission: {
+        sender_key_id: "sender-key-eddsa-001"
+      }
+    });
+  });
+
+  test("test_verified_sender_rejects_eddsa_header_for_es256_key", () => {
+    const published = createPublished("verified_sender");
+    const senderKeys = createEd25519SenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      sender_signature: signEdDsaSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-001",
+          alg: "ES256",
+          public_jwk: senderKeys.publicJwk
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "auth_required",
+      error: {
+        code: "sender_signature_invalid"
       }
     });
   });
