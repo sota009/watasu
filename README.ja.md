@@ -184,6 +184,12 @@ pnpm --filter @watasu/hosted retention -- --dry-run
 
 retention command output は `checked_at`、`retention_days`、`tenant_id`、`scanned`、`deleted`、`retained` を含みます。dry-run output は `dry_run` と `would_delete` も含みます。
 
+production cutover の retention evidence を `cutover-evidence/retention.json` に保存する場合:
+
+```bash
+pnpm --silent cutover:retention
+```
+
 Render deploy preflight before account-side setup:
 
 ```bash
@@ -216,13 +222,19 @@ DNS/TLS と hosted deploy が ready になったら canary evidence を保存し
 pnpm --silent cutover:canary
 ```
 
+deployed metadata database environment が ready になったら retention dry-run evidence を保存します:
+
+```bash
+pnpm --silent cutover:retention
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash
 pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
 ```
 
-cutover verifier は `deploy:preflight`、`smoke:hosted`、`cutover:canary`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
+cutover verifier は `deploy:preflight`、`smoke:hosted`、`cutover:canary`、`cutover:retention`、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
 
 Hosted runtime smoke before deploy:
 

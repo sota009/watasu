@@ -123,6 +123,7 @@ describe("workspace foundation", () => {
       "cutover:ci": "node scripts/production-cutover-ci.mjs",
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
       "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
+      "cutover:retention": "node scripts/production-cutover-retention.mjs",
       "cutover:verify": "node scripts/production-cutover-verify.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
@@ -458,6 +459,64 @@ describe("workspace foundation", () => {
     expect(result.stderr).toContain("contains secret-like assignment output");
   });
 
+  test("test_production_cutover_retention_writes_secret_safe_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-retention-"));
+    const sourcePath = join(evidenceDir, "retention-source.json");
+    writeFileSync(sourcePath, JSON.stringify(buildCutoverRetentionEvidence()));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:retention",
+      "--dir",
+      evidenceDir,
+      "--source",
+      sourcePath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      dry_run: boolean;
+      wrote: string;
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      dry_run: true,
+      wrote: join(evidenceDir, "retention.json")
+    });
+    expect(JSON.parse(readFileSync(join(evidenceDir, "retention.json"), "utf8"))).toMatchObject({
+      ok: true,
+      dry_run: true,
+      tenant_id: "watasu-private-alpha"
+    });
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+  });
+
+  test("test_production_cutover_retention_rejects_secret_like_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-retention-"));
+    const sourcePath = join(evidenceDir, "retention-source.json");
+    writeFileSync(sourcePath, `${JSON.stringify(buildCutoverRetentionEvidence())}\nWATASU_POSTGRES_URL=postgres://example\n`);
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:retention",
+      "--dir",
+      evidenceDir,
+      "--source",
+      sourcePath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("contains secret-like assignment output");
+  });
+
   test("test_production_cutover_plan_outputs_ordered_secret_safe_commands", () => {
     const result = spawnSync("pnpm", ["--silent", "cutover:plan"], {
       cwd: rootDir,
@@ -484,7 +543,7 @@ describe("workspace foundation", () => {
       after_deploy_commands: [
         "pnpm --silent cutover:ci",
         "pnpm --silent cutover:canary",
-        "pnpm --filter @watasu/hosted retention -- --dry-run"
+        "pnpm --silent cutover:retention"
       ]
     });
     expect(report.external_actions).toContain("Verify api.watasu.ai DNS and TLS in Render.");
@@ -521,6 +580,7 @@ describe("workspace foundation", () => {
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
     expect(japaneseReadme).toContain("pnpm --silent cutover:prepare");
     expect(japaneseReadme).toContain("pnpm --silent cutover:canary");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:retention");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
     expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
     expect(japaneseReadme).toContain("cutover-evidence/cutover-head.txt");

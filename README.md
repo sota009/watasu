@@ -184,6 +184,12 @@ pnpm --filter @watasu/hosted retention -- --dry-run
 
 Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `scanned`, `deleted`, and `retained`. Dry-run output also includes `dry_run` and `would_delete`, so the pre-cutover record can prove the scheduled cleanup boundary without deleting rows or exposing payload fragments.
 
+To save the production cutover retention evidence under `cutover-evidence/retention.json`, run:
+
+```bash
+pnpm --silent cutover:retention
+```
+
 Render deploy preflight before account-side setup:
 
 ```bash
@@ -220,13 +226,19 @@ After DNS/TLS and the hosted deploy are ready, save canary evidence:
 pnpm --silent cutover:canary
 ```
 
+After the deployed metadata database environment is ready, save retention dry-run evidence:
+
+```bash
+pnpm --silent cutover:retention
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash
 pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
 ```
 
-The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `cutover:canary`, the retention dry run, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
+The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `cutover:canary`, `cutover:retention`, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
 
 Hosted runtime smoke before deploy:
 

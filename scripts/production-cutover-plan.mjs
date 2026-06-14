@@ -21,7 +21,7 @@ process.stdout.write(`${JSON.stringify({
   after_deploy_commands: [
     "pnpm --silent cutover:ci",
     "pnpm --silent cutover:canary",
-    "pnpm --filter @watasu/hosted retention -- --dry-run"
+    "pnpm --silent cutover:retention"
   ],
   required_evidence: [
     "cutover-evidence/cutover-head.txt records the deployed commit SHA",
