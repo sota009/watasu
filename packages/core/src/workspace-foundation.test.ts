@@ -470,6 +470,60 @@ describe("workspace foundation", () => {
     expect(result.stderr).toContain("hosted canary must record forbidden fragment secret");
   });
 
+  test("test_production_cutover_verify_rejects_non_dry_run_retention_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+      go_no_go: {
+        decision: "go"
+      }
+    }));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: false,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      deleted: 1,
+      would_delete: 1
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("retention evidence must be a dry run");
+  });
+
   test("test_handoff_demo_outputs_metadata_only_summary", () => {
     const result = spawnSync(process.execPath, ["scripts/local-handoff-demo.mjs"], {
       cwd: rootDir,
