@@ -35,7 +35,12 @@ pnpm install --lockfile-only
 pnpm typecheck
 pnpm test
 pnpm lint
+pnpm review:self
 pnpm --filter @watasu/cli watasu
 pnpm audit --audit-level moderate
 ```
 
+## Local workflow helpers
+
+- `pnpm review:self` resolves the vendored or global gstack review checklist path and prints the standard validation and diff commands.
+- `pnpm pr:draft` creates a draft PR with `gh` when authenticated. If `gh` is not authenticated, it prints `gh auth login -h github.com` and the exact GitHub PR URL for the current branch.

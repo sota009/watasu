@@ -6,5 +6,9 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "../../scripts/secret-scan.d.mts"]
+  "include": [
+    "src/**/*.ts",
+    "../../scripts/secret-scan.d.mts",
+    "../../scripts/workflow-helpers.d.mts"
+  ]
 }
