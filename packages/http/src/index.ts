@@ -41,3 +41,9 @@ export type {
   HostedProductionRequest,
   HostedProductionResponse
 } from "./hosted-production.js";
+export {
+  buildHostedProductionRequest,
+  createHostedProductionServer,
+  loadHostedRuntimeConfig
+} from "./hosted-server.js";
+export type { HostedRuntimeConfig } from "./hosted-server.js";
