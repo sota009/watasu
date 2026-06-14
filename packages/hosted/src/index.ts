@@ -11,11 +11,13 @@ import {
 import {
   createHostedProductionBootstrapApp,
   createHostedProductionServer,
+  loadHostedPublicBaseUrlConfig,
   loadHostedRuntimeConfig,
   loadHostedPostgresRuntimeConfig,
   createSignedServiceIdentityHeaders,
   createSignedServiceIdentityPrincipalResolver,
   type CreateSignedServiceIdentityHeadersInput,
+  type HostedPublicBaseUrlConfig,
   type HostedRuntimeConfig,
   type HostedProductionRequest,
   type HostedPostgresRuntimeConfig
@@ -38,7 +40,7 @@ export interface HostedPostgresLedgerRuntime {
 }
 
 export interface HostedProductionServerRuntime {
-  config: HostedRuntimeConfig;
+  config: HostedRuntimeConfig & HostedPublicBaseUrlConfig;
   server: Server;
   close(): Promise<void>;
 }
@@ -130,7 +132,10 @@ export function createHostedProductionServerFromEnv(input: {
   env: Record<string, string | undefined>;
   now: () => Date;
 }): HostedProductionServerRuntime {
-  const config = loadHostedRuntimeConfig(input.env);
+  const config = {
+    ...loadHostedRuntimeConfig(input.env),
+    ...loadHostedPublicBaseUrlConfig(input.env)
+  };
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
     clock: input.now

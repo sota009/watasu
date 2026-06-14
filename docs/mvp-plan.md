@@ -121,6 +121,7 @@ Current repo-side status:
 - Done: low-information `/health` response.
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
 - Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, and URL-credential rejection checks. Local loopback HTTP remains allowed for smoke tests.
+- Done: hosted runtime validates `WATASU_PUBLIC_BASE_URL` at startup and the Render Blueprint pins it to `https://api.watasu.ai`.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:

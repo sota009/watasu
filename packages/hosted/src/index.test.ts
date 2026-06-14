@@ -16,6 +16,7 @@ describe("hosted production runtime package", () => {
     const runtime = createHostedProductionServerFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
         WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
         PORT: "10000"
       },
@@ -25,10 +26,25 @@ describe("hosted production runtime package", () => {
     // Assert
     expect(runtime.config).toEqual({
       host: "0.0.0.0",
+      publicBaseUrl: "https://api.watasu.ai",
       port: 10000
     });
     expect(runtime.server.listening).toBe(false);
     runtime.server.close();
+  });
+
+  test("test_hosted_production_server_from_env_rejects_invalid_public_base_url", () => {
+    expect(() =>
+      createHostedProductionServerFromEnv({
+        env: {
+          WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_PUBLIC_BASE_URL: "http://api.watasu.ai",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+          PORT: "10000"
+        },
+        now: () => new Date("2026-06-15T00:00:00.000Z")
+      })
+    ).toThrow("WATASU_PUBLIC_BASE_URL must use https outside local loopback.");
   });
 
   test("test_identity_provider_config_requires_signing_secret_for_signed_headers", () => {
