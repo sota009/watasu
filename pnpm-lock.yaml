@@ -32,6 +32,9 @@ importers:
       ajv:
         specifier: 8.20.0
         version: 8.20.0
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -266,6 +269,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
@@ -689,6 +695,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  jose@6.2.3: {}
 
   json-schema-traverse@1.0.0: {}
 
