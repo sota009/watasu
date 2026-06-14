@@ -8,6 +8,14 @@ export const hostedCanaryRequiredHeaders = {
 export const hostedCanaryUnpublishedRequestId = "__watasu_canary_missing__";
 export const defaultHostedCanaryTimeoutMs = 10_000;
 export const maxHostedCanaryTimeoutMs = 60_000;
+export const hostedCanaryForbiddenFragments = [
+  "tenant",
+  "ledger",
+  "postgres",
+  "payload",
+  "secret",
+  "WATASU_POSTGRES_URL"
+];
 
 export function buildHostedCanaryCheckUrls(baseUrl) {
   return {
@@ -68,6 +76,7 @@ export function buildHostedCanarySuccessReport(input) {
       input.urls.unsafeEncodedRequestId
     ],
     checked_headers: Object.keys(hostedCanaryRequiredHeaders),
+    checked_forbidden_fragments: hostedCanaryForbiddenFragments,
     checked_timeout_ms: input.timeoutMs,
     go_no_go: {
       decision: "go",

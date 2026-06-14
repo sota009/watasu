@@ -1,4 +1,5 @@
 export const hostedCanaryRequiredHeaders: Record<string, string>;
+export const hostedCanaryForbiddenFragments: string[];
 export const hostedCanaryUnpublishedRequestId: string;
 export const defaultHostedCanaryTimeoutMs: number;
 export const maxHostedCanaryTimeoutMs: number;
@@ -33,6 +34,7 @@ export function buildHostedCanarySuccessReport(input: {
   }>;
   checked_not_found_routes: string[];
   checked_headers: string[];
+  checked_forbidden_fragments: string[];
   checked_timeout_ms: number;
   go_no_go: {
     decision: "go";

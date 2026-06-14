@@ -212,6 +212,14 @@ describe("hosted canary helpers", () => {
         "referrer-policy",
         "x-content-type-options"
       ],
+      checked_forbidden_fragments: [
+        "tenant",
+        "ledger",
+        "postgres",
+        "payload",
+        "secret",
+        "WATASU_POSTGRES_URL"
+      ],
       checked_timeout_ms: 2500,
       go_no_go: {
         decision: "go",

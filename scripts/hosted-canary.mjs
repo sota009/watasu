@@ -4,6 +4,7 @@ import {
   buildHostedCanarySuccessReport,
   formatHostedCanaryRequestError,
   formatHostedCanaryResponseReadError,
+  hostedCanaryForbiddenFragments,
   hostedCanaryRequiredHeaders,
   resolveHostedCanaryBaseUrl,
   resolveHostedCanaryTimeoutMs,
@@ -52,15 +53,7 @@ if (parsed?.ok !== true || parsed?.service !== "watasu-hosted") {
   process.exit(1);
 }
 
-const forbiddenFragments = [
-  "tenant",
-  "ledger",
-  "postgres",
-  "payload",
-  "secret",
-  "WATASU_POSTGRES_URL"
-];
-const leakedFragment = forbiddenFragments.find((fragment) => body.includes(fragment));
+const leakedFragment = hostedCanaryForbiddenFragments.find((fragment) => body.includes(fragment));
 if (leakedFragment !== undefined) {
   console.error(`Health check leaked forbidden fragment: ${leakedFragment}`);
   process.exit(1);
@@ -329,7 +322,7 @@ async function assertMcpEndpoint(input) {
 }
 
 function mcpForbiddenFragments() {
-  return forbiddenFragments.filter((fragment) => fragment !== "ledger");
+  return hostedCanaryForbiddenFragments.filter((fragment) => fragment !== "ledger");
 }
 
 async function assertUnpublishedRoute(input) {
@@ -355,7 +348,7 @@ async function assertUnpublishedRoute(input) {
     process.exit(1);
   }
 
-  const routeLeak = forbiddenFragments.find((fragment) => checkedBody.includes(fragment));
+  const routeLeak = hostedCanaryForbiddenFragments.find((fragment) => checkedBody.includes(fragment));
   if (routeLeak !== undefined) {
     console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
     process.exit(1);
@@ -385,7 +378,7 @@ async function assertNotFoundRoute(input) {
     process.exit(1);
   }
 
-  const routeLeak = forbiddenFragments.find((fragment) => checkedBody.includes(fragment));
+  const routeLeak = hostedCanaryForbiddenFragments.find((fragment) => checkedBody.includes(fragment));
   if (routeLeak !== undefined) {
     console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
     process.exit(1);

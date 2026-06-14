@@ -168,7 +168,7 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
-The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_at`, `checked_origin`, `checked_timeout_ms`, `checked_not_found_routes`, `checked_method_boundaries`, and `go_no_go` so the cutover record shows when the check ran, which origin was checked, which public routes stayed low-information, which bound was used, which public metadata method boundary was verified, and which follow-up evidence is still required before private-alpha exposure. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge and that the protected-resource metadata URL is reachable without exposing payload or secret fragments.
+The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_at`, `checked_origin`, `checked_timeout_ms`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_forbidden_fragments`, and `go_no_go` so the cutover record shows when the check ran, which origin was checked, which public routes stayed low-information, which bound was used, which public metadata method boundary was verified, which leak fragments were checked, and which follow-up evidence is still required before private-alpha exposure. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge and that the protected-resource metadata URL is reachable without exposing payload or secret fragments.
 
 Hosted metadata retention dry run:
 
