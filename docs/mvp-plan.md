@@ -115,6 +115,7 @@ Current repo-side status:
 - Done: Render web-service Blueprint for `api.watasu.ai`.
 - Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
 - Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`.
+- Done: retention dry-run mode using `pnpm --filter @watasu/hosted retention -- --dry-run` for pre-cutover checks without deleting rows.
 - Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` until hosted read/write wiring intentionally needs DB access.
 - Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
@@ -136,7 +137,7 @@ Product owner actions:
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
 5. In Render, set the prompted secret value for the production service. Real secret values must be entered in Render only, never committed to git.
 6. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
-7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, retention cron dry run, and no-payload-custody checks pass on the deployed URL.
+7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, `pnpm --filter @watasu/hosted retention -- --dry-run`, and no-payload-custody checks pass on the deployed URL.
 
 Recommended production environment variables:
 
@@ -166,6 +167,7 @@ Owner checklist for the first production cutover:
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
 [ ] `pnpm canary:hosted -- https://api.watasu.ai` passes.
+[ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 

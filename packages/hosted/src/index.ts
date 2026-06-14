@@ -50,6 +50,10 @@ export interface HostedRetentionJobConfig {
   retentionDays: number;
 }
 
+export interface HostedRetentionArgs {
+  dryRun: boolean;
+}
+
 export type HostedIdentityProviderConfig =
   | {
       provider: "signed_headers";
@@ -126,6 +130,23 @@ export function loadHostedRetentionJobConfig(env: Record<string, string | undefi
       name: "WATASU_METADATA_RETENTION_DAYS"
     })
   };
+}
+
+export function parseHostedRetentionArgs(argv: readonly string[]): HostedRetentionArgs {
+  const args = argv.slice(2);
+  if (args.length === 0) {
+    return {
+      dryRun: false
+    };
+  }
+
+  if (args.length === 1 && args[0] === "--dry-run") {
+    return {
+      dryRun: true
+    };
+  }
+
+  throw new Error("Usage: pnpm --filter @watasu/hosted retention -- [--dry-run]");
 }
 
 export function createHostedProductionServerFromEnv(input: {
@@ -267,6 +288,7 @@ export async function createHostedPostgresLedgerStoreFromEnv(input: {
 }
 
 export async function runHostedPostgresRetentionJobFromEnv(input: {
+  dryRun?: boolean | undefined;
   env: Record<string, string | undefined>;
   now: () => Date;
   createPool?: ((config: PoolConfig) => PostgresPoolLike) | undefined;
@@ -280,6 +302,7 @@ export async function runHostedPostgresRetentionJobFromEnv(input: {
 
   try {
     return await runHostedMetadataLedgerRetentionJob({
+      dryRun: input.dryRun,
       serviceIdentity: {
         tenant_id: config.tenantId,
         roles: ["auditor"]

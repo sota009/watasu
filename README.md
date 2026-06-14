@@ -168,6 +168,12 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
+Hosted metadata retention dry run:
+
+```bash
+pnpm --filter @watasu/hosted retention -- --dry-run
+```
+
 `pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
 
 ## Current MVP Status
@@ -236,6 +242,7 @@ Currently implemented:
 - hosted Node/PostgreSQL runtime package with bounded pool config and query adapter
 - hosted signed-header identity provider runtime config for production entrypoints
 - hosted Postgres retention command for scheduled metadata cleanup
+- hosted Postgres retention dry-run mode for pre-cutover checks
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist

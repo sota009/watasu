@@ -29,9 +29,11 @@ export interface RetentionDeliveryLedgerStore {
 
 export interface MetadataLedgerRetentionResult {
   ok: true;
+  dry_run?: true;
   scanned: number;
   deleted: number;
   retained: number;
+  would_delete?: number;
 }
 
 export type HostedMetadataLedgerRetentionJobResult =
@@ -360,6 +362,7 @@ export function createMetadataLedgerReader(input: {
 }
 
 export async function runMetadataLedgerRetention(input: {
+  dryRun?: boolean | undefined;
   now: Date;
   retentionDays: number;
   store: RetentionDeliveryLedgerStore;
@@ -367,6 +370,17 @@ export async function runMetadataLedgerRetention(input: {
   const rows = await input.store.listDeliveryRows();
   const cutoffMs = input.now.getTime() - input.retentionDays * 24 * 60 * 60 * 1000;
   const expiredRows = rows.filter((row) => new Date(row.delivered_at).getTime() < cutoffMs);
+
+  if (input.dryRun === true) {
+    return {
+      ok: true,
+      dry_run: true,
+      scanned: rows.length,
+      deleted: 0,
+      retained: rows.length,
+      would_delete: expiredRows.length
+    };
+  }
 
   if (expiredRows.length > 0) {
     await input.store.deleteDeliveryRows(expiredRows);
@@ -381,6 +395,7 @@ export async function runMetadataLedgerRetention(input: {
 }
 
 export async function runHostedMetadataLedgerRetentionJob(input: {
+  dryRun?: boolean | undefined;
   serviceIdentity: HostedServiceIdentity;
   now: Date;
   retentionDays: number;
@@ -400,6 +415,7 @@ export async function runHostedMetadataLedgerRetentionJob(input: {
   return {
     tenant_id: input.serviceIdentity.tenant_id,
     ...await runMetadataLedgerRetention({
+      dryRun: input.dryRun,
       now: input.now,
       retentionDays: input.retentionDays,
       store: input.store

@@ -7,7 +7,8 @@ import {
   createNodePostgresPoolConfig,
   createPostgresPoolQueryClient,
   loadHostedRetentionJobConfig,
-  loadHostedIdentityProviderConfig
+  loadHostedIdentityProviderConfig,
+  parseHostedRetentionArgs
 } from "./index.js";
 
 describe("hosted production runtime package", () => {
@@ -97,6 +98,21 @@ describe("hosted production runtime package", () => {
         WATASU_METADATA_RETENTION_DAYS: "14x"
       })
     ).toThrow("WATASU_METADATA_RETENTION_DAYS must be a positive integer.");
+  });
+
+  test("test_parse_hosted_retention_args_accepts_dry_run_only", () => {
+    expect(parseHostedRetentionArgs(["node", "retention-bin.js"])).toEqual({
+      dryRun: false
+    });
+    expect(parseHostedRetentionArgs(["node", "retention-bin.js", "--dry-run"])).toEqual({
+      dryRun: true
+    });
+  });
+
+  test("test_parse_hosted_retention_args_rejects_unknown_arguments", () => {
+    expect(() => parseHostedRetentionArgs(["node", "retention-bin.js", "--delete-now"])).toThrow(
+      "Usage: pnpm --filter @watasu/hosted retention -- [--dry-run]"
+    );
   });
 
   test("test_signed_header_identity_provider_from_env_resolves_principal", () => {
@@ -296,5 +312,70 @@ describe("hosted production runtime package", () => {
     expect(closed).toBe(true);
     expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
     expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_hosted_postgres_retention_job_from_env_dry_run_does_not_delete_rows", async () => {
+    // Arrange
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    let closed = false;
+
+    // Act
+    const result = await runHostedPostgresRetentionJobFromEnv({
+      dryRun: true,
+      env: {
+        WATASU_METADATA_LEDGER_STORE: "postgres",
+        WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+        WATASU_POSTGRES_RUN_MIGRATIONS: "false",
+        WATASU_RETENTION_TENANT_ID: "tenant-a",
+        WATASU_METADATA_RETENTION_DAYS: "7"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z"),
+      createPool() {
+        return {
+          async query(text, values) {
+            queries.push({
+              text,
+              values
+            });
+            return {
+              rows: text.includes("select")
+                ? [
+                    {
+                      request_id: "request-a",
+                      request_version: "v1",
+                      idempotency_key: "expired-submit",
+                      submitted_at: "2026-06-01T00:00:00.000Z",
+                      delivered_at: "2026-06-01T00:00:01.000Z",
+                      delivery_status: "delivered",
+                      destination_url_hash: "sha256:destination",
+                      encrypted_payload_hash: "sha256:payload"
+                    }
+                  ]
+                : []
+            };
+          },
+          async end() {
+            closed = true;
+          }
+        };
+      }
+    });
+
+    // Assert
+    expect(result).toEqual({
+      ok: true,
+      dry_run: true,
+      tenant_id: "tenant-a",
+      scanned: 1,
+      deleted: 0,
+      retained: 1,
+      would_delete: 1
+    });
+    expect(queries.map((query) => query.text).join("\n")).not.toContain("delete from watasu_delivery_ledger");
+    expect(closed).toBe(true);
+    expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
   });
 });

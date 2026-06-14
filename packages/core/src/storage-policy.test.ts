@@ -226,6 +226,42 @@ describe("storage policy controlled delivery ledger", () => {
     expect(deleted).toEqual([expired]);
   });
 
+  test("test_metadata_retention_dry_run_reports_expired_rows_without_deleting", async () => {
+    const deleted: DeliveryLedgerRow[] = [];
+    const expired = createLedgerRow({
+      idempotency_key: "expired-submit",
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    });
+    const active = createLedgerRow({
+      idempotency_key: "active-submit",
+      delivered_at: "2026-06-13T12:00:00.000Z"
+    });
+
+    const result = await runMetadataLedgerRetention({
+      dryRun: true,
+      now: new Date("2026-06-14T12:00:00.000Z"),
+      retentionDays: 7,
+      store: {
+        listDeliveryRows() {
+          return [expired, active];
+        },
+        deleteDeliveryRows(rows) {
+          deleted.push(...rows);
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      dry_run: true,
+      scanned: 2,
+      deleted: 0,
+      retained: 2,
+      would_delete: 1
+    });
+    expect(deleted).toHaveLength(0);
+  });
+
   test("test_metadata_retention_keeps_boundary_row", async () => {
     const deleted: DeliveryLedgerRow[] = [];
     const boundary = createLedgerRow({
