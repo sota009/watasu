@@ -37,7 +37,7 @@ process.stdout.write(`${JSON.stringify({
     "Add api.watasu.ai as the Render custom domain, configure the DNS record Render gives you, then verify DNS/TLS in Render."
   ],
   before_render_commands: [
-    "pnpm --silent cutover:prepare",
+    "pnpm --silent cutover:repo",
     "pnpm --silent cutover:status",
     "pnpm --silent secret:identity --plain"
   ],

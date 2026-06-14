@@ -301,6 +301,7 @@ describe("workspace foundation", () => {
       dns_origin: string;
       external_actions: string[];
       status_command: string;
+      before_render_commands: string[];
       after_render_commands: string[];
     };
     expect(report).toMatchObject({
@@ -312,6 +313,11 @@ describe("workspace foundation", () => {
       status_command: "pnpm --silent cutover:status",
       manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"],
       dns_origin: "https://api.watasu.ai",
+      before_render_commands: [
+        "pnpm --silent cutover:repo",
+        "pnpm --silent cutover:status",
+        "pnpm --silent secret:identity --plain"
+      ],
       after_render_commands: [
         "pnpm --silent cutover:status",
         "pnpm --silent cutover:canary",
@@ -644,7 +650,8 @@ describe("workspace foundation", () => {
       ok: true,
       target_origin: "https://api.watasu.ai",
       before_render_commands: [
-        "pnpm --silent cutover:prepare",
+        "pnpm --silent cutover:repo",
+        "pnpm --silent cutover:status",
         "pnpm --silent secret:identity --plain"
       ],
       after_deploy_commands: [

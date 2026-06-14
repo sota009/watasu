@@ -222,7 +222,7 @@ pnpm --silent cutover:prepare
 
 The prepare command writes `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, and `cutover-evidence/smoke.json` without persisting secret-like assignment output.
 
-To refresh all repo-side cutover evidence, including matching CI evidence:
+To refresh all repo-side cutover evidence, including matching CI evidence, use this before Render setup:
 
 ```bash
 pnpm --silent cutover:repo

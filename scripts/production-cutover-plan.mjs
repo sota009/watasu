@@ -7,7 +7,8 @@ process.stdout.write(`${JSON.stringify({
   checked_at: new Date().toISOString(),
   target_origin: targetOrigin,
   before_render_commands: [
-    "pnpm --silent cutover:prepare",
+    "pnpm --silent cutover:repo",
+    "pnpm --silent cutover:status",
     "pnpm --silent secret:identity --plain"
   ],
   external_actions: [

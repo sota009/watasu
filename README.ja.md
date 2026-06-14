@@ -218,7 +218,7 @@ pnpm --silent cutover:prepare
 
 prepare command は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json` を書き出し、secret-like assignment output は保存しません。
 
-matching CI evidence まで含めて repo-side cutover evidence をまとめて更新する場合:
+matching CI evidence まで含めて repo-side cutover evidence をまとめて更新する場合。Render setup 前はこれを使います:
 
 ```bash
 pnpm --silent cutover:repo
