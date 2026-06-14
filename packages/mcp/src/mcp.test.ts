@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
+  createHostedWatasuMcpServer,
   createWatasuMcpServer,
   mcpPackageName
 } from "./index.js";
@@ -42,6 +43,29 @@ async function createConnectedClient() {
   const server = createWatasuMcpServer();
   const client = new Client({
     name: "watasu-test-client",
+    version: "0.0.0"
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport)
+  ]);
+
+  return {
+    client,
+    server,
+    async close() {
+      await client.close();
+      await server.close();
+    }
+  };
+}
+
+async function createConnectedHostedClient(input: Parameters<typeof createHostedWatasuMcpServer>[0]) {
+  const server = createHostedWatasuMcpServer(input);
+  const client = new Client({
+    name: "watasu-hosted-test-client",
     version: "0.0.0"
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -133,6 +157,161 @@ describe("watasu MCP package", () => {
           })
         ])
       });
+    } finally {
+      await connected.close();
+    }
+  });
+
+  test("test_hosted_mcp_server_lists_hosted_tools", async () => {
+    const connected = await createConnectedHostedClient({
+      hostedApp: {
+        async handle() {
+          throw new Error("hosted app must not be called while listing tools");
+        }
+      },
+      serviceHeaders: {
+        authorization: "Bearer test-service-token"
+      }
+    });
+
+    try {
+      await expect(connected.client.listTools()).resolves.toMatchObject({
+        tools: expect.arrayContaining([
+          expect.objectContaining({
+            name: "publish_hosted_request"
+          }),
+          expect.objectContaining({
+            name: "list_hosted_delivery_ledger"
+          })
+        ])
+      });
+    } finally {
+      await connected.close();
+    }
+  });
+
+  test("test_hosted_mcp_publish_delegates_to_hosted_production_app", async () => {
+    const handledRequests: Array<{
+      method: string;
+      path: string;
+      headers: Record<string, string | undefined>;
+      body: string;
+    }> = [];
+    const connected = await createConnectedHostedClient({
+      hostedApp: {
+        async handle(request) {
+          handledRequests.push(request);
+          return {
+            status: 201,
+            headers: {
+              "content-type": "application/json; charset=utf-8"
+            },
+            body: "{\"ok\":true,\"published\":{\"request_id\":\"event-attendee-intake\"}}\n"
+          };
+        }
+      },
+      serviceHeaders: {
+        authorization: "Bearer test-service-token"
+      }
+    });
+
+    try {
+      const result = await connected.client.callTool({
+        name: "publish_hosted_request",
+        arguments: {
+          definitionText: validDefinition,
+          confirmed: true
+        }
+      });
+      const text = firstTextContent(result);
+
+      expect(JSON.parse(text)).toEqual({
+        ok: true,
+        published: {
+          request_id: "event-attendee-intake"
+        }
+      });
+      expect(handledRequests).toMatchObject([
+        {
+          method: "POST",
+          path: "/requests/event-attendee-intake/publish",
+          headers: {
+            authorization: "Bearer test-service-token",
+            "content-type": "application/json; charset=utf-8"
+          }
+        }
+      ]);
+      expect(JSON.parse(handledRequests[0]?.body ?? "{}")).toMatchObject({
+        confirmed: true,
+        definition: {
+          name: "event-attendee-intake"
+        }
+      });
+    } finally {
+      await connected.close();
+    }
+  });
+
+  test("test_hosted_mcp_ledger_delegates_without_payload_body", async () => {
+    const handledRequests: Array<{
+      method: string;
+      path: string;
+    }> = [];
+    const connected = await createConnectedHostedClient({
+      hostedApp: {
+        async handle(request) {
+          handledRequests.push({
+            method: request.method,
+            path: request.path
+          });
+          return {
+            status: 200,
+            headers: {
+              "content-type": "application/json; charset=utf-8"
+            },
+            body: JSON.stringify({
+              ok: true,
+              rows: [
+                {
+                  request_id: "event-attendee-intake",
+                  encrypted_payload_hash: "sha256:metadata-only"
+                }
+              ]
+            })
+          };
+        }
+      },
+      serviceHeaders: {
+        authorization: "Bearer test-service-token"
+      }
+    });
+
+    try {
+      const result = await connected.client.callTool({
+        name: "list_hosted_delivery_ledger",
+        arguments: {
+          requestId: "event-attendee-intake"
+        }
+      });
+      const text = firstTextContent(result);
+
+      expect(JSON.parse(text)).toMatchObject({
+        ok: true,
+        rows: [
+          {
+            request_id: "event-attendee-intake",
+            encrypted_payload_hash: "sha256:metadata-only"
+          }
+        ]
+      });
+      expect(text).not.toContain("\"encrypted_payload\"");
+      expect(text).not.toContain("base64url-ciphertext");
+      expect(handledRequests).toEqual([
+        {
+          method: "GET",
+          path: "/requests/event-attendee-intake/ledger"
+        }
+      ]);
     } finally {
       await connected.close();
     }

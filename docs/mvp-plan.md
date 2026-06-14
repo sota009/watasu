@@ -122,7 +122,7 @@ Done when:
 
 ### Phase 2: MCP publish and resources
 
-Status: done for the local in-memory MCP workspace.
+Status: done for the local in-memory MCP workspace and hosted production app delegation.
 
 Goal: service-side agents can finish the local workflow through MCP, not only CLI.
 
@@ -130,6 +130,7 @@ Implementation:
 
 - Add MCP `publish_request`.
 - Add MCP resources or read tools for Agent Card, plaintext schema, envelope schema, and metadata-only ledger.
+- Add hosted MCP tools that delegate publish and ledger reads to the hosted production app instead of local in-memory state.
 - Require explicit confirmation for publish.
 - Keep MCP outputs machine-readable.
 - Never expose payload values through MCP.
@@ -364,7 +365,7 @@ Avoid for MVP positioning:
 | tenant and role access control | Phase 5 |
 | retention | Phase 6 |
 | no payload custody | Local Protocol MVP, all hosted phases |
-| MCP publish and resources | Local Protocol MVP |
+| MCP publish and resources | Local Protocol MVP, hosted app delegation |
 | reference sender and receiver | Local Protocol MVP |
 
 ## Manual review checkpoints
