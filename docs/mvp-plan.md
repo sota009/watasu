@@ -269,6 +269,7 @@ Implementation:
 - Add short-lived circuit breaker for repeated webhook failures.
 - Re-check HTTPS, ownership, and SSRF constraints on redirects.
 - Keep the no payload retry queue rule.
+- Return sender-actionable `resubmit_later` guidance and `Retry-After` without storing payload bodies.
 
 Manual checks:
 
@@ -291,6 +292,7 @@ Done when:
 
 - timeouts return `resubmit_later`
 - idempotency claims are released after delivery failure so senders can resubmit
+- resubmission responses tell senders when to retry, which idempotency key rule applies, and which envelope fields to refresh
 - concurrency caps protect request and tenant workers
 - retention removes expired metadata without touching active request versions
 - no plaintext payload or encrypted payload body is persisted

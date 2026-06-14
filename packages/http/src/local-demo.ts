@@ -246,12 +246,21 @@ async function handleSubmit(
       );
     }
 
-    return jsonResponse(deliveryResult.status === "resubmit_later" ? 503 : 400, {
-      ok: false,
-      status: deliveryResult.status,
-      error: deliveryResult.error,
-      ledger: deliveryResult.ledger
-    });
+    return jsonResponse(
+      deliveryResult.status === "resubmit_later" ? 503 : 400,
+      {
+        ok: false,
+        status: deliveryResult.status,
+        error: deliveryResult.error,
+        resubmission: deliveryResult.resubmission,
+        ledger: deliveryResult.ledger
+      },
+      deliveryResult.resubmission === undefined
+        ? {}
+        : {
+            "retry-after": String(deliveryResult.resubmission.retry_after_seconds)
+          }
+    );
   }
 
   return jsonResponse(202, {
@@ -360,11 +369,16 @@ async function readRequestBody(request: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function jsonResponse(status: number, value: unknown): LocalDemoResponse {
+function jsonResponse(
+  status: number,
+  value: unknown,
+  headers: Record<string, string> = {}
+): LocalDemoResponse {
   return {
     status,
     headers: {
-      "content-type": "application/json; charset=utf-8"
+      "content-type": "application/json; charset=utf-8",
+      ...headers
     },
     body: `${JSON.stringify(value)}\n`
   };

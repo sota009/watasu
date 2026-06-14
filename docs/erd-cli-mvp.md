@@ -662,6 +662,7 @@ Webhook failure behavior:
 - watasu は retry のために encrypted payload を保持しない。
 - watasu は sender に `resubmit_later` を返す。
 - `resubmit_later` は idempotency key を terminal state として mark しない。sender は同じ payload を再送する場合、同じ `idempotency_key` と新しい `submission_id` / `submitted_at` / `expires_at` / signature を使う。payload を変更する場合は新しい `idempotency_key` を使う。
+- `resubmit_later` response は `retry_after_seconds`、`retry_after_source`、`idempotency_key_policy: reuse_for_same_payload`、`payload_policy: sender_resubmits_payload`、`refresh_fields: ["submitted_at", "expires_at", "sender_signature"]` を含む。HTTP surface は同じ秒数を `Retry-After` header にも出す。
 
 Delivery resilience defaults:
 
