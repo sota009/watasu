@@ -11,7 +11,7 @@ export interface HostedSenderKeyRecord {
   request_id: string;
   request_version: string;
   sender_key_id: string;
-  alg: "ES256";
+  alg: TrustedSenderPublicKey["alg"];
   public_jwk: TrustedSenderPublicKey["public_jwk"];
   status: HostedSenderTrustRecordStatus;
   not_before: string;
@@ -66,7 +66,7 @@ export class InMemoryHostedSenderKeyRegistry {
     request_id: string;
     request_version: string;
     sender_key_id: string;
-    alg: "ES256";
+    alg: TrustedSenderPublicKey["alg"];
     public_jwk: TrustedSenderPublicKey["public_jwk"];
     not_before: string;
     expires_at: string;
@@ -113,7 +113,7 @@ export class InMemoryHostedSenderKeyRegistry {
     tenant_id: string;
     previous_sender_key_id: string;
     next_sender_key_id: string;
-    alg: "ES256";
+    alg: TrustedSenderPublicKey["alg"];
     public_jwk: TrustedSenderPublicKey["public_jwk"];
     not_before: string;
     expires_at: string;
