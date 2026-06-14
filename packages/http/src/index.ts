@@ -23,3 +23,12 @@ export type {
   HostedPublishRequest,
   HostedPublishResponse
 } from "./hosted-publish.js";
+export { createHostedSenderTrustResolver } from "./hosted-sender-auth.js";
+export type {
+  HostedPrivateInviteRecord,
+  HostedSenderKeyRecord,
+  HostedSenderTrustInput,
+  HostedSenderTrustRecordStatus,
+  HostedSenderTrustResolver,
+  HostedSenderTrustResult
+} from "./hosted-sender-auth.js";
