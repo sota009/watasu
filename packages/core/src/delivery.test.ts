@@ -6,6 +6,7 @@ import { createRequestVersionHashes, type PublishedRequestVersion } from "./requ
 import {
   createFetchDeliveryClient,
   InMemoryDeliveryCircuitBreaker,
+  InMemoryDeliveryConcurrencyLimiter,
   deliverAcceptedSubmission,
   type AcceptedSubmission,
   type DeliveryClient,
@@ -511,6 +512,83 @@ describe("webhook delivery and metadata-only ledger", () => {
     ]);
     expect(retainedJson).not.toContain("base64url-ciphertext");
     expect(retainedJson).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_request_concurrency_cap_fails_fast_without_payload_body", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const ledger = createLedger();
+    const client = createClient(204);
+    const limiter = new InMemoryDeliveryConcurrencyLimiter({
+      maxPerRequest: 0,
+      maxPerTenant: 10
+    });
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      concurrencyLimiter: limiter,
+      tenantId: "tenant-a",
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    const retainedJson = canonicalizeJson({
+      result,
+      ledger: ledger.rows
+    });
+
+    expect(client.requests).toHaveLength(0);
+    expect(result).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "delivery_concurrency_limited"
+      }
+    });
+    expect(ledger.rows).toMatchObject([
+      {
+        delivery_status: "resubmit_later",
+        error_code: "delivery_concurrency_limited"
+      }
+    ]);
+    expect(retainedJson).not.toContain("base64url-ciphertext");
+    expect(retainedJson).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_tenant_concurrency_cap_fails_fast_before_webhook_delivery", async () => {
+    const published = createPublished();
+    const ledger = createLedger();
+    const client = createClient(204);
+    const limiter = new InMemoryDeliveryConcurrencyLimiter({
+      maxPerRequest: 10,
+      maxPerTenant: 0
+    });
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope: createEnvelope(published),
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      concurrencyLimiter: limiter,
+      tenantId: "tenant-a",
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+
+    expect(client.requests).toHaveLength(0);
+    expect(result).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "delivery_concurrency_limited"
+      }
+    });
   });
 
   test("test_ledger_row_does_not_store_plaintext_or_encrypted_payload_body", async () => {

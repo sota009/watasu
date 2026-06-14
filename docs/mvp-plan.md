@@ -257,7 +257,7 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
-Status: started; delivery timeout classification, delivery circuit breaker, and metadata ledger retention are covered.
+Status: started; delivery timeout classification, delivery circuit breaker, delivery concurrency caps, and metadata ledger retention are covered.
 
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 

@@ -35,7 +35,8 @@ export {
 export {
   createFetchDeliveryClient,
   deliverAcceptedSubmission,
-  InMemoryDeliveryCircuitBreaker
+  InMemoryDeliveryCircuitBreaker,
+  InMemoryDeliveryConcurrencyLimiter
 } from "./delivery.js";
 export {
   decryptJsonPayload,
@@ -94,6 +95,8 @@ export type {
 } from "./submission.js";
 export type {
   DeliveryClient,
+  DeliveryConcurrencyClaim,
+  DeliveryConcurrencyLimiter,
   DeliveryCircuitBreaker,
   FetchDeliveryClientFetch,
   DeliveryLogEvent,

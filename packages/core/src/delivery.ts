@@ -51,6 +51,66 @@ export interface DeliveryCircuitBreaker {
   recordFailure(key: string): void;
 }
 
+export interface DeliveryConcurrencyClaim {
+  release(): void;
+}
+
+export interface DeliveryConcurrencyLimiter {
+  tryAcquire(input: {
+    requestKey: string;
+    tenantKey?: string | undefined;
+  }): DeliveryConcurrencyClaim | undefined;
+}
+
+export class InMemoryDeliveryConcurrencyLimiter implements DeliveryConcurrencyLimiter {
+  readonly #activeByKey = new Map<string, number>();
+  readonly #maxPerRequest: number;
+  readonly #maxPerTenant: number;
+
+  constructor(input: {
+    maxPerRequest: number;
+    maxPerTenant: number;
+  }) {
+    this.#maxPerRequest = input.maxPerRequest;
+    this.#maxPerTenant = input.maxPerTenant;
+  }
+
+  tryAcquire(input: {
+    requestKey: string;
+    tenantKey?: string | undefined;
+  }): DeliveryConcurrencyClaim | undefined {
+    const keys = [
+      `request:${input.requestKey}`,
+      ...(input.tenantKey === undefined ? [] : [`tenant:${input.tenantKey}`])
+    ];
+    const requestCount = this.#activeByKey.get(keys[0] ?? "") ?? 0;
+    const tenantCount = input.tenantKey === undefined
+      ? 0
+      : this.#activeByKey.get(`tenant:${input.tenantKey}`) ?? 0;
+
+    if (requestCount >= this.#maxPerRequest || tenantCount >= this.#maxPerTenant) {
+      return undefined;
+    }
+
+    for (const key of keys) {
+      this.#activeByKey.set(key, (this.#activeByKey.get(key) ?? 0) + 1);
+    }
+
+    return {
+      release: () => {
+        for (const key of keys) {
+          const nextCount = Math.max(0, (this.#activeByKey.get(key) ?? 0) - 1);
+          if (nextCount === 0) {
+            this.#activeByKey.delete(key);
+          } else {
+            this.#activeByKey.set(key, nextCount);
+          }
+        }
+      }
+    };
+  }
+}
+
 export class InMemoryDeliveryCircuitBreaker implements DeliveryCircuitBreaker {
   readonly #statesByKey = new Map<string, {
     failures: number;
@@ -190,6 +250,8 @@ export async function deliverAcceptedSubmission(input: {
   ledger: DeliveryLedger;
   logger?: DeliveryLogger | undefined;
   circuitBreaker?: DeliveryCircuitBreaker | undefined;
+  concurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
+  tenantId?: string | undefined;
   clock: () => Date;
   signingSecret: string;
 }): Promise<DeliveryResult> {
@@ -205,6 +267,27 @@ export async function deliverAcceptedSubmission(input: {
 
   const deliveredAt = input.clock().toISOString();
   const circuitBreakerKey = deliveryCircuitBreakerKey(input.published);
+  const concurrencyClaim = input.concurrencyLimiter?.tryAcquire({
+    requestKey: circuitBreakerKey,
+    tenantKey: input.tenantId
+  });
+  if (input.concurrencyLimiter !== undefined && concurrencyClaim === undefined) {
+    const ledgerRow = createLedgerRow(
+      input,
+      deliveredAt,
+      "resubmit_later",
+      undefined,
+      "delivery_concurrency_limited"
+    );
+    input.ledger.writeDeliveryAttempt(ledgerRow);
+    writeDeliveryLog(input.logger, ledgerRow);
+    return resubmitLater(
+      "delivery_concurrency_limited",
+      "Delivery concurrency limit was reached.",
+      ledgerRow
+    );
+  }
+
   if (input.circuitBreaker?.isOpen(circuitBreakerKey)) {
     const ledgerRow = createLedgerRow(
       input,
@@ -215,6 +298,7 @@ export async function deliverAcceptedSubmission(input: {
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
+    concurrencyClaim?.release();
     return resubmitLater("webhook_circuit_open", "Webhook delivery circuit is open.", ledgerRow);
   }
 
@@ -238,6 +322,7 @@ export async function deliverAcceptedSubmission(input: {
       input.ledger.writeDeliveryAttempt(ledgerRow);
       writeDeliveryLog(input.logger, ledgerRow);
       input.circuitBreaker?.recordSuccess(circuitBreakerKey);
+      concurrencyClaim?.release();
       return {
         ok: true,
         status: "delivered",
@@ -255,6 +340,7 @@ export async function deliverAcceptedSubmission(input: {
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     input.circuitBreaker?.recordFailure(circuitBreakerKey);
+    concurrencyClaim?.release();
     return resubmitLater("webhook_delivery_failed", "Webhook delivery did not return 2xx.", ledgerRow);
   } catch (error) {
     const errorCode = isAbortError(error)
@@ -273,6 +359,7 @@ export async function deliverAcceptedSubmission(input: {
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     input.circuitBreaker?.recordFailure(circuitBreakerKey);
+    concurrencyClaim?.release();
     return resubmitLater(errorCode, message, ledgerRow);
   }
 }
