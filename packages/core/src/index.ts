@@ -10,6 +10,10 @@ export {
   InMemoryRequestVersionRepository,
   createRequestVersionHashes
 } from "./request-version.js";
+export {
+  generateEncryptedEnvelopeSchema,
+  generatePlaintextPayloadSchema
+} from "./schema.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -23,3 +27,4 @@ export type {
   PublishedRequestVersion,
   RequestVersionHashes
 } from "./request-version.js";
+export type { JsonSchemaObject, JsonSchemaProperty } from "./schema.js";

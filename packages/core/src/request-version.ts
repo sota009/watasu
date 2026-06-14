@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { canonicalizeJson, type RequestDefinition } from "./request-definition.js";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
+import { generatePlaintextPayloadSchema } from "./schema.js";
 
 export interface RequestVersionHashes {
   request_version_hash: Sha256Hash;
@@ -149,14 +150,7 @@ export class FileSystemRequestVersionRepository {
 export function createRequestVersionHashes(definition: RequestDefinition): RequestVersionHashes {
   return {
     request_version_hash: hashJson(definition),
-    schema_hash: hashJson({
-      fields: definition.fields.map((field) => ({
-        id: field.id,
-        type: field.type,
-        required: field.required,
-        format: field.format
-      }))
-    }),
+    schema_hash: hashJson(generatePlaintextPayloadSchema(definition)),
     consent_text_hash: sha256Hash(definition.consent.text),
     field_purposes_hash: hashJson(
       definition.fields.map((field) => ({
