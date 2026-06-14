@@ -3,7 +3,6 @@ import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
 export const watasuA2aProtocolVersion = "1.0";
 export const watasuA2aHttpJsonContentType = "application/a2a+json";
 const jsonPartMediaType = "application/json";
-const sendMessageMethod = "message/send";
 
 export interface A2aSubmissionRequest {
   headers: Record<string, string | undefined>;
@@ -114,41 +113,32 @@ function validateSendMessageShape(body: unknown): A2aProtocolGateResult {
     );
   }
 
-  if (body.method !== sendMessageMethod) {
+  if (Object.hasOwn(body, "jsonrpc") || Object.hasOwn(body, "method") || Object.hasOwn(body, "params")) {
     return reject(
-      "invalid_send_message_method",
+      "json_rpc_binding_not_supported",
       400,
-      "A2A submission body must use method message/send.",
-      "body.method"
+      "A2A HTTP+JSON submissions must use a SendMessageRequest body, not JSON-RPC fields.",
+      "body"
     );
   }
 
-  const params = body.params;
-  if (!isRecord(params)) {
+  const configuration = body.configuration;
+  if (configuration !== undefined && !isRecord(configuration)) {
     return reject(
-      "invalid_send_message_params",
+      "invalid_send_message_configuration",
       400,
-      "A2A SendMessage params must be a JSON object.",
-      "body.params"
+      "A2A SendMessage configuration must be a JSON object when present.",
+      "body.configuration"
     );
   }
 
-  if (Object.hasOwn(params, "kind")) {
-    return reject(
-      "legacy_kind_discriminator",
-      400,
-      "Legacy kind discriminators are not accepted by this A2A protocol gate.",
-      "body.params.kind"
-    );
-  }
-
-  const message = params.message;
+  const message = body.message;
   if (!isRecord(message)) {
     return reject(
       "invalid_send_message",
       400,
-      "A2A SendMessage params.message must be a JSON object.",
-      "body.params.message"
+      "A2A SendMessageRequest message must be a JSON object.",
+      "body.message"
     );
   }
 
@@ -157,7 +147,7 @@ function validateSendMessageShape(body: unknown): A2aProtocolGateResult {
       "legacy_kind_discriminator",
       400,
       "Legacy kind discriminators are not accepted by this A2A protocol gate.",
-      "body.params.message.kind"
+      "body.message.kind"
     );
   }
 
@@ -167,7 +157,7 @@ function validateSendMessageShape(body: unknown): A2aProtocolGateResult {
       "missing_message_parts",
       400,
       "A2A SendMessage must contain at least one message part.",
-      "body.params.message.parts"
+      "body.message.parts"
     );
   }
 
@@ -186,7 +176,7 @@ function findFirstDataPart(
   parts: unknown[]
 ): { ok: true; part: Record<string, unknown> } | { ok: false; error: A2aProtocolError } {
   for (const [index, part] of parts.entries()) {
-    const partPath = `body.params.message.parts[${index}]`;
+    const partPath = `body.message.parts[${index}]`;
     if (!isRecord(part)) {
       return reject("invalid_message_part", 400, "A2A message parts must be objects.", partPath);
     }
@@ -223,7 +213,7 @@ function findFirstDataPart(
     "missing_data_part",
     400,
     "A2A SendMessage must contain a data part.",
-    "body.params.message.parts"
+    "body.message.parts"
   );
 }
 
