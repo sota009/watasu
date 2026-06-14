@@ -31,7 +31,8 @@ export {
   InMemorySubmissionRateLimiter,
   buildSenderSignaturePayload,
   createIdempotencyClaimKey,
-  validateSubmissionEnvelope
+  validateSubmissionEnvelope,
+  validateSubmissionEnvelopeMetadata
 } from "./submission.js";
 export {
   createFetchDeliveryClient,

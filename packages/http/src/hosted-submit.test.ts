@@ -303,6 +303,82 @@ describe("hosted submit HTTP app", () => {
     expect(deliveryRequests).toHaveLength(0);
   });
 
+  test("test_hosted_submit_rejects_metadata_mismatch_before_sender_trust_lookup", async () => {
+    // Arrange
+    const verifiedSenderDefinition: RequestDefinition = {
+      ...definition,
+      trust_profile: "verified_sender"
+    };
+    const repository = new InMemoryRequestVersionRepository();
+    const published = repository.publish("event-attendee-intake", verifiedSenderDefinition);
+    const deliveryRequests: DeliveryRequest[] = [];
+    const trustInputs: unknown[] = [];
+    const body = createA2aBody({ published }) as unknown as {
+      message: {
+        parts: [
+          {
+            data: Record<string, unknown>;
+          }
+        ];
+      };
+    };
+    body.message.parts[0].data = {
+      ...body.message.parts[0].data,
+      schema_hash: "sha256:wrong",
+      sender_key_id: "sender-key-active"
+    };
+    const app = createHostedSubmitApp({
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: repository,
+      deliveryClient: {
+        async post(request) {
+          deliveryRequests.push(request);
+          return {
+            status: 204
+          };
+        }
+      },
+      ledger: {
+        writeDeliveryAttempt() {}
+      },
+      idempotencyStore: new InMemoryIdempotencyStore(),
+      rateLimiter: new InMemorySubmissionRateLimiter({
+        limit: 60,
+        windowMs: 60_000,
+        clock: () => new Date("2026-06-15T00:00:01.000Z")
+      }),
+      resolveDeliveryHost: async () => ["203.0.113.10"],
+      resolveSenderTrust(input) {
+        trustInputs.push(input);
+        return {
+          trustedSenderKeyIds: ["sender-key-active"],
+          trustedSenderPublicKeys: [],
+          trustedInvites: []
+        };
+      },
+      clock: () => new Date("2026-06-15T00:00:01.000Z"),
+      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
+      tenantId: "tenant-a"
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      body
+    }));
+
+    // Assert
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "schema_hash_mismatch"
+      }
+    });
+    expect(trustInputs).toHaveLength(0);
+    expect(deliveryRequests).toHaveLength(0);
+  });
+
   test("test_hosted_submit_returns_not_found_for_unpublished_request", async () => {
     // Arrange
     const app = createHostedSubmitApp({

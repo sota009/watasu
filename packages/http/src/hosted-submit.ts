@@ -4,6 +4,7 @@ import {
   gateA2aSubmissionProtocol,
   sha256Hash,
   validateSubmissionEnvelope,
+  validateSubmissionEnvelopeMetadata,
   type DeliveryCircuitBreaker,
   type DeliveryClient,
   type DeliveryConcurrencyLimiter,
@@ -129,6 +130,15 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
       }
 
       const capabilityUrl = `${input.publicBaseUrl}/requests/${encodeURIComponent(published.request_id)}/submit`;
+      const metadataError = validateSubmissionEnvelopeMetadata(gateResult.envelopeCandidate, published);
+      if (metadataError !== undefined) {
+        return jsonResponse(400, {
+          ok: false,
+          status: "rejected",
+          error: metadataError
+        });
+      }
+
       const senderTrust = resolveSenderTrust({
         resolver: input.resolveSenderTrust,
         tenantId: input.tenantId,

@@ -233,7 +233,7 @@ export function validateSubmissionEnvelope(
   envelope: SubmissionEnvelope,
   context: SubmissionValidationContext
 ): SubmissionValidationResult {
-  const staticError = validateEnvelopeMetadata(envelope, context.published);
+  const staticError = validateSubmissionEnvelopeMetadata(envelope, context.published);
   if (staticError !== undefined) {
     return rejected(staticError.code, staticError.message);
   }
@@ -304,7 +304,7 @@ export function createIdempotencyClaimKey(envelope: Pick<
   return `${envelope.request_id}:${envelope.request_version}:${envelope.idempotency_key}`;
 }
 
-function validateEnvelopeMetadata(
+export function validateSubmissionEnvelopeMetadata(
   envelope: SubmissionEnvelope,
   published: PublishedRequestVersion
 ): SubmissionValidationError | undefined {
