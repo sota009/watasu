@@ -1,13 +1,21 @@
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server } from "node:http";
 import {
   buildAgentCard,
+  deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
   generateEncryptedEnvelopeSchema,
   generatePlaintextPayloadSchema,
+  InMemoryIdempotencyStore,
   InMemoryRequestVersionRepository,
+  InMemorySubmissionRateLimiter,
+  validateSubmissionEnvelope,
   watasuA2aHttpJsonContentType,
+  type DeliveryClient,
+  type DeliveryLedger,
+  type DeliveryLedgerRow,
   type PublishedRequestVersion,
-  type RequestDefinition
+  type RequestDefinition,
+  type SubmissionEnvelope
 } from "@watasu/core";
 
 export const localDemoRequestId = "event-attendee-intake";
@@ -31,8 +39,29 @@ export interface LocalDemoApp {
   handle(request: LocalDemoRequest): Promise<LocalDemoResponse>;
 }
 
-export function createLocalDemoApp(input: { baseUrl: string }): LocalDemoApp {
+export interface CreateLocalDemoAppInput {
+  baseUrl: string;
+  deliveryClient?: DeliveryClient | undefined;
+  clock?: (() => Date) | undefined;
+  signingSecret?: string | undefined;
+}
+
+export function createLocalDemoApp(input: CreateLocalDemoAppInput): LocalDemoApp {
   const published = publishFixtureRequest();
+  const clock = input.clock ?? (() => new Date());
+  const deliveryClient = input.deliveryClient ?? createNoopDeliveryClient();
+  const ledgerRows: DeliveryLedgerRow[] = [];
+  const ledger: DeliveryLedger = {
+    writeDeliveryAttempt(row) {
+      ledgerRows.push(row);
+    }
+  };
+  const idempotencyStore = new InMemoryIdempotencyStore();
+  const rateLimiter = new InMemorySubmissionRateLimiter({
+    limit: 60,
+    windowMs: 60_000,
+    clock
+  });
 
   return {
     published,
@@ -55,8 +84,24 @@ export function createLocalDemoApp(input: { baseUrl: string }): LocalDemoApp {
         );
       }
 
+      if (request.method === "GET" && request.path === "/ledger") {
+        return jsonResponse(200, {
+          ok: true,
+          ledger: ledgerRows
+        });
+      }
+
       if (request.method === "POST" && request.path === localDemoSubmitPath) {
-        return handleSubmit(request);
+        return handleSubmit(request, {
+          published,
+          capabilityUrl: `${input.baseUrl}/capabilities/local-demo`,
+          deliveryClient,
+          ledger,
+          idempotencyStore,
+          rateLimiter,
+          clock,
+          signingSecret: input.signingSecret ?? "local-demo-signing-secret"
+        });
       }
 
       return jsonResponse(404, {
@@ -84,7 +129,19 @@ export function createLocalDemoServer(app: LocalDemoApp): Server {
   });
 }
 
-async function handleSubmit(request: LocalDemoRequest): Promise<LocalDemoResponse> {
+async function handleSubmit(
+  request: LocalDemoRequest,
+  context: {
+    published: PublishedRequestVersion;
+    capabilityUrl: string;
+    deliveryClient: DeliveryClient;
+    ledger: DeliveryLedger;
+    idempotencyStore: InMemoryIdempotencyStore;
+    rateLimiter: InMemorySubmissionRateLimiter;
+    clock: () => Date;
+    signingSecret: string;
+  }
+): Promise<LocalDemoResponse> {
   const headerGateResult = gateA2aSubmissionProtocol({
     headers: request.headers,
     body: {}
@@ -115,9 +172,66 @@ async function handleSubmit(request: LocalDemoRequest): Promise<LocalDemoRespons
     return protocolErrorResponse(gateResult.error);
   }
 
+  if (!isSubmissionEnvelope(gateResult.envelopeCandidate)) {
+    return jsonResponse(400, {
+      ok: false,
+      error: {
+        code: "invalid_envelope",
+        message: "A2A data part must contain a watasu encrypted submission envelope.",
+        path: "body.message.parts[0].data"
+      }
+    });
+  }
+
+  const validationResult = validateSubmissionEnvelope(gateResult.envelopeCandidate, {
+    published: context.published,
+    capability: {
+      url: context.capabilityUrl,
+      revoked: false
+    },
+    idempotencyStore: context.idempotencyStore,
+    rateLimiter: context.rateLimiter,
+    clock: context.clock
+  });
+
+  if (!validationResult.ok) {
+    return jsonResponse(validationResult.status === "auth_required" ? 401 : 400, {
+      ok: false,
+      status: validationResult.status,
+      error: validationResult.error
+    });
+  }
+
+  const deliveryResult = await deliverAcceptedSubmission({
+    mode: "local_demo",
+    published: context.published,
+    envelope: gateResult.envelopeCandidate,
+    submission: validationResult.submission,
+    client: context.deliveryClient,
+    ledger: context.ledger,
+    clock: context.clock,
+    signingSecret: context.signingSecret
+  });
+
+  if (!deliveryResult.ok) {
+    if (deliveryResult.status === "resubmit_later") {
+      context.idempotencyStore.releaseValidation(
+        `${validationResult.submission.request_id}:${validationResult.submission.request_version}:${validationResult.submission.idempotency_key}`
+      );
+    }
+
+    return jsonResponse(deliveryResult.status === "resubmit_later" ? 503 : 400, {
+      ok: false,
+      status: deliveryResult.status,
+      error: deliveryResult.error,
+      ledger: deliveryResult.ledger
+    });
+  }
+
   return jsonResponse(202, {
     ok: true,
-    status: "protocol_accepted"
+    status: deliveryResult.status,
+    ledger: deliveryResult.ledger
   });
 }
 
@@ -228,6 +342,35 @@ function jsonResponse(status: number, value: unknown): LocalDemoResponse {
     },
     body: `${JSON.stringify(value)}\n`
   };
+}
+
+function createNoopDeliveryClient(): DeliveryClient {
+  return {
+    async post() {
+      return {
+        status: 204
+      };
+    }
+  };
+}
+
+function isSubmissionEnvelope(value: unknown): value is SubmissionEnvelope {
+  return (
+    isRecord(value) &&
+    typeof value.request_id === "string" &&
+    typeof value.request_version === "string" &&
+    typeof value.schema_hash === "string" &&
+    typeof value.consent_receipt_hash === "string" &&
+    typeof value.idempotency_key === "string" &&
+    typeof value.submitted_at === "string" &&
+    typeof value.service_key_id === "string" &&
+    isRecord(value.encrypted_payload) &&
+    typeof value.encrypted_payload_hash === "string"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export { watasuA2aHttpJsonContentType };
