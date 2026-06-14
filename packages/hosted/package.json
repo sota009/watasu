@@ -1,0 +1,21 @@
+{
+  "name": "@watasu/hosted",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "test": "vitest run --root ../.. src/*.test.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@watasu/core": "workspace:*",
+    "@watasu/http": "workspace:*",
+    "pg": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.20.0"
+  }
+}

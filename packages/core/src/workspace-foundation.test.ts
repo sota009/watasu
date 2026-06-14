@@ -23,7 +23,7 @@ describe("workspace foundation", () => {
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
       test: "pnpm typecheck && vitest run",
-      typecheck: "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp"
+      typecheck: "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
     });
   });
 
@@ -45,6 +45,9 @@ describe("workspace foundation", () => {
     const mcpPackageJson = readJson("packages/mcp/package.json") as {
       exports: Record<string, string>;
     };
+    const hostedPackageJson = readJson("packages/hosted/package.json") as {
+      exports: Record<string, string>;
+    };
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
@@ -56,6 +59,7 @@ describe("workspace foundation", () => {
     expect(fixturesPackageJson.exports).toHaveProperty(".");
     expect(httpPackageJson.exports).toHaveProperty(".");
     expect(mcpPackageJson.exports).toHaveProperty(".");
+    expect(hostedPackageJson.exports).toHaveProperty(".");
   });
 
   test("test_no_env_files_or_secret_like_values_are_committed", () => {
