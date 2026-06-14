@@ -45,6 +45,71 @@ export interface DeliveryLogger {
   write(event: DeliveryLogEvent): void;
 }
 
+export interface DeliveryCircuitBreaker {
+  isOpen(key: string): boolean;
+  recordSuccess(key: string): void;
+  recordFailure(key: string): void;
+}
+
+export class InMemoryDeliveryCircuitBreaker implements DeliveryCircuitBreaker {
+  readonly #statesByKey = new Map<string, {
+    failures: number;
+    openUntilMs: number | undefined;
+  }>();
+  readonly #failureThreshold: number;
+  readonly #cooldownMs: number;
+  readonly #clock: () => Date;
+
+  constructor(input: {
+    failureThreshold: number;
+    cooldownMs: number;
+    clock: () => Date;
+  }) {
+    this.#failureThreshold = input.failureThreshold;
+    this.#cooldownMs = input.cooldownMs;
+    this.#clock = input.clock;
+  }
+
+  isOpen(key: string): boolean {
+    const state = this.#statesByKey.get(key);
+    if (state?.openUntilMs === undefined) {
+      return false;
+    }
+
+    if (state.openUntilMs <= this.#clock().getTime()) {
+      this.#statesByKey.set(key, {
+        failures: 0,
+        openUntilMs: undefined
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  recordSuccess(key: string): void {
+    this.#statesByKey.set(key, {
+      failures: 0,
+      openUntilMs: undefined
+    });
+  }
+
+  recordFailure(key: string): void {
+    const state = this.#statesByKey.get(key) ?? {
+      failures: 0,
+      openUntilMs: undefined
+    };
+    const failures = state.failures + 1;
+
+    this.#statesByKey.set(key, {
+      failures,
+      openUntilMs: failures >= this.#failureThreshold
+        ? this.#clock().getTime() + this.#cooldownMs
+        : state.openUntilMs
+    });
+  }
+}
+
 export interface DeliveryLedgerRow {
   request_id: string;
   request_version: string;
@@ -124,6 +189,7 @@ export async function deliverAcceptedSubmission(input: {
   client: DeliveryClient;
   ledger: DeliveryLedger;
   logger?: DeliveryLogger | undefined;
+  circuitBreaker?: DeliveryCircuitBreaker | undefined;
   clock: () => Date;
   signingSecret: string;
 }): Promise<DeliveryResult> {
@@ -138,6 +204,20 @@ export async function deliverAcceptedSubmission(input: {
   }
 
   const deliveredAt = input.clock().toISOString();
+  const circuitBreakerKey = deliveryCircuitBreakerKey(input.published);
+  if (input.circuitBreaker?.isOpen(circuitBreakerKey)) {
+    const ledgerRow = createLedgerRow(
+      input,
+      deliveredAt,
+      "resubmit_later",
+      undefined,
+      "webhook_circuit_open"
+    );
+    input.ledger.writeDeliveryAttempt(ledgerRow);
+    writeDeliveryLog(input.logger, ledgerRow);
+    return resubmitLater("webhook_circuit_open", "Webhook delivery circuit is open.", ledgerRow);
+  }
+
   const body = buildDeliveryBody(input.envelope);
   const headers = buildDeliveryHeaders({
     body,
@@ -157,6 +237,7 @@ export async function deliverAcceptedSubmission(input: {
       const ledgerRow = createLedgerRow(input, deliveredAt, "delivered", response.status);
       input.ledger.writeDeliveryAttempt(ledgerRow);
       writeDeliveryLog(input.logger, ledgerRow);
+      input.circuitBreaker?.recordSuccess(circuitBreakerKey);
       return {
         ok: true,
         status: "delivered",
@@ -173,6 +254,7 @@ export async function deliverAcceptedSubmission(input: {
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
+    input.circuitBreaker?.recordFailure(circuitBreakerKey);
     return resubmitLater("webhook_delivery_failed", "Webhook delivery did not return 2xx.", ledgerRow);
   } catch (error) {
     const errorCode = isAbortError(error)
@@ -190,6 +272,7 @@ export async function deliverAcceptedSubmission(input: {
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
+    input.circuitBreaker?.recordFailure(circuitBreakerKey);
     return resubmitLater(errorCode, message, ledgerRow);
   }
 }
@@ -331,6 +414,10 @@ function writeDeliveryLog(
     webhook_status: row.webhook_status,
     error_code: row.error_code
   });
+}
+
+function deliveryCircuitBreakerKey(published: PublishedRequestVersion): string {
+  return `${published.request_id}:${published.request_version}`;
 }
 
 function isAbortError(error: unknown): boolean {
