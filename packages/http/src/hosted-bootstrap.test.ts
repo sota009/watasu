@@ -321,4 +321,56 @@ describe("hosted production bootstrap app", () => {
       }
     ]);
   });
+
+  test("test_bootstrap_rejects_cross_tenant_request_id_republish", async () => {
+    const repository = new InMemoryRequestVersionRepository();
+    let tenantId = "tenant-a";
+    const app = createHostedProductionBootstrapApp({
+      repository,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: () => ({
+        tenant_id: tenantId,
+        roles: ["publisher"]
+      }),
+      resolveOwnershipVerification: () => createOwnership()
+    });
+
+    const firstPublishResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      body: {
+        definition,
+        confirmed: true
+      }
+    }));
+    tenantId = "tenant-b";
+    const secondPublishResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      body: {
+        definition,
+        confirmed: true
+      }
+    }));
+
+    expect(firstPublishResponse.status).toBe(201);
+    expect(secondPublishResponse.status).toBe(403);
+    expect(parseJson(secondPublishResponse.body)).toEqual({
+      ok: false,
+      status: "forbidden",
+      error: {
+        code: "request_id_tenant_mismatch",
+        message: "Hosted request_id is owned by a different tenant."
+      }
+    });
+    expect(repository.list("event-attendee-intake")).toHaveLength(1);
+  });
 });

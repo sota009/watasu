@@ -28,6 +28,11 @@ export interface HostedPublishApp {
 export interface CreateHostedPublishAppInput {
   repository: RequestVersionPublisher;
   resolveServiceIdentity(request: HostedPublishRequest): HostedServiceIdentity | undefined;
+  authorizeRequestId?(input: {
+    serviceIdentity: HostedServiceIdentity;
+    request: HostedPublishRequest;
+    requestId: string;
+  }): HostedPublishAuthorizationResult;
   resolveOwnershipVerification(input: {
     serviceIdentity: HostedServiceIdentity;
     request: HostedPublishRequest;
@@ -36,6 +41,19 @@ export interface CreateHostedPublishAppInput {
   }): PublishOwnershipVerification;
   generateCapabilityToken?: (() => string) | undefined;
 }
+
+export type HostedPublishAuthorizationResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      status: "forbidden";
+      error: {
+        code: string;
+        message: string;
+      };
+    };
 
 export function createHostedPublishApp(input: CreateHostedPublishAppInput): HostedPublishApp {
   return {
@@ -81,6 +99,19 @@ export function createHostedPublishApp(input: CreateHostedPublishAppInput): Host
             code: "publisher_role_required",
             message: "Publishing hosted requests requires the publisher role."
           }
+        });
+      }
+
+      const authorization = input.authorizeRequestId?.({
+        serviceIdentity,
+        request,
+        requestId
+      }) ?? { ok: true };
+      if (!authorization.ok) {
+        return jsonResponse(403, {
+          ok: false,
+          status: authorization.status,
+          error: authorization.error
         });
       }
 

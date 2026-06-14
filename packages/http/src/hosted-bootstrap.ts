@@ -105,6 +105,21 @@ export function createHostedProductionBootstrapApp(
     publishApp: createHostedPublishApp({
       repository: publishRepository,
       resolveServiceIdentity,
+      authorizeRequestId({ serviceIdentity, requestId }) {
+        const existingTenantId = tenantByRequestId.get(requestId);
+        if (existingTenantId === undefined || existingTenantId === serviceIdentity.tenant_id) {
+          return { ok: true };
+        }
+
+        return {
+          ok: false,
+          status: "forbidden",
+          error: {
+            code: "request_id_tenant_mismatch",
+            message: "Hosted request_id is owned by a different tenant."
+          }
+        };
+      },
       resolveOwnershipVerification({ serviceIdentity, request, requestId, definition }) {
         pendingPublishTenants.set(requestId, serviceIdentity.tenant_id);
         return input.resolveOwnershipVerification({
