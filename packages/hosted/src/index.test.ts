@@ -172,6 +172,22 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_PUBLIC_BASE_URL must use https outside local loopback.");
   });
 
+  test("test_hosted_production_server_from_env_rejects_web_postgres_store_until_wired", () => {
+    expect(() =>
+      createHostedProductionServerFromEnv({
+        env: {
+          WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_METADATA_LEDGER_STORE: "postgres",
+          WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+          WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+          PORT: "10000"
+        },
+        now: () => new Date("2026-06-15T00:00:00.000Z")
+      })
+    ).toThrow("WATASU_METADATA_LEDGER_STORE must be disabled for hosted production web runtime.");
+  });
+
   test("test_identity_provider_config_requires_signing_secret_for_signed_headers", () => {
     expect(() =>
       loadHostedIdentityProviderConfig({
@@ -244,6 +260,17 @@ describe("hosted production runtime package", () => {
       new Error("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres."),
       "Hosted retention command failed."
     )).toBe("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
+  });
+
+  test("test_format_hosted_command_error_preserves_missing_secret_variable_name", () => {
+    const message = formatHostedCommandError(
+      new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers."),
+      "Hosted production startup failed."
+    );
+
+    expect(message).toBe(
+      "WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers."
+    );
   });
 
   test("test_format_hosted_command_error_hides_untrusted_error_details", () => {

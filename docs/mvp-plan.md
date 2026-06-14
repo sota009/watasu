@@ -116,7 +116,7 @@ Current repo-side status:
 - Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
 - Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`.
 - Done: retention dry-run mode using `pnpm --filter @watasu/hosted retention -- --dry-run` for pre-cutover checks without deleting rows.
-- Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` until hosted read/write wiring intentionally needs DB access.
+- Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` and rejects accidental `postgres` mode until hosted read/write wiring intentionally needs DB access.
 - Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.

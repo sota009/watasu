@@ -183,6 +183,11 @@ export function createHostedProductionServerFromEnv(input: {
     ...loadHostedRuntimeConfig(input.env),
     ...loadHostedPublicBaseUrlConfig(input.env)
   };
+  const webLedgerConfig = loadHostedPostgresRuntimeConfig(input.env);
+  if (webLedgerConfig.mode !== "disabled") {
+    throw new Error("WATASU_METADATA_LEDGER_STORE must be disabled for hosted production web runtime.");
+  }
+
   const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
