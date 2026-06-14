@@ -8,7 +8,7 @@
   },
   "scripts": {
     "demo": "node dist/bin.js",
-    "test": "vitest run --root ../.. packages/http/src/local-demo.test.ts",
+    "test": "vitest run --root ../.. src/*.test.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
