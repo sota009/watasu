@@ -98,7 +98,7 @@ export function createHostedProductionServer(
     if (isContentLengthOverLimit(request.headers, maxRequestBodyBytes)) {
       request.resume();
       const handled = requestBodyTooLargeResponse();
-      response.writeHead(handled.status, handled.headers);
+      response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
       response.end(handled.body);
       return;
     }
@@ -111,7 +111,7 @@ export function createHostedProductionServer(
     } catch (error) {
       if (isHostedRequestBodyTooLargeError(error)) {
         const handled = requestBodyTooLargeResponse();
-        response.writeHead(handled.status, handled.headers);
+        response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
         response.end(handled.body);
         return;
       }
@@ -126,9 +126,25 @@ export function createHostedProductionServer(
       body
     }));
 
-    response.writeHead(handled.status, handled.headers);
+    response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
     response.end(handled.body);
   });
+}
+
+const hostedSecurityHeaders = {
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff"
+} as const;
+
+export function withHostedSecurityHeaders(
+  headers: HostedProductionResponse["headers"]
+): HostedProductionResponse["headers"] {
+  return {
+    ...headers,
+    ...hostedSecurityHeaders
+  };
 }
 
 function parsePositiveIntegerEnv(value: string | undefined, input: {

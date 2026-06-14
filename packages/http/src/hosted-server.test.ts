@@ -6,6 +6,7 @@ import {
   loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig,
   readHostedRequestBody,
+  withHostedSecurityHeaders,
   type HostedProductionRequest
 } from "./hosted-server.js";
 
@@ -130,6 +131,29 @@ describe("hosted production server runtime", () => {
 
     expect(server.listening).toBe(false);
     server.close();
+  });
+
+  test("test_with_hosted_security_headers_adds_default_api_headers", () => {
+    const headers = withHostedSecurityHeaders({
+      "content-type": "application/json; charset=utf-8"
+    });
+
+    expect(headers).toEqual({
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      "content-type": "application/json; charset=utf-8",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff"
+    });
+  });
+
+  test("test_with_hosted_security_headers_enforces_security_headers", () => {
+    const headers = withHostedSecurityHeaders({
+      "cache-control": "private, max-age=30",
+      "content-type": "application/json; charset=utf-8"
+    });
+
+    expect(headers["cache-control"]).toBe("no-store");
   });
 
   test("test_read_hosted_request_body_rejects_body_over_limit", async () => {

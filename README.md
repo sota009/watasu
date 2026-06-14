@@ -204,6 +204,7 @@ Currently implemented:
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
 - low-information hosted `/health` endpoint for deployment health checks
+- hosted HTTP security headers for low-information API responses
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
 - hosted production binary through `@watasu/hosted`
@@ -232,7 +233,7 @@ Currently implemented:
 - hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
 - Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
 - GitHub Actions CI gate for Render `checksPass`
-- hosted canary script for `/health`
+- hosted canary script for `/health` status, body, leak fragments, and security headers
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 

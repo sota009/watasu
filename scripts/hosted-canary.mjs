@@ -21,6 +21,20 @@ if (response.status !== 200) {
   process.exit(1);
 }
 
+const requiredHeaders = {
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff"
+};
+for (const [name, expected] of Object.entries(requiredHeaders)) {
+  const actual = response.headers.get(name);
+  if (actual !== expected) {
+    console.error(`Health check header ${name} expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}.`);
+    process.exit(1);
+  }
+}
+
 let parsed;
 try {
   parsed = JSON.parse(body);
@@ -51,5 +65,6 @@ if (leakedFragment !== undefined) {
 console.log(JSON.stringify({
   ok: true,
   checked_url: healthUrl.toString(),
+  checked_headers: Object.keys(requiredHeaders),
   status: response.status
 }));

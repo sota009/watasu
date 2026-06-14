@@ -64,7 +64,7 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for `api.watasu.ai`: health-checkable web service, Blueprint-managed PostgreSQL, and scheduled metadata retention. External Render account, DNS, TLS, and secret setup remain follow-up work.
+Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for `api.watasu.ai`: health-checkable web service, default hosted API security headers, Blueprint-managed PostgreSQL, and scheduled metadata retention. External Render account, DNS, TLS, and secret setup remain follow-up work.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
@@ -88,7 +88,7 @@ pnpm loop:full
 pnpm demo:handoff
 ```
 
-Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, hosted health canary, Blueprint-managed PostgreSQL, and retention cron wiring are now present for the first private-alpha deploy. Cloud account setup, DNS, TLS, and secret manager values remain deployment operations outside this repository.
+Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, hosted security headers, hosted health canary, Blueprint-managed PostgreSQL, and retention cron wiring are now present for the first private-alpha deploy. Cloud account setup, DNS, TLS, and secret manager values remain deployment operations outside this repository.
 
 ### Deployment operations handoff
 
@@ -119,7 +119,8 @@ Current repo-side status:
 - Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
-- Done: `pnpm canary:hosted` for deployed health checks.
+- Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
+- Done: `pnpm canary:hosted` for deployed health, leak-fragment, and security-header checks.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
