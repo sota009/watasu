@@ -125,4 +125,20 @@ describe("workspace foundation", () => {
     expect(renderYaml).toContain("sync: false");
     expect(renderYaml).not.toContain("WATASU_POSTGRES_URL: postgres://");
   });
+
+  test("test_ci_workflow_runs_loop_with_read_only_permissions", () => {
+    const ciYaml = readFileSync(new URL(".github/workflows/ci.yml", rootDir), "utf8");
+
+    expect(ciYaml).toContain("permissions:");
+    expect(ciYaml).toContain("contents: read");
+    expect(ciYaml).toContain("pull_request:");
+    expect(ciYaml).not.toContain("pull_request_target");
+    expect(ciYaml).toContain("actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0");
+    expect(ciYaml).toContain("persist-credentials: false");
+    expect(ciYaml).toContain("actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e");
+    expect(ciYaml).toContain("node-version: 24.14.1");
+    expect(ciYaml).toContain("pnpm install --frozen-lockfile");
+    expect(ciYaml).toContain("pnpm loop");
+    expect(ciYaml).toContain("pnpm audit --audit-level moderate");
+  });
 });

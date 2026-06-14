@@ -116,6 +116,7 @@ Current repo-side status:
 - Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
 - Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`.
 - Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` until hosted read/write wiring intentionally needs DB access.
+- Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: `pnpm canary:hosted` for deployed health checks.
@@ -156,6 +157,7 @@ Owner checklist for the first production cutover:
 [ ] Dedicated API subdomain chosen.
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary checks.
+[ ] GitHub Actions CI is green on the deployed commit.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 
