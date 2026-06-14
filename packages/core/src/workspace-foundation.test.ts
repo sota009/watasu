@@ -2,7 +2,6 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-// @ts-expect-error The repository script is plain ESM and is exercised by pnpm lint.
 import { findSecretLikeValues } from "../../../scripts/secret-scan.mjs";
 
 const rootDir = new URL("../../../", import.meta.url);
