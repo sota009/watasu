@@ -42,7 +42,8 @@ export {
 } from "./jwe.js";
 export {
   createMetadataLedgerReader,
-  createPolicyControlledDeliveryLedger
+  createPolicyControlledDeliveryLedger,
+  runMetadataLedgerRetention
 } from "./storage-policy.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
@@ -113,7 +114,9 @@ export type {
   MetadataLedgerAuditLog,
   MetadataLedgerReader,
   MetadataLedgerReadResult,
+  MetadataLedgerRetentionResult,
   PersistentDeliveryLedgerStore,
+  RetentionDeliveryLedgerStore,
   StoragePolicy,
   StoragePolicyMode
 } from "./storage-policy.js";

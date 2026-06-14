@@ -10,6 +10,18 @@ export interface PersistentDeliveryLedgerStore {
   writeDeliveryAttempt(row: DeliveryLedgerRow): void;
 }
 
+export interface RetentionDeliveryLedgerStore {
+  listDeliveryRows(): DeliveryLedgerRow[];
+  deleteDeliveryRows(rows: DeliveryLedgerRow[]): void;
+}
+
+export interface MetadataLedgerRetentionResult {
+  ok: true;
+  scanned: number;
+  deleted: number;
+  retained: number;
+}
+
 export type HostedServiceRole =
   | "publisher"
   | "request_admin"
@@ -126,5 +138,26 @@ export function createMetadataLedgerReader(input: {
         rows
       };
     }
+  };
+}
+
+export function runMetadataLedgerRetention(input: {
+  now: Date;
+  retentionDays: number;
+  store: RetentionDeliveryLedgerStore;
+}): MetadataLedgerRetentionResult {
+  const rows = input.store.listDeliveryRows();
+  const cutoffMs = input.now.getTime() - input.retentionDays * 24 * 60 * 60 * 1000;
+  const expiredRows = rows.filter((row) => new Date(row.delivered_at).getTime() < cutoffMs);
+
+  if (expiredRows.length > 0) {
+    input.store.deleteDeliveryRows(expiredRows);
+  }
+
+  return {
+    ok: true,
+    scanned: rows.length,
+    deleted: expiredRows.length,
+    retained: rows.length - expiredRows.length
   };
 }

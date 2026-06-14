@@ -4,10 +4,11 @@ import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
+  runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
 } from "./storage-policy.js";
 
-function createLedgerRow(): DeliveryLedgerRow {
+function createLedgerRow(overrides: Partial<DeliveryLedgerRow> = {}): DeliveryLedgerRow {
   return {
     request_id: "event-attendee-intake",
     request_version: "v1",
@@ -17,7 +18,8 @@ function createLedgerRow(): DeliveryLedgerRow {
     delivery_status: "delivered",
     destination_url_hash: sha256Hash("https://receiver.example.com/watasu/intake"),
     encrypted_payload_hash: sha256Hash("encrypted-payload"),
-    webhook_status: 204
+    webhook_status: 204,
+    ...overrides
   };
 }
 
@@ -180,5 +182,88 @@ describe("storage policy controlled delivery ledger", () => {
         row_count: 1
       }
     ]);
+  });
+
+  test("test_metadata_retention_deletes_expired_ledger_rows", () => {
+    const deleted: DeliveryLedgerRow[] = [];
+    const expired = createLedgerRow({
+      idempotency_key: "expired-submit",
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    });
+    const active = createLedgerRow({
+      idempotency_key: "active-submit",
+      delivered_at: "2026-06-13T12:00:00.000Z"
+    });
+
+    const result = runMetadataLedgerRetention({
+      now: new Date("2026-06-14T12:00:00.000Z"),
+      retentionDays: 7,
+      store: {
+        listDeliveryRows() {
+          return [expired, active];
+        },
+        deleteDeliveryRows(rows) {
+          deleted.push(...rows);
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      scanned: 2,
+      deleted: 1,
+      retained: 1
+    });
+    expect(deleted).toEqual([expired]);
+  });
+
+  test("test_metadata_retention_keeps_boundary_row", () => {
+    const deleted: DeliveryLedgerRow[] = [];
+    const boundary = createLedgerRow({
+      delivered_at: "2026-06-07T12:00:00.000Z"
+    });
+
+    const result = runMetadataLedgerRetention({
+      now: new Date("2026-06-14T12:00:00.000Z"),
+      retentionDays: 7,
+      store: {
+        listDeliveryRows() {
+          return [boundary];
+        },
+        deleteDeliveryRows(rows) {
+          deleted.push(...rows);
+        }
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      deleted: 0,
+      retained: 1
+    });
+    expect(deleted).toHaveLength(0);
+  });
+
+  test("test_metadata_retention_summary_does_not_include_payload_body", () => {
+    const expired = createLedgerRow({
+      encrypted_payload_hash: sha256Hash("base64url-ciphertext"),
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    });
+
+    const result = runMetadataLedgerRetention({
+      now: new Date("2026-06-14T12:00:00.000Z"),
+      retentionDays: 7,
+      store: {
+        listDeliveryRows() {
+          return [expired];
+        },
+        deleteDeliveryRows() {}
+      }
+    });
+    const resultJson = JSON.stringify(result);
+
+    expect(resultJson).not.toContain("base64url-ciphertext");
+    expect(resultJson).not.toContain("encrypted_payload");
+    expect(resultJson).not.toContain("full_name");
   });
 });
