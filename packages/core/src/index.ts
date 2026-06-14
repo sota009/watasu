@@ -40,7 +40,10 @@ export {
   decryptJsonPayload,
   encryptJsonPayload
 } from "./jwe.js";
-export { createPolicyControlledDeliveryLedger } from "./storage-policy.js";
+export {
+  createMetadataLedgerReader,
+  createPolicyControlledDeliveryLedger
+} from "./storage-policy.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -104,6 +107,12 @@ export type {
   WatasuJweContentEncryption
 } from "./jwe.js";
 export type {
+  HostedServiceIdentity,
+  HostedServiceRole,
+  MetadataLedgerAuditEvent,
+  MetadataLedgerAuditLog,
+  MetadataLedgerReader,
+  MetadataLedgerReadResult,
   PersistentDeliveryLedgerStore,
   StoragePolicy,
   StoragePolicyMode
