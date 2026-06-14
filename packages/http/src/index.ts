@@ -17,3 +17,9 @@ export type {
   HostedServiceIdentityResolver,
   TrustedServicePrincipal
 } from "./hosted-identity.js";
+export { createHostedPublishApp } from "./hosted-publish.js";
+export type {
+  HostedPublishApp,
+  HostedPublishRequest,
+  HostedPublishResponse
+} from "./hosted-publish.js";
