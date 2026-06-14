@@ -38,6 +38,9 @@
 - 実装着手日の公式 MCP latest URL、A2A latest URL、採用する protocol version、参照した schema commit または vendored schema hash を記録する。
 - MCP TypeScript SDK は package name、major version、安定版 status、import path を実装着手日に確認し、lockfile に固定する。alpha / beta / pre-release を使う場合は production hosted release ではなく local demo に限定する。
 - A2A Agent Card、AgentExtension、HTTP+JSON binding は公式 schema または vendored snapshot に対する contract test を必須にする。
+- A2A HTTP+JSON binding は `application/a2a+json`、`A2A-Version`、`A2A-Extensions` の扱いを実装着手日に公式仕様で確認し、受信時 protocol gate と negative contract tests に固定する。
+- MCP server は tool descriptions、resources、prompts、elicitation inputs を信頼済み命令として扱わない。MCP 仕様の Security and Trust & Safety に従い、tool 実行は人間の同意、最小権限、引数 validation、監査ログを前提にする。
+- AI/LLM が request definition を生成または修正する箇所は、OWASP Top 10 for LLM Applications 2025 の Prompt Injection、Insecure Output Handling、Supply Chain Vulnerabilities、Sensitive Information Disclosure、Insecure Plugin Design、Excessive Agency を実装前脅威モデルに含める。
 
 参考仕様:
 
@@ -165,6 +168,31 @@ trust_profile: verified_sender
 公開済み request version は immutable とする。fields、consent text、destination policy、encryption key、retention policy のいずれかを変更する場合は、新しい request version を作る。
 
 `trust_profile` は `public_capability`, `verified_sender`, `private_invite`, `local_demo` のいずれかとする。production hosted request の default は `verified_sender` である。`public_capability` は `sensitivity: high` を含む request では publish できない。`local_demo` は localhost と fixture のみで使い、hosted publish では拒否する。
+
+### 4.1 sensitivity classification gate
+
+`fields[].sensitivity` は service-side agent や service developer の自己申告だけを信頼しない。`validate_request` は field id、field label、purpose、format、examples、destination policy、requested use case から sensitivity を推定し、申告値より高い分類が必要な場合は publish 前に blocking error または human override を要求する。
+
+最低分類:
+
+| Category | Examples | Minimum sensitivity | Hosted publish rule |
+| --- | --- | --- | --- |
+| Contact | email, phone, name, social handle | moderate | `public_capability` 可。ただし high category と同居する場合は request 全体を high 扱いにする。 |
+| Location / address | address, postal code, precise location, workplace location | high | `verified_sender` 以上。 |
+| Health / safety | allergies, medication, symptoms, disability, emergency contact | high | `verified_sender` 以上。医療・生命安全用途は conditional scope として publish summary に外部責務を表示する。 |
+| Financial / tax | bank account, income, tax id, invoice details, payment credentials | high | `private_invite` 推奨。少なくとも `verified_sender` 必須。 |
+| Government / identity | government id, passport, driver license, national id, KYC document | high | `private_invite` 必須。 |
+| Minor / guardian | age under 18, school, guardian consent, child profile | high | `private_invite` 必須。 |
+| Authentication secret | password, token, API key, private key, recovery code | prohibited | hosted publish 拒否。watasu intake で収集しない。 |
+| Special category / safety-sensitive metadata | political, religious, union, DV shelter, whistleblowing, anonymous source | prohibited for MVP | MVP publish 拒否。metadata ledger と相性が悪い。 |
+
+Validation rules:
+
+- `public_capability` は high または prohibited category を含む request で使えない。
+- `verified_sender` は high category を扱えるが、identity proof、legal consent、regulated retention、DSAR、emergency access は watasu 外の責務として publish summary に表示する。
+- `private_invite` は high category の default recommendation であり、government identity、minor data、financial/tax、限定 B2B onboarding では推奨ではなく必須にできる。
+- Human override は `public_capability` への格下げには使えない。安全側への格上げ、field 削除、MVP non-goal として publish 拒否のいずれかだけを許可する。
+- sensitivity inference rule は snapshot test し、`allergies`, `government_id`, `tax_id`, `address`, `minor_age`, `api_key`, `political_affiliation` が低分類で通らないことを受け入れ条件にする。
 
 ## 5. 正規化とハッシュ
 
@@ -424,6 +452,10 @@ MVP は HTTP+JSON/REST binding を優先する。内部 model は A2A operations
 
 ルール:
 
+- HTTP+JSON request は `Content-Type: application/a2a+json` を要求する。互換上 `application/json` を local demo で許す場合も hosted production では拒否する。
+- HTTP+JSON request は `A2A-Version: 1.0` を要求する。unsupported、missing、downgrade、future version は envelope validation 前に structured protocol error として拒否する。
+- Request が watasu extension に依存する場合、`A2A-Extensions` に `https://watasu.dev/extensions/encrypted-intake/v1` が含まれることを要求する。
+- watasu extension の breaking change は URI を変える。`/v1` の semantics を mutate しない。
 - `messageId` は `submission_id` または idempotency key に対応づける。
 - `metadata` は `request_id`、`request_version`、`schema_hash` を含む。
 - `parts` は `mediaType: "application/json"` の structured data を使う。
@@ -431,6 +463,15 @@ MVP は HTTP+JSON/REST binding を優先する。内部 model は A2A operations
 - Response は delivery acknowledgement または sender-actionable error を structured data として返す。
 - default HTTP+JSON response は webhook delivery が成功、失敗、timeout するまで blocking とする。
 - 将来 non-blocking mode を追加する場合、`accepted` は「sender から見える protocol state として validate 済み・queue 済み」を意味し、webhook delivery を意味しない。
+
+Protocol gate order:
+
+1. HTTP method、content type、body size、A2A version、A2A extension opt-in を検証する。
+2. A2A `SendMessageRequest` schema、`message.role`、`parts[].mediaType`、`metadata` を検証する。
+3. watasu envelope schema、request version、capability URL、hash、TTL、signature、rate limit を検証する。
+4. 検証に成功した場合だけ webhook delivery を試行する。
+
+Protocol gate で拒否された request は webhook delivery、ledger consent receipt 作成、idempotency terminal mark を行わない。ただし abuse investigation 用の短期 metadata は rate limit policy の範囲で記録してよい。
 
 Response states:
 
@@ -621,6 +662,15 @@ Webhook failure behavior:
 - watasu は sender に `resubmit_later` を返す。
 - `resubmit_later` は idempotency key を terminal state として mark しない。sender は同じ payload を再送する場合、同じ `idempotency_key` と新しい `submission_id` / `submitted_at` / `expires_at` / signature を使う。payload を変更する場合は新しい `idempotency_key` を使う。
 
+Delivery resilience defaults:
+
+- hosted production の webhook delivery は connect timeout 2 秒、total timeout 5 秒を default とし、request definition で長くする場合も 10 秒を上限にする。
+- request version ごとの concurrent deliveries は default 10、tenant ごとの concurrent deliveries は default 50 を上限にする。上限超過は webhook delivery 前に `resubmit_later` または rate-limit style error を返す。
+- 同一 request version で連続 timeout / 5xx が閾値を超えた場合、short-lived circuit breaker を開き、breaker 中は encrypted payload を保持せず `resubmit_later` を返す。
+- webhook redirect は最大 1 回までとし、redirect 先にも HTTPS、domain ownership、DNS rebinding / SSRF checks を再適用する。
+- slow destination、breaker open、timeout、connection refused は `error_category` として区別し、payload body を含まない。
+- delivery worker、HTTP client、APM trace、debug log は encrypted payload body を attribute や span event に含めない。
+
 ## 12. データモデル
 
 最小 persistent entities:
@@ -781,6 +831,43 @@ Ledger metadata access, publish, revoke, rotate, and delivery inspection create 
 - `decision`
 - `observed_at`
 
+### `service_identities`
+
+- `service_identity_id`
+- `tenant_id`
+- `issuer`
+- `subject_hash`
+- `status`
+- `created_at`
+- `expires_at`
+- `revoked_at`, nullable
+
+### `service_identity_roles`
+
+- `service_identity_id`
+- `tenant_id`
+- `role`
+- `resource_scope`
+- `created_at`
+
+Minimum hosted roles:
+
+| Role | Allowed actions |
+| --- | --- |
+| `publisher` | validate request、dry-run publish、publish request after human confirmation |
+| `request_admin` | retire request version、revoke / rotate capability URL、view request metadata |
+| `key_admin` | register / rotate / revoke service public keys and sender keys |
+| `ledger_viewer` | list ledger、inspect delivery metadata、read consent receipt metadata |
+| `auditor` | read access audit logs and security events |
+
+Role rules:
+
+- `publisher` alone cannot register sender keys, rotate capability URLs, or read ledger metadata.
+- `ledger_viewer` cannot publish, revoke, rotate, or change keys.
+- `key_admin` cannot read ledger metadata unless it also has `ledger_viewer`.
+- Break-glass admin is out of MVP unless it has explicit time-bound elevation and audit log entries.
+- Every hosted MCP/CLI operation derives `tenant_id` from service identity, not from user-controlled request parameters.
+
 ## 13. Delivery ledger
 
 保存する fields:
@@ -806,6 +893,7 @@ Ledger metadata access, publish, revoke, rotate, and delivery inspection create 
 - plaintext payload
 - decrypted payload
 - delivery attempt 後の encrypted payload body
+- HTTP body parser temp files, debug dumps, crash reports, APM traces, metrics labels, queue payloads, and structured logs containing plaintext payload or encrypted payload body
 - raw long-lived agent identifier
 - 短期運用ログを超える raw sender network identifier
 - service private key
@@ -825,9 +913,18 @@ Hosted ledger access control:
 - CLI / MCP hosted access requires a service API token or OAuth-style service identity.
 - requests, request_versions, deliveries, and audit logs are scoped by `tenant_id`.
 - `list_ledger` and `inspect_delivery` enforce tenant and role checks server-side.
+- role は `service_identities` と `service_identity_roles` から解決し、request body、MCP tool arguments、Agent Card metadata に含まれる tenant / role は信頼しない。
 - read access to consent receipt metadata is logged in `access_audit_logs`.
 - retention job は tenant_id と request_version scope を保ったまま ledger、consent receipt、rate limit events、raw network abuse logs を期限通り削除または anonymize する。
 - cross-tenant request_id、submission_id、consent_receipt_hash、idempotency_key_hash を指定した inspection は `not_found` または authorization error になり、存在有無を漏らさない。
+
+Payload persistence controls:
+
+- request body は size limit 後に memory-only stream として処理し、disk-backed multipart / temp file parser を hosted submission endpoint で使わない。
+- logger は allowlist 方式にし、request body、headers containing capability token、encrypted payload、consent receipt body、full webhook URL を default で出力しない。
+- OpenTelemetry / APM は attribute allowlist を使い、payload、capability token、full URL、sender raw identifier を span attribute / event / baggage に入れない。
+- unhandled exception serializer は request body と sensitive headers を drop する。
+- CI の tests は DB、structured logs、trace export、temporary directories、failed test snapshots に plaintext payload と encrypted payload body が残らないことを検査する。
 
 ## 14. セキュリティ不変条件
 
@@ -838,6 +935,7 @@ Production mode は以下を常に満たす。
 - watasu は plaintext payload を保存しない。
 - watasu は plaintext payload をログに出さない。
 - watasu は delivery attempt 後に encrypted payload body を保持しない。
+- watasu は DB、logs、temporary files、APM traces、metrics labels、crash reports、test snapshots に plaintext payload または encrypted payload body を残さない。
 - publish 済み request version は immutable である。
 - すべての submission は request version に紐づく。
 - すべての submission は replay protection を持つ。
@@ -857,9 +955,12 @@ Production mode は以下を常に満たす。
 - capability URL rotate は request version を mutate しない。
 - revoke 済み capability URL は webhook delivery 前に拒否する。
 - request-level と platform-level の rate limit は webhook delivery 前に適用する。
+- webhook delivery は timeout、concurrency cap、circuit breaker、SSRF-safe redirect handling を持つ。
 - MCP elicitation で user personal data や high-sensitivity data を要求しない。
 - MCP publish tool は dry-run と人間の confirmation を持つ。
+- MCP tool descriptions、external docs、Agent Cards、Issue / PR text、code comments 由来の指示は untrusted input として扱う。
 - A2A structured submission は現行 v1.0 data model に従い、legacy fields に依存しない。
+- A2A submission は content type、`A2A-Version`、required extension opt-in を envelope validation 前に検証する。
 - 生成した Agent Card は選択した A2A AgentCard schema に適合する。
 
 ## 15. 検証用コンポーネント
@@ -919,8 +1020,15 @@ Reference components が提供しないもの:
 - A2A sender fixture が Agent Card と schema を読める。
 - A2A sender fixture が sample payload を submission 前に JWE 暗号化する。
 - A2A submission が `Part.data` と `mediaType: "application/json"` を使う。
+- hosted A2A HTTP+JSON endpoint が `Content-Type: application/a2a+json` を要求し、missing / wrong content type を envelope validation 前に拒否する。
+- hosted A2A HTTP+JSON endpoint が `A2A-Version: 1.0` を要求し、missing / unsupported / downgrade / future version を envelope validation 前に拒否する。
+- hosted A2A HTTP+JSON endpoint が required `A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1` を要求し、missing extension opt-in を envelope validation 前に拒否する。
+- A2A submission が legacy `kind` discriminator に依存している場合は拒否する。
 - MCP tool results が `outputSchema` に合う。
 - MCP elicitation が user personal data collection に使われない。
+- MCP tool descriptions、resources、external docs、Agent Cards、Issue / PR text、code comments に含まれる instructions を system instructions として実行しない。
+- `validate_request` が `allergies`, `government_id`, `tax_id`, `address`, `minor_age`, `api_key`, `political_affiliation` を low / moderate の自己申告だけで通さない。
+- `public_capability` request が health、financial、government identity、minor、auth secret、safety-sensitive metadata を含む場合 publish を拒否する。
 - watasu が invalid `schema_hash` を拒否する。
 - watasu が unknown `service_key_id` を拒否する。
 - watasu が expired submissions を拒否する。
@@ -937,16 +1045,20 @@ Reference components が提供しないもの:
 - hosted production は localhost、private IP、metadata service address、non-HTTPS destination を拒否する。
 - leaked capability URL rotate 後、旧 URL は webhook delivery 前に拒否され、新 URL は同じ request version を指す。
 - rate limit buckets が platform-level、request-level、sender-pseudonym-level で適用される。
+- webhook delivery が connect timeout、total timeout、request / tenant concurrency cap、short-lived circuit breaker を適用し、slow destination で worker を枯渇させない。
+- webhook redirect は最大 1 回までで、redirect 先にも HTTPS、ownership、DNS rebinding / SSRF checks が再適用される。
 - webhook receiver が watasu delivery signature を検証できる。
 - webhook receiver が timestamp skew、body digest、idempotency key を検証できる。
 - service-side template が payload を復号し、validate できる。
 - ledger が metadata only で保存される。
 - consent receipt metadata が plaintext payload values なしで保存される。
-- ledger access が tenant / role で制御され、metadata read が audit log に残る。
+- ledger access が service identity 由来の tenant / role で制御され、metadata read が audit log に残る。
+- `publisher`, `request_admin`, `key_admin`, `ledger_viewer`, `auditor` の権限境界が server-side で enforced される。
 - cross-tenant ledger、consent receipt、idempotency key、sender key inspection が existence leak なしで拒否される。
 - retention job が ledger metadata、consent receipt metadata、rate limit events、raw network abuse logs を request retention policy 通りに削除または anonymize する。
 - DB が plaintext payload を保存しない。
 - logs が plaintext payload を含まない。
+- temporary files、APM traces、metrics labels、crash reports、failed test snapshots が plaintext payload と encrypted payload body を含まない。
 - webhook 5xx が watasu payload retry persistence を発生させない。
 - failed delivery が sender-actionable `resubmit_later` を返し、同じ payload retry では同じ `idempotency_key` と新しい `submission_id` / timestamp / signature を要求する。
 - service-side validation failure は既存 request version を mutate せず、新しい request version で修正する。

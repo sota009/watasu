@@ -421,6 +421,8 @@ MVP は以下を満たすまで完了扱いにしない。
 - publish 前に、人間が request name、fields、purposes、destination、retention、public key fingerprint を確認できる。
 - A2A sender fixture が Agent Card と schema を読み、payload を暗号化して submission できる。
 - generated Agent Card が A2A v1.0 の必須フィールドと supported interface を満たす。
+- A2A submission は hosted production で `application/a2a+json`、`A2A-Version: 1.0`、required watasu extension opt-in を envelope validation 前に検証できる。
+- request field sensitivity は自己申告だけに依存せず、health、financial、government identity、minor、auth secret、safety-sensitive metadata を安全側に分類し、危険な trust profile への publish を拒否できる。
 - watasu は不正な schema hash、unknown service key、expired submission、replayed idempotency key を拒否できる。
 - watasu は rate limit、payload size limit、revoked capability URL に違反する submission を webhook 配送前に拒否できる。
 - production hosted request は trust profile を持ち、default では sender signature を検証できる。
@@ -428,10 +430,12 @@ MVP は以下を満たすまで完了扱いにしない。
 - `verified_sender` / `private_invite` は登録済み sender key だけを受け付け、unknown、revoked、expired、request に紐づかない sender key は webhook 配送前に `auth_required` になる。
 - leaked capability URL は revoke でき、再発行後の旧 URL は webhook 配送前に拒否される。
 - watasu は encrypted envelope を webhook に配送できる。
+- webhook delivery は timeout、tenant / request concurrency cap、circuit breaker、SSRF-safe redirect handling を持ち、slow destination で watasu worker を枯渇させない。
 - service-side template は payload を復号し validation できる。
 - ledger には payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
-- ledger metadata と consent receipt metadata は tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
-- DB と logs に plaintext payload が残らない。
+- ledger metadata と consent receipt metadata は server-side tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
+- hosted roles は publish、key admin、ledger view、audit を分離し、service identity 由来の tenant / role だけを信頼する。
+- DB、logs、temporary files、APM traces、metrics labels、crash reports、test snapshots に plaintext payload または encrypted payload body が残らない。
 - webhook 5xx 時に watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。
 - 復号後 validation failure は既存 request version を変更せず、新しい request version で修正できる。
 
