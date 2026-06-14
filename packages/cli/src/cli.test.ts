@@ -108,6 +108,17 @@ describe("watasu cli first slice", () => {
     });
   });
 
+  test("test_cli_publish_accepts_confirm_before_file", async () => {
+    const result = await runCli(["publish", "--confirm", fixtureFile]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "publish",
+      storage: "in_memory"
+    });
+  });
+
   test("test_cli_agent_card_file_based_wrapper_outputs_stable_structured_json", async () => {
     const result = await runCli(["agent-card", fixtureFile, "--confirm"]);
 
@@ -130,6 +141,16 @@ describe("watasu cli first slice", () => {
           ]
         }
       }
+    });
+  });
+
+  test("test_cli_agent_card_accepts_confirm_before_file", async () => {
+    const result = await runCli(["agent-card", "--confirm", fixtureFile]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "agent-card"
     });
   });
 
