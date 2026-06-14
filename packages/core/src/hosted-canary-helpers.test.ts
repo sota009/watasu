@@ -174,6 +174,7 @@ describe("hosted canary helpers", () => {
   test("test_build_hosted_canary_success_report_includes_timeout_evidence", () => {
     const urls = buildHostedCanaryCheckUrls(parseHostedCanaryBaseUrl("https://api.watasu.ai"));
     const report = buildHostedCanarySuccessReport({
+      checkedAt: "2026-06-15T00:00:00.000Z",
       status: 200,
       timeoutMs: 2500,
       urls
@@ -181,6 +182,7 @@ describe("hosted canary helpers", () => {
 
     expect(report).toEqual({
       ok: true,
+      checked_at: "2026-06-15T00:00:00.000Z",
       checked_url: "https://api.watasu.ai/health",
       checked_public_routes: [
         `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,

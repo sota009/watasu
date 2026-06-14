@@ -141,6 +141,7 @@ await assertMcpProtectedResourceMetadata({
 });
 
 console.log(JSON.stringify(buildHostedCanarySuccessReport({
+  checkedAt: new Date().toISOString(),
   status: response.status,
   timeoutMs,
   urls

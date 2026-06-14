@@ -43,6 +43,7 @@ export function buildHostedCanaryCheckUrls(baseUrl) {
 export function buildHostedCanarySuccessReport(input) {
   return {
     ok: true,
+    checked_at: input.checkedAt,
     checked_url: input.urls.health,
     checked_public_routes: [
       input.urls.unpublishedAgentCard,

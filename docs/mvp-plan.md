@@ -166,7 +166,7 @@ Owner checklist for the first production cutover:
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
-[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_timeout_ms`.
+[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at` and `checked_timeout_ms`.
 [ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```

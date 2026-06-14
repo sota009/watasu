@@ -15,11 +15,13 @@ export function buildHostedCanaryCheckUrls(baseUrl: URL): {
 };
 
 export function buildHostedCanarySuccessReport(input: {
+  checkedAt: string;
   status: number;
   timeoutMs: number;
   urls: ReturnType<typeof buildHostedCanaryCheckUrls>;
 }): {
   ok: true;
+  checked_at: string;
   checked_url: string;
   checked_public_routes: string[];
   checked_headers: string[];
