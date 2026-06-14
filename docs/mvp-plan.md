@@ -150,7 +150,7 @@ Recommended production environment variables:
 | `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. |
 | `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |
 | `WATASU_POSTGRES_SSL=require` | Codex can put the non-secret default in config. | Hosted database connections should require TLS. |
-| `WATASU_POSTGRES_POOL_MAX=5` | Codex can put the non-secret default in config. | Start small for private alpha; raise only with load evidence. |
+| `WATASU_POSTGRES_POOL_MAX=2` | Codex can put the non-secret default in config. | Start small for the retention cron private-alpha workload; raise only with load evidence. |
 | `WATASU_POSTGRES_RUN_MIGRATIONS=true` | Codex can put the non-secret default in config. | Keep true for the first deploy unless migrations move to a dedicated job. |
 | `WATASU_RETENTION_TENANT_ID=watasu-private-alpha` | Codex can put the non-secret private-alpha tenant in config. | Retention cron scope. Move to per-tenant scheduling when multi-tenant operations need separate windows. |
 | `WATASU_METADATA_RETENTION_DAYS=90` | Codex can put the non-secret default in config. | Matches the fixture default and can be lowered per request policy later. |

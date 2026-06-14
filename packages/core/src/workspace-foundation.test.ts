@@ -184,6 +184,7 @@ describe("workspace foundation", () => {
         property: "connectionString"
       }
     });
+    expect(retentionEnv.get("WATASU_POSTGRES_POOL_MAX")).toMatchObject({ value: "2" });
 
     expect(database).toMatchObject({
       region: "singapore",
@@ -192,6 +193,13 @@ describe("workspace foundation", () => {
       user: "watasu_app",
       ipAllowList: []
     });
+  });
+
+  test("test_private_alpha_plan_matches_render_postgres_pool_limit", () => {
+    const plan = readFileSync(new URL("docs/mvp-plan.md", rootDir), "utf8");
+
+    expect(plan).toContain("`WATASU_POSTGRES_POOL_MAX=2`");
+    expect(plan).not.toContain("`WATASU_POSTGRES_POOL_MAX=5`");
   });
 
   test("test_ci_workflow_runs_loop_with_read_only_permissions", () => {
