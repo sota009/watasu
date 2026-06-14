@@ -60,6 +60,7 @@ export type {
   JsonSchemaProperty
 } from "./schema.js";
 export type {
+  PublishOwnershipVerification,
   PublishedRequestVersionWithCapability,
   PublishMode,
   PublishRequestVersionResult,

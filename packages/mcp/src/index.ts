@@ -96,7 +96,7 @@ export function createWatasuMcpServer(): McpServer {
         requestId: validation.definition.name,
         definition: validation.definition,
         confirmed,
-        mode: "hosted",
+        mode: "local_demo",
         repository
       });
 

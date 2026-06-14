@@ -184,6 +184,8 @@ Done when:
 
 ### Phase 4: Ownership verification
 
+Status: done for the core hosted publish gate.
+
 Goal: prevent a service from publishing an intake for a key or webhook it does not control.
 
 Implementation:
@@ -298,11 +300,11 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial core checks only | Phases 4-5 |
-| Contractor or B2B onboarding | Partial core checks only | Phases 4-5 |
-| QR or email private handoff | Partial core checks only | Phases 3-5 |
-| Leaked capability URL recovery | Partial core checks only | Phases 4-5 |
-| Verified sender or private invite intake | Partial core checks only | Phases 4-5 |
+| Recruiting intake | Partial core checks only | Phase 5 |
+| Contractor or B2B onboarding | Partial core checks only | Phase 5 |
+| QR or email private handoff | Partial core checks only | Phase 5 |
+| Leaked capability URL recovery | Partial core checks only | Phase 5 |
+| Verified sender or private invite intake | Partial core checks only | Phase 5 |
 | Hosted high-sensitivity intake | No | Phases 4-6 |
 | Tenant-scoped ledger inspection | No | Phase 5 |
 | Retention-backed hosted metadata ledger | No | Phase 6 |

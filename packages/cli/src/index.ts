@@ -285,7 +285,7 @@ function publishFileDefinition(definition: RequestDefinition, confirmed: boolean
     requestId: definition.name,
     definition,
     confirmed,
-    mode: "hosted",
+    mode: "local_demo",
     repository
   });
 
@@ -307,7 +307,7 @@ function agentCardForFileDefinition(definition: RequestDefinition, confirmed: bo
     requestId: definition.name,
     definition,
     confirmed,
-    mode: "hosted",
+    mode: "local_demo",
     repository
   });
 
@@ -455,7 +455,7 @@ async function runFixtureDelivery(
     requestId: definition.name,
     definition,
     confirmed,
-    mode: "hosted",
+    mode: "local_demo",
     repository
   });
 
@@ -557,7 +557,7 @@ async function submitFixtureForFileDefinition(
     requestId: definition.name,
     definition,
     confirmed,
-    mode: "hosted",
+    mode: "local_demo",
     repository
   });
 
