@@ -129,7 +129,7 @@ Current repo-side status:
 - Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures.
 - Done: `pnpm --silent deploy:preflight` reports repo-side Render readiness and remaining external actions without printing secret values or database URLs.
 - Done: `pnpm --silent cutover:plan` reports before-Render commands, account-side actions, post-deploy checks, required evidence, and stop conditions as secret-safe JSON.
-- Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, and retention JSON evidence before a private-alpha go decision.
+- Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, retention, and CI-green JSON evidence before a private-alpha go decision.
 - Done: `pnpm --silent smoke:hosted` loads the compiled hosted runtime and verifies the low-information `/health` response without binding a network port.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
@@ -144,7 +144,7 @@ Product owner actions:
 7. Run `pnpm --silent smoke:hosted` to prove the compiled hosted runtime can serve the low-information health response.
 8. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
 9. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
-10. Save the JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, and `pnpm --filter @watasu/hosted retention -- --dry-run`, then run `pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json`.
+10. Save the JSON outputs from `deploy:preflight`, `smoke:hosted`, `gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt`, `canary:hosted`, and `pnpm --filter @watasu/hosted retention -- --dry-run`, then run `pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json`.
 11. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, retention dry run, cutover verification, and no-payload-custody checks pass on the deployed URL.
 
 Recommended production environment variables:
@@ -180,7 +180,7 @@ Owner checklist for the first production cutover:
 [ ] GitHub Actions CI is green on the deployed commit.
 [ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, `checked_forbidden_fragments`, `checked_timeout_ms`, and `go_no_go`.
 [ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
-[ ] `pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json` reports `decision=go`.
+[ ] `pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json` reports `decision=go`.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 

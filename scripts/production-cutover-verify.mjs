@@ -25,7 +25,8 @@ try {
     preflight: readJsonEvidence(inputs.preflight),
     smoke: readJsonEvidence(inputs.smoke),
     canary: readJsonEvidence(inputs.canary),
-    retention: readJsonEvidence(inputs.retention)
+    retention: readJsonEvidence(inputs.retention),
+    ci: readJsonEvidence(inputs.ci)
   };
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : "Cutover evidence could not be read."}\n`);
@@ -36,7 +37,8 @@ const failures = [
   ...validatePreflight(evidence.preflight),
   ...validateSmoke(evidence.smoke),
   ...validateCanary(evidence.canary),
-  ...validateRetention(evidence.retention)
+  ...validateRetention(evidence.retention),
+  ...validateCi(evidence.ci)
 ];
 
 if (failures.length > 0) {
@@ -49,7 +51,7 @@ process.stdout.write(`${JSON.stringify({
   decision: "go",
   checked_at: new Date().toISOString(),
   checked_origin: targetOrigin,
-  checked_evidence: ["preflight", "smoke", "canary", "retention"]
+  checked_evidence: ["preflight", "smoke", "canary", "retention", "ci"]
 })}\n`);
 
 function parseArgs(args) {
@@ -58,7 +60,7 @@ function parseArgs(args) {
     const name = args[index];
     const value = args[index + 1];
     if (value === undefined) {
-      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json>");
+      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
     }
     if (name === "--preflight") {
       parsed.preflight = value;
@@ -68,8 +70,10 @@ function parseArgs(args) {
       parsed.canary = value;
     } else if (name === "--retention") {
       parsed.retention = value;
+    } else if (name === "--ci") {
+      parsed.ci = value;
     } else {
-      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json>");
+      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
     }
   }
 
@@ -77,9 +81,10 @@ function parseArgs(args) {
     parsed.preflight === undefined ||
     parsed.smoke === undefined ||
     parsed.canary === undefined ||
-    parsed.retention === undefined
+    parsed.retention === undefined ||
+    parsed.ci === undefined
   ) {
-    throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json>");
+    throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
   }
 
   return parsed;
@@ -159,6 +164,22 @@ function validateRetention(value) {
   }
   if (!Number.isInteger(value?.would_delete) || value.would_delete < 0) {
     failures.push("retention evidence must include non-negative would_delete.");
+  }
+  return failures;
+}
+
+function validateCi(value) {
+  const failures = [];
+  const runs = Array.isArray(value) ? value : [value];
+  const successfulCiRun = runs.find((run) =>
+    run?.workflowName === "ci" &&
+    run?.status === "completed" &&
+    run?.conclusion === "success" &&
+    typeof run?.headSha === "string" &&
+    /^[0-9a-f]{40}$/i.test(run.headSha)
+  );
+  if (successfulCiRun === undefined) {
+    failures.push("CI evidence must include a completed successful ci run with a 40-character headSha.");
   }
   return failures;
 }

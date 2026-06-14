@@ -20,6 +20,7 @@ process.stdout.write(`${JSON.stringify({
     "Share the deployed production URL back for canary evidence collection."
   ],
   after_deploy_commands: [
+    "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > ci.json",
     `pnpm canary:hosted -- ${targetOrigin}`,
     "pnpm --filter @watasu/hosted retention -- --dry-run"
   ],

@@ -282,6 +282,7 @@ describe("workspace foundation", () => {
         "pnpm --silent secret:identity --plain"
       ],
       after_deploy_commands: [
+        "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > ci.json",
         "pnpm canary:hosted -- https://api.watasu.ai",
         "pnpm --filter @watasu/hosted retention -- --dry-run"
       ]
@@ -306,6 +307,7 @@ describe("workspace foundation", () => {
     const smokePath = join(evidenceDir, "smoke.json");
     const canaryPath = join(evidenceDir, "canary.json");
     const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
     writeFileSync(preflightPath, JSON.stringify({
       ok: true,
       checked_domain: "api.watasu.ai",
@@ -331,6 +333,12 @@ describe("workspace foundation", () => {
       tenant_id: "watasu-private-alpha",
       would_delete: 0
     }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: "0123456789abcdef0123456789abcdef01234567"
+    }));
 
     const result = spawnSync("pnpm", [
       "--silent",
@@ -342,7 +350,9 @@ describe("workspace foundation", () => {
       "--canary",
       canaryPath,
       "--retention",
-      retentionPath
+      retentionPath,
+      "--ci",
+      ciPath
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -354,7 +364,7 @@ describe("workspace foundation", () => {
       ok: true,
       decision: "go",
       checked_origin: "https://api.watasu.ai",
-      checked_evidence: ["preflight", "smoke", "canary", "retention"]
+      checked_evidence: ["preflight", "smoke", "canary", "retention", "ci"]
     });
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
@@ -366,6 +376,7 @@ describe("workspace foundation", () => {
     const smokePath = join(evidenceDir, "smoke.json");
     const canaryPath = join(evidenceDir, "canary.json");
     const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
     writeFileSync(preflightPath, JSON.stringify({
       ok: true,
       checked_domain: "api.watasu.ai",
@@ -394,6 +405,12 @@ describe("workspace foundation", () => {
       tenant_id: "watasu-private-alpha",
       would_delete: 0
     }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: "0123456789abcdef0123456789abcdef01234567"
+    }));
 
     const result = spawnSync("pnpm", [
       "--silent",
@@ -405,7 +422,9 @@ describe("workspace foundation", () => {
       "--canary",
       canaryPath,
       "--retention",
-      retentionPath
+      retentionPath,
+      "--ci",
+      ciPath
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -423,6 +442,7 @@ describe("workspace foundation", () => {
     const smokePath = join(evidenceDir, "smoke.json");
     const canaryPath = join(evidenceDir, "canary.json");
     const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
     writeFileSync(preflightPath, JSON.stringify({
       ok: true,
       checked_domain: "api.watasu.ai",
@@ -448,6 +468,12 @@ describe("workspace foundation", () => {
       tenant_id: "watasu-private-alpha",
       would_delete: 0
     }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: "0123456789abcdef0123456789abcdef01234567"
+    }));
 
     const result = spawnSync("pnpm", [
       "--silent",
@@ -459,7 +485,9 @@ describe("workspace foundation", () => {
       "--canary",
       canaryPath,
       "--retention",
-      retentionPath
+      retentionPath,
+      "--ci",
+      ciPath
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -476,6 +504,7 @@ describe("workspace foundation", () => {
     const smokePath = join(evidenceDir, "smoke.json");
     const canaryPath = join(evidenceDir, "canary.json");
     const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
     writeFileSync(preflightPath, JSON.stringify({
       ok: true,
       checked_domain: "api.watasu.ai",
@@ -502,6 +531,12 @@ describe("workspace foundation", () => {
       deleted: 1,
       would_delete: 1
     }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: "0123456789abcdef0123456789abcdef01234567"
+    }));
 
     const result = spawnSync("pnpm", [
       "--silent",
@@ -513,7 +548,9 @@ describe("workspace foundation", () => {
       "--canary",
       canaryPath,
       "--retention",
-      retentionPath
+      retentionPath,
+      "--ci",
+      ciPath
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -522,6 +559,68 @@ describe("workspace foundation", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("retention evidence must be a dry run");
+  });
+
+  test("test_production_cutover_verify_rejects_failed_ci_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+      go_no_go: {
+        decision: "go"
+      }
+    }));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: true,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      would_delete: 0
+    }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "failure",
+      headSha: "0123456789abcdef0123456789abcdef01234567"
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath,
+      "--ci",
+      ciPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("CI evidence must include a completed successful ci run");
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {

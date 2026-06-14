@@ -197,10 +197,10 @@ The cutover plan prints the before-Render commands, external account actions, af
 Production cutover evidence verification after deploy:
 
 ```bash
-pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json
+pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json
 ```
 
-The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, and the retention dry run, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
+The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, the retention dry run, and the latest successful `ci` GitHub Actions run, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
 
 Hosted runtime smoke before deploy:
 
