@@ -162,6 +162,7 @@ Currently implemented:
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
 - in-memory sender key registration, revocation, and rotation lifecycle
+- in-memory verified service public key registration, revocation, and rotation lifecycle
 - JSONL delivery metadata ledger store for opt-in local persistence
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
@@ -177,7 +178,7 @@ Still remaining for Hosted Production MVP:
 - hosted production service
 - PostgreSQL-compatible hosted metadata store and scheduled hosted retention jobs
 - MCP hosted production surface beyond local in-memory publish and read tools
-- service-owned key management beyond the local JWE wrapper
+- KMS/HSM-backed service private key custody beyond verified public-key registry
 - DNS TXT ownership challenge fetching beyond HTTPS challenge verification
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.

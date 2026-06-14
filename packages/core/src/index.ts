@@ -53,6 +53,10 @@ export {
   InMemoryOwnershipChallengeRegistry,
   buildOwnershipVerification
 } from "./ownership.js";
+export {
+  InMemoryServiceKeyRegistry,
+  buildServiceKeyOwnershipVerification
+} from "./service-key.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -143,3 +147,9 @@ export type {
   WebhookOwnershipChallengeHostResolver,
   WebhookOriginOwnershipChallenge
 } from "./ownership.js";
+export type {
+  ServiceKeyOwnershipState,
+  ServiceKeyRecord,
+  ServiceKeyRecordStatus,
+  ServiceKeyRegistryResult
+} from "./service-key.js";
