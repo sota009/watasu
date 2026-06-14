@@ -25,6 +25,12 @@ export type {
   BuildMcpUnauthorizedChallengeInput,
   McpProtectedResourceMetadata
 } from "./deployment.js";
+export { createHostedMcpHttpEntrypoint } from "./http-entrypoint.js";
+export type {
+  CreateHostedMcpHttpEntrypointInput,
+  HostedMcpHttpEntrypoint,
+  HostedMcpHttpTransport
+} from "./http-entrypoint.js";
 
 export interface HostedMcpRequest {
   method: string;
