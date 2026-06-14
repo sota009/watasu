@@ -1,3 +1,8 @@
+import {
+  Ajv2020,
+  type AnySchema,
+  type ErrorObject
+} from "ajv/dist/2020.js";
 import type { RequestDefinition } from "./request-definition.js";
 import type { RequestVersionHashes } from "./request-version.js";
 
@@ -18,6 +23,24 @@ export type JsonSchemaProperty =
   | {
       type: "number" | "integer" | "boolean" | "object" | "array";
     };
+
+export type GeneratedJsonSchemaValidationResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      errors: Array<{
+        path: string;
+        message: string;
+      }>;
+    };
+
+const generatedSchemaValidator = new Ajv2020({
+  allErrors: true,
+  strict: true,
+  validateSchema: true
+});
 
 export function generatePlaintextPayloadSchema(definition: RequestDefinition): JsonSchemaObject {
   return {
@@ -70,6 +93,23 @@ export function generateEncryptedEnvelopeSchema(
       "encrypted_payload",
       "encrypted_payload_hash"
     ]
+  };
+}
+
+export function validateGeneratedJsonSchema(schema: unknown): GeneratedJsonSchemaValidationResult {
+  const valid = generatedSchemaValidator.validateSchema(schema as AnySchema);
+  if (valid) {
+    return {
+      ok: true
+    };
+  }
+
+  return {
+    ok: false,
+    errors: (generatedSchemaValidator.errors ?? []).map((error: ErrorObject) => ({
+      path: error.instancePath || error.schemaPath,
+      message: error.message ?? "Generated JSON Schema is invalid."
+    }))
   };
 }
 

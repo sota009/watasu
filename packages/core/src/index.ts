@@ -12,7 +12,8 @@ export {
 } from "./request-version.js";
 export {
   generateEncryptedEnvelopeSchema,
-  generatePlaintextPayloadSchema
+  generatePlaintextPayloadSchema,
+  validateGeneratedJsonSchema
 } from "./schema.js";
 export {
   buildAgentCard,
@@ -47,7 +48,11 @@ export type {
   PublishedRequestVersion,
   RequestVersionHashes
 } from "./request-version.js";
-export type { JsonSchemaObject, JsonSchemaProperty } from "./schema.js";
+export type {
+  GeneratedJsonSchemaValidationResult,
+  JsonSchemaObject,
+  JsonSchemaProperty
+} from "./schema.js";
 export type {
   PublishedRequestVersionWithCapability,
   PublishMode,
