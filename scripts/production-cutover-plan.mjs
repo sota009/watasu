@@ -34,7 +34,9 @@ process.stdout.write(`${JSON.stringify({
     "canary checked_headers present",
     "canary checked_forbidden_fragments present",
     "canary checked_timeout_ms present",
+    "retention checked_at present",
     "retention dry_run=true",
+    "retention row counts present",
     "no payload body retained or printed"
   ],
   stop_conditions: [

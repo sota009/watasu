@@ -186,6 +186,9 @@ function validateRetention(value) {
   if (value?.ok !== true) {
     failures.push("retention dry run must report ok=true.");
   }
+  if (typeof value?.checked_at !== "string" || Number.isNaN(Date.parse(value.checked_at))) {
+    failures.push("retention evidence must include checked_at.");
+  }
   if (value?.dry_run !== true) {
     failures.push("retention evidence must be a dry run.");
   }
@@ -197,6 +200,11 @@ function validateRetention(value) {
   }
   if (!Number.isInteger(value?.would_delete) || value.would_delete < 0) {
     failures.push("retention evidence must include non-negative would_delete.");
+  }
+  for (const countName of ["scanned", "deleted", "retained"]) {
+    if (!Number.isInteger(value?.[countName]) || value[countName] < 0) {
+      failures.push(`retention evidence must include non-negative ${countName}.`);
+    }
   }
   return failures;
 }

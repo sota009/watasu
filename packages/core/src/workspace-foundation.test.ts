@@ -96,6 +96,21 @@ function buildCutoverCanaryEvidence(overrides: Record<string, unknown> = {}): Re
   };
 }
 
+function buildCutoverRetentionEvidence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ok: true,
+    checked_at: "2026-06-15T00:00:00.000Z",
+    dry_run: true,
+    retention_days: 90,
+    tenant_id: "watasu-private-alpha",
+    scanned: 1,
+    deleted: 0,
+    retained: 1,
+    would_delete: 0,
+    ...overrides
+  };
+}
+
 describe("workspace foundation", () => {
   test("test_workspace_scripts_run_typecheck_and_tests", async () => {
     const packageJson = readJson("package.json") as {
@@ -374,7 +389,9 @@ describe("workspace foundation", () => {
       "canary checked_headers present",
       "canary checked_forbidden_fragments present",
       "canary checked_timeout_ms present",
+      "retention checked_at present",
       "retention dry_run=true",
+      "retention row counts present",
       "no payload body retained or printed"
     ]);
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
@@ -420,13 +437,7 @@ describe("workspace foundation", () => {
       checked_status: 200
     }));
     writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -489,13 +500,7 @@ describe("workspace foundation", () => {
         encrypted_payload: "must-not-appear"
       }
     })));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -549,13 +554,7 @@ describe("workspace foundation", () => {
     writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence({
       checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "WATASU_POSTGRES_URL"]
     })));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -608,13 +607,7 @@ describe("workspace foundation", () => {
     const canaryEvidence = buildCutoverCanaryEvidence();
     delete canaryEvidence["checked_method_boundaries"];
     writeFileSync(canaryPath, JSON.stringify(canaryEvidence));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -665,14 +658,12 @@ describe("workspace foundation", () => {
       checked_status: 200
     }));
     writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence({
       dry_run: false,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
       deleted: 1,
+      retained: 0,
       would_delete: 1
-    }));
+    })));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -705,6 +696,59 @@ describe("workspace foundation", () => {
     expect(result.stderr).toContain("retention evidence must be a dry run");
   });
 
+  test("test_production_cutover_verify_rejects_retention_evidence_without_checked_at", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
+    const retentionEvidence = buildCutoverRetentionEvidence();
+    delete retentionEvidence["checked_at"];
+    writeFileSync(retentionPath, JSON.stringify(retentionEvidence));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: expectedCutoverHeadSha
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath,
+      "--ci",
+      ciPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("retention evidence must include checked_at");
+  });
+
   test("test_production_cutover_verify_rejects_failed_ci_evidence", () => {
     const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
     const preflightPath = join(evidenceDir, "preflight.json");
@@ -723,13 +767,7 @@ describe("workspace foundation", () => {
       checked_status: 200
     }));
     writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",
@@ -780,13 +818,7 @@ describe("workspace foundation", () => {
       checked_status: 200
     }));
     writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
-    writeFileSync(retentionPath, JSON.stringify({
-      ok: true,
-      dry_run: true,
-      retention_days: 90,
-      tenant_id: "watasu-private-alpha",
-      would_delete: 0
-    }));
+    writeFileSync(retentionPath, JSON.stringify(buildCutoverRetentionEvidence()));
     writeFileSync(ciPath, JSON.stringify({
       workflowName: "ci",
       status: "completed",

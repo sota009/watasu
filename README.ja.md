@@ -176,6 +176,8 @@ Hosted metadata retention dry run:
 pnpm --filter @watasu/hosted retention -- --dry-run
 ```
 
+retention command output は `checked_at`、`retention_days`、`tenant_id`、`scanned`、`deleted`、`retained` を含みます。dry-run output は `dry_run` と `would_delete` も含みます。
+
 Render deploy preflight before account-side setup:
 
 ```bash
