@@ -74,9 +74,9 @@ MVP は「CLI / MCP で完結」「dashboard UI なし」「user-side agent 本�
 | JSON Schema validation | Ajv 2020-12 | JSON Schema draft 2020-12 をサポートし、公開済み schema と envelope schema の contract tests に使える。 |
 | Runtime validation | Zod v4 | MCP tool input/output の実装側 validation に使う。MCP SDK の Standard Schema 方針と合わせやすい。 |
 | JWE / JWK | `jose` | JWE、JWK、JWK thumbprint、Web Crypto runtime を扱える。暗号処理を自前実装しない。 |
-| DB access | Drizzle ORM | SQL-first で型安全。local SQLite と hosted PostgreSQL の両方に寄せやすい。 |
-| Local DB | SQLite | 1 terminal demo、local contract tests、CLI MVP に向く。 |
-| Hosted DB | PostgreSQL-compatible DB | hosted request publish、delivery ledger、retention job に向く。SQLite schema と差分が出る箇所は migration で管理する。 |
+| DB access | Optional | MVP default は persistent metadata store を必須にしない。必要になった場合だけ storage interface の背後に追加する。 |
+| Local DB | Optional SQLite / Node SQLite | local demo や contract tests で metadata-only persistence を証明する場合だけ使う。default path は in-memory / short-lived state。 |
+| Hosted DB | Optional PostgreSQL-compatible DB | hosted で persistent metadata ledger を明示的に有効化する場合だけ使う。大量利用や multi-tenant production では SQLite ではなく PostgreSQL-compatible DB を前提にする。 |
 | CLI | Node.js CLI + commander系の軽量 parser | CLI command surface を薄く保ち、core library を MCP tools と共有する。 |
 | test runner | Vitest | TypeScript の unit / contract / snapshot tests をまとめやすい。 |
 | Logging | pino などの structured JSON logger | payload redaction、request_id、submission_id、delivery status を構造化して残せる。 |
@@ -571,7 +571,7 @@ Capability URL は request version の公開 discovery credential であり、re
 - URL は TLS 経由でのみ配布し、ログには full URL を出さない。
 - revoke は即時反映し、revoked capability URL は webhook delivery 前に `rejected` を返す。
 - rotate は同じ request version に新しい `capability_id` と Agent Card URL を発行し、旧 URL を revoke する。
-- ledger には `capability_id_hash` を保存し、後から漏洩影響範囲を調べられるようにする。
+- optional ledger を有効化した場合は `capability_id_hash` を保存し、後から漏洩影響範囲を調べられるようにする。
 
 ## 9.2 Rate limit defaults
 
@@ -601,11 +601,12 @@ Consent receipt fields:
 
 保存方針:
 
-- すべての delivery ledger row に `consent_receipt_hash` を保存する。
-- 技術的証跡を再構成するための最小 metadata を保存する: `request_id`, `request_version`, `consent_text_hash`, `field_purposes_hash`, `destination_policy_hash`, `field_ids`, `user_confirmation_method`, `confirmed_at`, `agent_disclosure`。
+- default path では consent receipt metadata を永続保存しない。
+- optional persistent ledger を有効化した場合、すべての delivery ledger row に `consent_receipt_hash` を保存する。
+- optional persistent ledger を有効化した場合、技術的証跡を再構成するための最小 metadata を保存する: `request_id`, `request_version`, `consent_text_hash`, `field_purposes_hash`, `destination_policy_hash`, `field_ids`, `user_confirmation_method`, `confirmed_at`, `agent_disclosure`。
 - consent receipt の中に plaintext user payload values を保存しない。
 - consent receipt の中に raw long-lived user identifier または raw long-lived agent identifier を保存しない。
-- consent receipt metadata は delivery metadata と同じ期間保持する。ただし request version がより短い期間を指定する場合はそれに従う。
+- optional consent receipt metadata は optional delivery metadata と同じ期間保持する。ただし request version がより短い期間を指定する場合はそれに従う。
 
 Trust boundary:
 
@@ -671,9 +672,11 @@ Delivery resilience defaults:
 - slow destination、breaker open、timeout、connection refused は `error_category` として区別し、payload body を含まない。
 - delivery worker、HTTP client、APM trace、debug log は encrypted payload body を attribute や span event に含めない。
 
-## 12. データモデル
+## 12. Optional persistent data model
 
-最小 persistent entities:
+MVP default は DB 永続化を必須にしない。watasu が default で保持してよいのは、replay protection、rate limits、sender-actionable response のための short-lived operational state である。
+
+Persistent metadata ledger は service owner が明示的に有効化した場合だけ使う optional feature とする。optional ledger を有効化する場合の最小 persistent entities:
 
 ### `requests`
 
@@ -725,7 +728,7 @@ Delivery resilience defaults:
 - `verified_at`
 - `created_at`
 
-完全な webhook URL は encrypted configuration storage にだけ保存する。relational row には audit と lookup 用の hash と routing metadata だけを保存する。
+完全な webhook URL は encrypted configuration storage にだけ保存する。persistent metadata ledger が有効な場合でも、relational row には audit と lookup 用の hash と routing metadata だけを保存する。
 
 ### `delivery_ledger`
 
@@ -819,7 +822,7 @@ Delivery resilience defaults:
 - `decision`
 - `observed_at`
 
-Ledger metadata access, publish, revoke, rotate, and delivery inspection create audit log rows. Audit logs must not contain plaintext payload or encrypted payload body.
+Optional ledger metadata access, publish, revoke, rotate, and delivery inspection create audit log rows. Audit logs must not contain plaintext payload or encrypted payload body.
 
 ### `rate_limit_events`
 
@@ -868,9 +871,9 @@ Role rules:
 - Break-glass admin is out of MVP unless it has explicit time-bound elevation and audit log entries.
 - Every hosted MCP/CLI operation derives `tenant_id` from service identity, not from user-controlled request parameters.
 
-## 13. Delivery ledger
+## 13. Optional delivery ledger
 
-保存する fields:
+Default hosted path は persistent delivery ledger を作らない。短期 operational state は TTL 付きで保持し、期限後に削除する。以下は optional persistent ledger を明示的に有効化した場合だけ保存してよい fields:
 
 - request_id
 - request_version
@@ -898,15 +901,16 @@ Role rules:
 - 短期運用ログを超える raw sender network identifier
 - service private key
 
-Ledger metadata は、組み合わせによって personal data または personal-related information になり得る。retention、access control、audit logging を適用する。
+Ledger metadata は、組み合わせによって personal data または personal-related information になり得る。そのため persistent ledger は default-off とし、有効化する場合は retention、access control、audit logging を適用する。
 
-Default retention:
+Default short-lived state and optional ledger retention:
 
-- delivery ledger and consent receipt metadata: 90 days.
-- high sensitivity request metadata: 30 days unless the request explicitly requires a shorter period.
-- rate limit events: 30 days.
+- default idempotency / replay state: request policyに従う短期TTL。MVP default は 24 hours 以下を目標にする。
+- default rate limit events: 24 hours 以下を目標にする。
+- optional delivery ledger and consent receipt metadata: default 7 days、service owner が明示した場合でも request policy の上限を超えない。
+- high sensitivity request metadata in optional ledger: 30 days maximum unless the request explicitly requires a shorter period.
 - raw network abuse logs, if enabled: 7 days maximum.
-- access audit logs: 180 days, metadata only.
+- optional access audit logs: 180 days maximum, metadata only.
 
 Hosted ledger access control:
 
@@ -1050,12 +1054,13 @@ Reference components が提供しないもの:
 - webhook receiver が watasu delivery signature を検証できる。
 - webhook receiver が timestamp skew、body digest、idempotency key を検証できる。
 - service-side template が payload を復号し、validate できる。
-- ledger が metadata only で保存される。
-- consent receipt metadata が plaintext payload values なしで保存される。
-- ledger access が service identity 由来の tenant / role で制御され、metadata read が audit log に残る。
+- default hosted path が persistent ledger を作らない。
+- optional ledger が有効な場合、metadata only で保存される。
+- optional consent receipt metadata が plaintext payload values なしで保存される。
+- optional ledger access が service identity 由来の tenant / role で制御され、metadata read が audit log に残る。
 - `publisher`, `request_admin`, `key_admin`, `ledger_viewer`, `auditor` の権限境界が server-side で enforced される。
 - cross-tenant ledger、consent receipt、idempotency key、sender key inspection が existence leak なしで拒否される。
-- retention job が ledger metadata、consent receipt metadata、rate limit events、raw network abuse logs を request retention policy 通りに削除または anonymize する。
+- optional retention job が ledger metadata、consent receipt metadata、rate limit events、raw network abuse logs を request retention policy 通りに削除または anonymize する。
 - DB が plaintext payload を保存しない。
 - logs が plaintext payload を含まない。
 - temporary files、APM traces、metrics labels、crash reports、failed test snapshots が plaintext payload と encrypted payload body を含まない。

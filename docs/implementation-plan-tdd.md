@@ -15,7 +15,7 @@ pure contracts
   -> Agent Card and schemas
   -> submission validation
   -> webhook delivery
-  -> ledger metadata
+  -> short-lived state / optional ledger metadata
   -> CLI
   -> MCP
   -> reference fixtures
@@ -59,9 +59,9 @@ Primary assets:
 
 - plaintext payload values, which watasu must never see or persist
 - encrypted payload bodies, which must remain memory-only after delivery attempt
-- request versions and consent receipt metadata
+- request versions and consent receipt metadata, only when optional persistence is enabled
 - service public keys, sender keys, capability URLs, webhook destinations
-- ledger metadata, which can still become personal-related information
+- ledger metadata, which can still become personal-related information and is default-off
 
 Attack paths to test from the first sprint:
 
@@ -81,7 +81,7 @@ Security defaults:
 - no plaintext payload persistence
 - no encrypted payload body persistence after delivery attempt
 - every public or semi-public endpoint validates before side effects
-- every metadata read writes an audit event
+- every optional persistent metadata read writes an audit event
 
 ## Phase 0: Repository Foundation
 
@@ -193,7 +193,7 @@ Green implementation:
 
 - Implement hash helpers using Node.js Web Crypto or `crypto`.
 - Implement local in-memory repository first.
-- Add a filesystem or SQLite repository only after behavior is proven.
+- Add a filesystem, SQLite, or hosted repository only if optional persistence is explicitly needed after behavior is proven.
 
 Refactor checkpoint:
 
@@ -549,13 +549,14 @@ Human check:
 
 - Review demo output for the core promise: watasu did not log or persist payload values.
 
-## Phase 12: Persistence, Access Control, Retention
+## Phase 12: Optional Persistence, Access Control, Retention
 
-Purpose: move from in-memory/local store to SQLite-backed metadata while preserving behavior.
+Purpose: keep watasu stateless by default, then add optional metadata-only persistence only when a service owner explicitly enables it.
 
 Red tests:
 
-- `test_sqlite_persists_request_versions_append_only`
+- `test_default_hosted_mode_does_not_persist_delivery_metadata`
+- `test_optional_store_persists_request_versions_append_only`
 - `test_cross_tenant_ledger_inspection_returns_not_found_without_existence_leak`
 - `test_ledger_viewer_can_read_metadata`
 - `test_publisher_cannot_read_ledger_without_ledger_viewer_role`
@@ -565,7 +566,9 @@ Red tests:
 
 Green implementation:
 
-- Add migrations.
+- Add a storage policy layer with `stateless_default` and `metadata_ledger_enabled` modes.
+- Keep default hosted delivery on short-lived operational state only.
+- Add optional metadata-only storage adapter after behavior is proven.
 - Add repository implementations behind existing interfaces.
 - Add role and tenant boundary checks server-side.
 
@@ -581,7 +584,8 @@ pnpm test -- --run packages/core/src/storage packages/core/src/access-control
 
 Human check:
 
-- Inspect DB rows after a demo run.
+- In default mode, verify no persistent ledger rows are written after a demo run.
+- If optional ledger mode is enabled, inspect DB rows after a demo run and confirm they contain metadata only.
 
 ## Phase 13: Security Regression Suite
 
@@ -655,7 +659,7 @@ Ask for human review at these points:
 4. After Phase 6: response semantics and auth policy.
 5. After Phase 8: CLI names and local developer experience.
 6. After Phase 11: full demo output and payload custody claim.
-7. Before Phase 12: whether SQLite persistence is enough for MVP or hosted PostgreSQL should start now.
+7. Before Phase 12: whether optional persistence is needed at all; if hosted scale is required, prefer PostgreSQL-compatible storage over SQLite.
 
 ## NOT in scope
 

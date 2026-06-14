@@ -41,7 +41,7 @@
 | consent receipt | ユーザー同意の技術的な証跡。法的に完全な同意ではなく、どの request version / consent text / field purpose / destination policy に紐づいた submission かを検証するための metadata。 |
 | metadata | payload 本文ではない補助情報。例: request id、version、hash、delivery status、timestamp。組み合わせると個人関連情報になり得る。 |
 | retention | データや metadata をどのくらい保持するかという保持方針。 |
-| ledger | 配送台帳。payload 本文は保存せず、配送 status、request version、hash、error category などの metadata だけを残す。 |
+| ledger | 配送台帳。MVP の default では永続化せず、必要な場合だけ optional metadata-only ledger として有効化する。payload 本文は保存せず、配送 status、request version、hash、error category などの metadata だけを扱う。 |
 | hash | データから作る短い検証用の値。中身そのものを保存せず、改ざんや一致確認に使う。 |
 | signature | 送信者や配送元が本物か、内容が改ざんされていないかを確認するための署名。 |
 | key | 暗号化や署名に使う鍵。watasu は service private key を持たない。 |
@@ -55,7 +55,7 @@
 | idempotency key | 同じ送信を重複処理しないためのキー。retry や replay protection に使う。 |
 | replay protection | 過去の submission を再送して不正に処理させる攻撃を防ぐ仕組み。 |
 | log | システムが動作記録として残す情報。watasu は plaintext payload を log に出さない。 |
-| DB | Database。watasu は payload 本文をDBに保存せず、metadataだけを保存する。 |
+| DB | Database。watasu の default path では DB 永続化を必須にしない。永続化を有効化する場合も payload 本文をDBに保存せず、明示的に許可した metadata だけを保存する。 |
 | reference sender fixture | A2A submission contract を検証するための固定サンプル送信器またはfixture。本物の user-side agent ではない。 |
 | fixture | テストやデモで使う固定サンプルデータ。実ユーザーの個人データではない。 |
 | auth_required | sender authentication や sender signature が必要なのに不足している状態。 |
@@ -135,8 +135,9 @@ watasu は、サービス側とユーザー側のエージェントを接続し�
 - 外部の利用ユーザー側エージェントが A2A 互換メタデータ経由で要求内容を発見できるようにする。
 - watasu が復号できない形で encrypted submission を受け付ける。
 - encrypted submission をサービス側 webhook に配送する。
-- payload 本文ではなく配送メタデータだけを保存する。
-- 同意対象を後から検証できる最小限の consent receipt metadata を保存する。
+- payload 本文を保存せず、永続的な配送メタデータ保存も default では行わない。
+- replay protection、rate limit、sender への応答に必要な短期 operational state だけを最小化して保持する。
+- service owner が明示的に有効化した場合だけ、同意対象を後から検証できる最小限の consent receipt metadata と delivery metadata を metadata-only ledger に保存する。
 - 公開 intake endpoint の濫用を抑え、台帳汚染や webhook DoS を防ぐ。
 - サービス側 reference agent と A2A sender fixture で agent-to-agent 接続契約を検証できるようにする。
 - 医療、金融、未成年、政府ID、匿名通報などの高リスク領域では、watasu が解く範囲を「暗号化 intake transport と技術的証跡」に限定し、本人確認、法的同意、規制対応、代理権限、DSAR は service 側または別プロダクトの責務として明示する。
@@ -162,9 +163,9 @@ watasu が一番守りたいのは、「個人データの中身を watasu が�
 - watasu は配送後に encrypted payload body を保存しない。
 - webhook が失敗した場合、watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。
 
-ただし、payload 本文を保存しないだけでは同意対象を後から検証できない。そこで watasu は、payload 値を含まない最小限の consent receipt metadata を保存する。
+ただし、payload 本文を保存しないだけでは同意対象を後から検証できないユースケースもある。そこで watasu は、default では永続 ledger を持たず、必要な service owner が明示的に opt-in した場合だけ、payload 値を含まない最小限の consent receipt metadata を保存する。
 
-保存する例:
+optional persistent ledger で保存してよい例:
 
 - request id
 - request version
@@ -175,7 +176,7 @@ watasu が一番守りたいのは、「個人データの中身を watasu が�
 - user confirmation method
 - agent disclosure
 
-保存しない例:
+default path と optional ledger のどちらでも保存しない例:
 
 - 氏名
 - メールアドレス
@@ -185,7 +186,7 @@ watasu が一番守りたいのは、「個人データの中身を watasu が�
 
 公開 Agent Card や request-specific endpoint は、ユーザー側エージェントに渡すため完全な社内秘密にはできない。そのため MVP でも payload size limit、rate limit、idempotency key、high entropy capability URL、revocation、必要に応じた sender signature / authentication を持つ。
 
-metadata も安全上の対象である。watasu は payload 値を持たないが、request type、field_ids、submission time、sender pseudonym、consent receipt metadata の組み合わせは個人関連情報になり得る。そのため ledger metadata には tenant scope、role check、retention、access audit を適用し、MVP 完了条件にも含める。
+metadata も安全上の対象である。watasu は payload 値を持たないが、request type、field_ids、submission time、sender pseudonym、consent receipt metadata の組み合わせは個人関連情報になり得る。そのため persistent ledger は optional にし、有効化する場合は tenant scope、role check、retention、access audit を適用し、MVP 完了条件にも含める。
 
 ## 6. 対象ユーザー
 
@@ -268,11 +269,13 @@ watasu の責務:
 - Agent Card、schema、submission endpoint を公開する。
 - envelope、hash、replay、rate limit、capability URL status を検証する。
 - encrypted envelope をサービス側 webhook に配送する。
-- delivery metadata と consent receipt metadata を ledger に記録する。
+- default では delivery metadata と consent receipt metadata を永続 ledger に記録しない。
+- replay protection、rate limit、sender response に必要な短期 operational state だけを保持する。
+- optional persistent ledger が有効な場合だけ、delivery metadata と consent receipt metadata を metadata-only ledger に記録する。
 
 ### 7.4 CLI / MCP ledger
 
-MVP では dashboard UI を作らない。配送状況は CLI または MCP resource/tool 経由で確認する。
+MVP では dashboard UI を作らない。配送状況は CLI または MCP resource/tool 経由で確認する。ただし hosted default は persistent ledger なしとし、確認できる範囲は短期 operational state または明示的に有効化した optional metadata-only ledger に限る。
 
 確認できるもの:
 
@@ -432,8 +435,9 @@ MVP は以下を満たすまで完了扱いにしない。
 - watasu は encrypted envelope を webhook に配送できる。
 - webhook delivery は timeout、tenant / request concurrency cap、circuit breaker、SSRF-safe redirect handling を持ち、slow destination で watasu worker を枯渇させない。
 - service-side template は payload を復号し validation できる。
-- ledger には payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
-- ledger metadata と consent receipt metadata は server-side tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
+- default hosted path は persistent ledger を作らず、短期 operational state のみで replay protection、rate limit、sender response を処理できる。
+- optional persistent ledger を有効化した場合、payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
+- optional persistent ledger を有効化した場合、ledger metadata と consent receipt metadata は server-side tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
 - hosted roles は publish、key admin、ledger view、audit を分離し、service identity 由来の tenant / role だけを信頼する。
 - DB、logs、temporary files、APM traces、metrics labels、crash reports、test snapshots に plaintext payload または encrypted payload body が残らない。
 - webhook 5xx 時に watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。

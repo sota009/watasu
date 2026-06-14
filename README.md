@@ -12,9 +12,9 @@ watasu's boundary is **no payload custody**.
 - watasu does not hold the service private key.
 - watasu does not retain encrypted payload bodies after a delivery attempt.
 - If webhook delivery fails, watasu is designed to avoid keeping a payload retry queue and instead return `resubmit_later` to the sender.
-- Stored data is limited to metadata that does not contain payload values, such as request version, hashes, delivery status, and consent receipt metadata.
+- By default, watasu should avoid persistent custody even for metadata. Short-lived operational state may be kept for replay protection, rate limits, and sender-actionable delivery responses. Optional persistent ledgers must be metadata-only and explicitly enabled.
 
-Because metadata can still be personal-related information, it is treated as subject to tenant, role, retention, and audit controls. watasu does not guarantee legal consent, identity verification, delegated authority, regulatory compliance, or DSAR handling. Those remain the responsibility of the service side or another product.
+Because metadata can still be personal-related information, any optional persistent metadata is treated as subject to tenant, role, retention, and audit controls. watasu does not guarantee legal consent, identity verification, delegated authority, regulatory compliance, or DSAR handling. Those remain the responsibility of the service side or another product.
 
 ## Workspace Layout
 
@@ -149,7 +149,7 @@ Not yet in the MVP:
 - dashboard UI or human form builder
 - user-side agent, personal vault, or consumer AI companion
 - hosted production service
-- production DB migrations and hosted retention jobs
+- optional persistent metadata store and hosted retention jobs
 - production MCP tool surface beyond request definition validation
 - service-owned key management beyond the local JWE wrapper
 - production retry queue for payload bodies
