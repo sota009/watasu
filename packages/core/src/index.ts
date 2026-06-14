@@ -14,6 +14,7 @@ export {
   generateEncryptedEnvelopeSchema,
   generatePlaintextPayloadSchema
 } from "./schema.js";
+export { publishRequestVersion } from "./publish.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -28,3 +29,8 @@ export type {
   RequestVersionHashes
 } from "./request-version.js";
 export type { JsonSchemaObject, JsonSchemaProperty } from "./schema.js";
+export type {
+  PublishMode,
+  PublishRequestVersionResult,
+  RequestVersionPublisher
+} from "./publish.js";
