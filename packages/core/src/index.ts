@@ -19,6 +19,12 @@ export {
   watasuEncryptedIntakeExtensionUri
 } from "./agent-card.js";
 export { publishRequestVersion } from "./publish.js";
+export {
+  InMemoryIdempotencyStore,
+  InMemorySubmissionRateLimiter,
+  createIdempotencyRecordKey,
+  validateSubmissionEnvelope
+} from "./submission.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -39,3 +45,15 @@ export type {
   RequestVersionPublisher
 } from "./publish.js";
 export type { AgentCard } from "./agent-card.js";
+export type {
+  AcceptedSubmission,
+  IdempotencyRecord,
+  IdempotencyStore,
+  SubmissionCapability,
+  SubmissionEnvelope,
+  SubmissionRateLimiter,
+  SubmissionValidationContext,
+  SubmissionValidationError,
+  SubmissionValidationResult,
+  TrustedInviteBinding
+} from "./submission.js";
