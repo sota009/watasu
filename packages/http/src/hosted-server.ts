@@ -131,39 +131,50 @@ export function createHostedProductionServer(
   const maxRequestBodyBytes = options.maxRequestBodyBytes ?? defaultMaxRequestBodyBytes;
 
   return createServer(async (request, response) => {
-    if (isContentLengthOverLimit(request.headers, maxRequestBodyBytes)) {
-      request.resume();
-      const handled = requestBodyTooLargeResponse();
-      response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
-      response.end(handled.body);
-      return;
-    }
-
-    let body: string;
     try {
-      body = await readHostedRequestBody(request, {
-        maxBytes: maxRequestBodyBytes
-      });
-    } catch (error) {
-      if (isHostedRequestBodyTooLargeError(error)) {
+      if (isContentLengthOverLimit(request.headers, maxRequestBodyBytes)) {
+        request.resume();
         const handled = requestBodyTooLargeResponse();
         response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
         response.end(handled.body);
         return;
       }
 
-      throw error;
+      let body: string;
+      try {
+        body = await readHostedRequestBody(request, {
+          maxBytes: maxRequestBodyBytes
+        });
+      } catch (error) {
+        if (isHostedRequestBodyTooLargeError(error)) {
+          const handled = requestBodyTooLargeResponse();
+          response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
+          response.end(handled.body);
+          return;
+        }
+
+        throw error;
+      }
+
+      const handled = await app.handle(buildHostedProductionRequest({
+        method: request.method ?? "GET",
+        url: request.url,
+        headers: normalizeHeaders(request.headers),
+        body
+      }));
+
+      response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
+      response.end(handled.body);
+    } catch {
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+
+      const handled = internalServerErrorResponse();
+      response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
+      response.end(handled.body);
     }
-
-    const handled = await app.handle(buildHostedProductionRequest({
-      method: request.method ?? "GET",
-      url: request.url,
-      headers: normalizeHeaders(request.headers),
-      body
-    }));
-
-    response.writeHead(handled.status, withHostedSecurityHeaders(handled.headers));
-    response.end(handled.body);
   });
 }
 
@@ -322,6 +333,23 @@ function requestBodyTooLargeResponse(): HostedProductionResponse {
       error: {
         code: "request_body_too_large",
         message: "Request body exceeds the hosted production limit."
+      }
+    })}\n`
+  };
+}
+
+function internalServerErrorResponse(): HostedProductionResponse {
+  return {
+    status: 500,
+    headers: {
+      "content-type": "application/json; charset=utf-8"
+    },
+    body: `${JSON.stringify({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "internal_server_error",
+        message: "Hosted production request failed."
       }
     })}\n`
   };

@@ -12,6 +12,12 @@ import {
   type HostedProductionRequest
 } from "./hosted-server.js";
 
+type CapturedHostedResponse = {
+  body: string;
+  headers: Record<string, string>;
+  status: number;
+};
+
 describe("hosted production server runtime", () => {
   test("test_load_hosted_runtime_config_reads_env_defaults", () => {
     const config = loadHostedRuntimeConfig({});
@@ -187,6 +193,38 @@ describe("hosted production server runtime", () => {
     server.close();
   });
 
+  test("test_create_hosted_production_server_returns_low_information_500_when_app_throws", async () => {
+    const server = createHostedProductionServer({
+      async handle(_request: HostedProductionRequest) {
+        throw new Error("secret database payload leaked");
+      }
+    });
+    const request = Readable.from([]) as Readable & {
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+    };
+    request.headers = {};
+    request.method = "GET";
+    request.url = "/requests/request-a/ledger";
+    const response = captureHostedResponse();
+
+    server.emit("request", request, response.response);
+    const handled = await response.ended;
+
+    expect(handled.status).toBe(500);
+    expect(handled.headers).toMatchObject({
+      "cache-control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    });
+    expect(handled.body).toContain("\"code\":\"internal_server_error\"");
+    expect(handled.body).not.toContain("secret");
+    expect(handled.body).not.toContain("database");
+    expect(handled.body).not.toContain("payload");
+    server.close();
+  });
+
   test("test_with_hosted_security_headers_adds_default_api_headers", () => {
     const headers = withHostedSecurityHeaders({
       "content-type": "application/json; charset=utf-8"
@@ -228,3 +266,35 @@ describe("hosted production server runtime", () => {
     expect(overLimit).toBe(false);
   });
 });
+
+function captureHostedResponse(): {
+  ended: Promise<CapturedHostedResponse>;
+  response: {
+    end(body: string): void;
+    writeHead(status: number, headers: Record<string, string>): void;
+  };
+} {
+  let status = 0;
+  let headers: Record<string, string> = {};
+  let resolveEnded: (value: CapturedHostedResponse) => void = () => {};
+  const ended = new Promise<CapturedHostedResponse>((resolve) => {
+    resolveEnded = resolve;
+  });
+
+  return {
+    ended,
+    response: {
+      writeHead(nextStatus, nextHeaders) {
+        status = nextStatus;
+        headers = nextHeaders;
+      },
+      end(body) {
+        resolveEnded({
+          body,
+          headers,
+          status
+        });
+      }
+    }
+  };
+}
