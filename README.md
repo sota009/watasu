@@ -170,6 +170,7 @@ Currently implemented:
 - JSONL delivery metadata ledger store for opt-in local persistence
 - PostgreSQL-compatible delivery metadata ledger store for hosted persistence
 - PostgreSQL delivery metadata ledger schema SQL for hosted migration bootstrap
+- PostgreSQL delivery metadata ledger migration runner for injected hosted query clients
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
@@ -183,7 +184,7 @@ Currently implemented:
 Still remaining for Hosted Production MVP:
 
 - production hosted runtime wiring for real deployment identity provider, database pool, and migration runner
-- PostgreSQL provisioning and migration runner wiring for hosted metadata stores
+- PostgreSQL provisioning and database pool wiring for hosted metadata stores
 - production MCP deployment wiring
 - KMS/HSM-backed service private key custody beyond verified public-key registry
 

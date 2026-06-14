@@ -10,6 +10,7 @@ import {
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresDeliveryLedgerStore,
+  runPostgresDeliveryLedgerMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
@@ -476,6 +477,36 @@ describe("storage policy controlled delivery ledger", () => {
     expect(schemaSql).not.toContain("encrypted_payload ");
     expect(schemaSql).not.toContain("ciphertext");
     expect(schemaSql).not.toContain("payload_body");
+  });
+
+  test("test_postgres_delivery_ledger_migration_runs_schema_sql_once", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+
+    await runPostgresDeliveryLedgerMigration({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    expect(queries).toEqual([
+      {
+        text: createPostgresDeliveryLedgerSchemaSql(),
+        values: []
+      }
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+    expect(JSON.stringify(queries)).not.toContain("base64url-ciphertext");
   });
 
   test("test_policy_controlled_ledger_awaits_async_persistent_store", async () => {

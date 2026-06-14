@@ -263,7 +263,7 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
-Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL, hosted retention job runner, and local HTTP demo hook wiring.
+Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL and migration runner, hosted retention job runner, and local HTTP demo hook wiring.
 
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 
@@ -273,6 +273,7 @@ Implementation:
 - Add metadata-only persistent store for local/single-node validation.
 - Add PostgreSQL-compatible metadata adapter using parameterized queries.
 - Add PostgreSQL metadata ledger schema SQL with tenant-scoped primary key and no payload body columns.
+- Add PostgreSQL metadata ledger migration runner for injected hosted query clients.
 - Add hosted retention job runner gated by auditor role.
 - Add request-level and tenant-level delivery concurrency caps.
 - Add short-lived circuit breaker for repeated webhook failures.
@@ -323,7 +324,7 @@ Done when:
 | Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
-| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, and hosted job runner | Hosted DB provisioning and migration runner wiring |
+| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, and hosted job runner | Hosted DB provisioning and pool wiring |
 
 ## Positioning boundaries
 
