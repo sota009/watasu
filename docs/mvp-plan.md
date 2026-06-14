@@ -129,6 +129,7 @@ Current repo-side status:
 - Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures.
 - Done: `pnpm --silent deploy:preflight` reports repo-side Render readiness and remaining external actions without printing secret values or database URLs.
 - Done: `pnpm --silent cutover:prepare` records the cutover head, deploy preflight, and hosted smoke JSON under the gitignored `cutover-evidence/` directory.
+- Done: `pnpm --silent cutover:ci` records a completed successful GitHub Actions `ci` run that matches `cutover-evidence/cutover-head.txt`.
 - Done: `pnpm --silent cutover:plan` reports before-Render commands, cutover evidence preparation, account-side actions, post-deploy checks, required evidence, and stop conditions as secret-safe JSON.
 - Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, retention, and CI-green JSON evidence for the recorded cutover head before a private-alpha go decision.
 - Done: `pnpm --silent smoke:hosted` loads the compiled hosted runtime and verifies the low-information `/health` response without binding a network port.
@@ -144,7 +145,7 @@ Product owner actions:
 6. Run `pnpm --silent cutover:prepare` before entering account-side values. Stop if it cannot record the exact cutover commit, deploy preflight, and hosted smoke evidence in the gitignored `cutover-evidence/` directory.
 7. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
 8. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
-9. Save the JSON outputs from `gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt`, `canary:hosted`, and `pnpm --filter @watasu/hosted retention -- --dry-run` under `cutover-evidence/`, then run `pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json`.
+9. Run `pnpm --silent cutover:ci`, then save the JSON outputs from `canary:hosted` and `pnpm --filter @watasu/hosted retention -- --dry-run` under `cutover-evidence/`, then run `pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json`.
 10. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, retention dry run, cutover verification, and no-payload-custody checks pass on the deployed URL.
 
 Recommended production environment variables:
@@ -175,6 +176,7 @@ Owner checklist for the first production cutover:
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [x] Repo-side production cutover plan command exists: `pnpm --silent cutover:plan`.
 [x] Repo-side production cutover prepare command exists: `pnpm --silent cutover:prepare`.
+[x] Repo-side production cutover CI evidence command exists: `pnpm --silent cutover:ci`.
 [x] Repo-side production cutover verifier command exists: `pnpm --silent cutover:verify`.
 [x] Repo-side Render deploy preflight command exists: `pnpm --silent deploy:preflight`.
 [x] Repo-side hosted runtime smoke command exists: `pnpm --silent smoke:hosted`.

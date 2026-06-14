@@ -119,6 +119,7 @@ describe("workspace foundation", () => {
 
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
+      "cutover:ci": "node scripts/production-cutover-ci.mjs",
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
       "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
       "cutover:verify": "node scripts/production-cutover-verify.mjs",
@@ -348,6 +349,54 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
+  test("test_production_cutover_ci_writes_matching_head_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-ci-"));
+    const sourcePath = join(evidenceDir, "gh-runs.json");
+    writeFileSync(join(evidenceDir, "cutover-head.txt"), `${expectedCutoverHeadSha}\n`);
+    writeFileSync(sourcePath, JSON.stringify([
+      {
+        workflowName: "ci",
+        status: "completed",
+        conclusion: "success",
+        headSha: expectedCutoverHeadSha,
+        url: "https://github.com/sota009/watasu/actions/runs/1",
+        createdAt: "2026-06-15T00:00:00Z"
+      }
+    ]));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:ci",
+      "--dir",
+      evidenceDir,
+      "--source",
+      sourcePath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      checked_head_sha: string;
+      wrote: string;
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      checked_head_sha: expectedCutoverHeadSha,
+      wrote: join(evidenceDir, "ci.json")
+    });
+    expect(JSON.parse(readFileSync(join(evidenceDir, "ci.json"), "utf8"))).toMatchObject({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: expectedCutoverHeadSha
+    });
+    expect(result.stdout).not.toContain("GITHUB_TOKEN=");
+  });
+
   test("test_production_cutover_plan_outputs_ordered_secret_safe_commands", () => {
     const result = spawnSync("pnpm", ["--silent", "cutover:plan"], {
       cwd: rootDir,
@@ -372,7 +421,7 @@ describe("workspace foundation", () => {
         "pnpm --silent secret:identity --plain"
       ],
       after_deploy_commands: [
-        "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > cutover-evidence/ci.json",
+        "pnpm --silent cutover:ci",
         "pnpm canary:hosted -- https://api.watasu.ai",
         "pnpm --filter @watasu/hosted retention -- --dry-run"
       ]

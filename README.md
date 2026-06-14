@@ -202,6 +202,12 @@ pnpm --silent cutover:prepare
 
 The prepare command writes `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, and `cutover-evidence/smoke.json` without persisting secret-like assignment output.
 
+After the matching GitHub Actions run is green, save CI evidence:
+
+```bash
+pnpm --silent cutover:ci
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash

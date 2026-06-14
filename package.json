@@ -9,6 +9,7 @@
   },
   "scripts": {
     "canary:hosted": "node scripts/hosted-canary.mjs",
+    "cutover:ci": "node scripts/production-cutover-ci.mjs",
     "cutover:plan": "node scripts/production-cutover-plan.mjs",
     "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
     "cutover:verify": "node scripts/production-cutover-verify.mjs",
