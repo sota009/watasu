@@ -194,6 +194,14 @@ pnpm --silent cutover:plan
 
 The cutover plan prints the before-Render commands, external account actions, after-deploy checks, required evidence, and stop conditions as secret-safe JSON.
 
+Production cutover evidence verification after deploy:
+
+```bash
+pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json
+```
+
+The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, and the retention dry run, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
+
 Hosted runtime smoke before deploy:
 
 ```bash

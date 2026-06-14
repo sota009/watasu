@@ -70,6 +70,7 @@ describe("workspace foundation", () => {
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
+      "cutover:verify": "node scripts/production-cutover-verify.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
@@ -297,6 +298,123 @@ describe("workspace foundation", () => {
     ]);
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_production_cutover_verify_accepts_required_secret_safe_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+      go_no_go: {
+        decision: "go"
+      }
+    }));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: true,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      would_delete: 0
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      decision: "go",
+      checked_origin: "https://api.watasu.ai",
+      checked_evidence: ["preflight", "smoke", "canary", "retention"]
+    });
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_production_cutover_verify_rejects_payload_body_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+      leaked_example: {
+        encrypted_payload: "must-not-appear"
+      },
+      go_no_go: {
+        decision: "go"
+      }
+    }));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: true,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      would_delete: 0
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("contains payload body evidence");
+    expect(result.stderr).not.toContain("must-not-appear");
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {
