@@ -140,6 +140,11 @@ await assertMcpProtectedResourceMetadata({
   url: urls.mcpProtectedResourceMetadata
 });
 
+await assertMcpProtectedResourceMetadataMethodBoundary({
+  label: "MCP protected resource metadata method boundary",
+  url: urls.mcpProtectedResourceMetadata
+});
+
 console.log(JSON.stringify(buildHostedCanarySuccessReport({
   checkedAt: new Date().toISOString(),
   status: response.status,
@@ -209,6 +214,49 @@ async function assertMcpProtectedResourceMetadata(input) {
     !checkedJson.bearer_methods_supported.includes("header")
   ) {
     console.error(`${input.label} returned an unexpected metadata body.`);
+    process.exit(1);
+  }
+
+  const routeLeak = mcpForbiddenFragments().find((fragment) => checkedBody.includes(fragment));
+  if (routeLeak !== undefined) {
+    console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
+    process.exit(1);
+  }
+}
+
+async function assertMcpProtectedResourceMetadataMethodBoundary(input) {
+  const checkedResponse = await fetchHostedCanary(input.label, input.url, {
+    method: "POST",
+    headers: {
+      accept: "application/json"
+    },
+    body: "{}",
+    redirect: "manual"
+  });
+  const checkedBody = await readHostedCanaryResponseBody(input.label, checkedResponse);
+
+  if (checkedResponse.status !== 405) {
+    console.error(`${input.label} expected status 405 but got ${checkedResponse.status}.`);
+    process.exit(1);
+  }
+  assertRequiredHeaders(checkedResponse, input.label);
+
+  const allow = checkedResponse.headers.get("allow");
+  if (allow !== "GET") {
+    console.error(`${input.label} expected Allow header GET but got ${JSON.stringify(allow)}.`);
+    process.exit(1);
+  }
+
+  let checkedJson;
+  try {
+    checkedJson = JSON.parse(checkedBody);
+  } catch {
+    console.error(`${input.label} did not return JSON.`);
+    process.exit(1);
+  }
+
+  if (checkedJson?.ok !== false || checkedJson?.error?.code !== "method_not_allowed") {
+    console.error(`${input.label} returned an unexpected method boundary body.`);
     process.exit(1);
   }
 

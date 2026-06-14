@@ -54,6 +54,13 @@ export function buildHostedCanarySuccessReport(input) {
       input.urls.mcpProtectedResourceMetadata,
       input.urls.unsafeEncodedRequestId
     ],
+    checked_method_boundaries: [
+      {
+        url: input.urls.mcpProtectedResourceMetadata,
+        allowed_methods: ["GET"],
+        rejected_methods: ["POST"]
+      }
+    ],
     checked_headers: Object.keys(hostedCanaryRequiredHeaders),
     checked_timeout_ms: input.timeoutMs,
     status: input.status

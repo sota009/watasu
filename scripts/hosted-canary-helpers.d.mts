@@ -24,6 +24,11 @@ export function buildHostedCanarySuccessReport(input: {
   checked_at: string;
   checked_url: string;
   checked_public_routes: string[];
+  checked_method_boundaries: Array<{
+    url: string;
+    allowed_methods: string[];
+    rejected_methods: string[];
+  }>;
   checked_headers: string[];
   checked_timeout_ms: number;
   status: number;

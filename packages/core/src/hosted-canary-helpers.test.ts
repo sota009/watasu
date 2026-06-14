@@ -193,6 +193,13 @@ describe("hosted canary helpers", () => {
         "https://api.watasu.ai/.well-known/oauth-protected-resource",
         "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
       ],
+      checked_method_boundaries: [
+        {
+          url: "https://api.watasu.ai/.well-known/oauth-protected-resource",
+          allowed_methods: ["GET"],
+          rejected_methods: ["POST"]
+        }
+      ],
       checked_headers: [
         "cache-control",
         "content-security-policy",
