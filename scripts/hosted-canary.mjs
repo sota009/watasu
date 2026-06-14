@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {
   buildHostedCanaryCheckUrls,
+  buildHostedCanarySuccessReport,
   hostedCanaryRequiredHeaders,
   resolveHostedCanaryBaseUrl,
   resolveHostedCanaryTimeoutMs,
@@ -127,19 +128,11 @@ await assertNotFoundRoute({
   }
 });
 
-console.log(JSON.stringify({
-  ok: true,
-  checked_url: urls.health,
-  checked_public_routes: [
-    urls.unpublishedAgentCard,
-    urls.unpublishedPlaintextSchema,
-    urls.unpublishedEnvelopeSchema,
-    urls.unpublishedSubmit,
-    urls.unsafeEncodedRequestId
-  ],
-  checked_headers: Object.keys(hostedCanaryRequiredHeaders),
-  status: response.status
-}));
+console.log(JSON.stringify(buildHostedCanarySuccessReport({
+  status: response.status,
+  timeoutMs,
+  urls
+})));
 
 function assertRequiredHeaders(checkedResponse, label) {
   for (const [name, expected] of Object.entries(hostedCanaryRequiredHeaders)) {

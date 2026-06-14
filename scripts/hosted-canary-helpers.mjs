@@ -35,6 +35,23 @@ export function buildHostedCanaryCheckUrls(baseUrl) {
   };
 }
 
+export function buildHostedCanarySuccessReport(input) {
+  return {
+    ok: true,
+    checked_url: input.urls.health,
+    checked_public_routes: [
+      input.urls.unpublishedAgentCard,
+      input.urls.unpublishedPlaintextSchema,
+      input.urls.unpublishedEnvelopeSchema,
+      input.urls.unpublishedSubmit,
+      input.urls.unsafeEncodedRequestId
+    ],
+    checked_headers: Object.keys(hostedCanaryRequiredHeaders),
+    checked_timeout_ms: input.timeoutMs,
+    status: input.status
+  };
+}
+
 export function parseHostedCanaryBaseUrl(rawBaseUrl) {
   if (rawBaseUrl === undefined || rawBaseUrl.trim() === "") {
     throw new Error("WATASU_CANARY_BASE_URL is required.");

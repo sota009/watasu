@@ -12,6 +12,19 @@ export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   unsafeEncodedRequestId: string;
 };
 
+export function buildHostedCanarySuccessReport(input: {
+  status: number;
+  timeoutMs: number;
+  urls: ReturnType<typeof buildHostedCanaryCheckUrls>;
+}): {
+  ok: true;
+  checked_url: string;
+  checked_public_routes: string[];
+  checked_headers: string[];
+  checked_timeout_ms: number;
+  status: number;
+};
+
 export function parseHostedCanaryBaseUrl(rawBaseUrl: string | undefined): URL;
 
 export function resolveHostedCanaryBaseUrl(input: {

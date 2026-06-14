@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   buildHostedCanaryCheckUrls,
+  buildHostedCanarySuccessReport,
   defaultHostedCanaryTimeoutMs,
   maxHostedCanaryTimeoutMs,
   hostedCanaryUnpublishedRequestId,
@@ -139,6 +140,35 @@ describe("hosted canary helpers", () => {
       unpublishedEnvelopeSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
       unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
       unsafeEncodedRequestId: "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
+    });
+  });
+
+  test("test_build_hosted_canary_success_report_includes_timeout_evidence", () => {
+    const urls = buildHostedCanaryCheckUrls(parseHostedCanaryBaseUrl("https://api.watasu.ai"));
+    const report = buildHostedCanarySuccessReport({
+      status: 200,
+      timeoutMs: 2500,
+      urls
+    });
+
+    expect(report).toEqual({
+      ok: true,
+      checked_url: "https://api.watasu.ai/health",
+      checked_public_routes: [
+        `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
+        `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/plaintext.json`,
+        `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
+        `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
+        "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
+      ],
+      checked_headers: [
+        "cache-control",
+        "content-security-policy",
+        "referrer-policy",
+        "x-content-type-options"
+      ],
+      checked_timeout_ms: 2500,
+      status: 200
     });
   });
 
