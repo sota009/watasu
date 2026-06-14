@@ -84,7 +84,8 @@ describe("hosted canary helpers", () => {
       unpublishedAgentCard: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
       unpublishedPlaintextSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/plaintext.json`,
       unpublishedEnvelopeSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
-      unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`
+      unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
+      unsafeEncodedRequestId: "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
     });
   });
 });

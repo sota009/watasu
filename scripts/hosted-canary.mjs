@@ -112,6 +112,18 @@ await assertUnpublishedRoute({
   }
 });
 
+await assertNotFoundRoute({
+  label: "Unsafe encoded request id route",
+  url: urls.unsafeEncodedRequestId,
+  init: {
+    method: "GET",
+    headers: {
+      accept: "application/json"
+    },
+    redirect: "manual"
+  }
+});
+
 console.log(JSON.stringify({
   ok: true,
   checked_url: urls.health,
@@ -119,7 +131,8 @@ console.log(JSON.stringify({
     urls.unpublishedAgentCard,
     urls.unpublishedPlaintextSchema,
     urls.unpublishedEnvelopeSchema,
-    urls.unpublishedSubmit
+    urls.unpublishedSubmit,
+    urls.unsafeEncodedRequestId
   ],
   checked_headers: Object.keys(hostedCanaryRequiredHeaders),
   status: response.status
@@ -155,6 +168,36 @@ async function assertUnpublishedRoute(input) {
 
   if (checkedJson?.ok !== false || checkedJson?.error?.code !== "request_version_not_found") {
     console.error(`${input.label} returned an unexpected unpublished request body.`);
+    process.exit(1);
+  }
+
+  const routeLeak = forbiddenFragments.find((fragment) => checkedBody.includes(fragment));
+  if (routeLeak !== undefined) {
+    console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
+    process.exit(1);
+  }
+}
+
+async function assertNotFoundRoute(input) {
+  const checkedResponse = await fetch(input.url, input.init);
+  const checkedBody = await checkedResponse.text();
+
+  if (checkedResponse.status !== 404) {
+    console.error(`${input.label} expected not found status 404 but got ${checkedResponse.status}.`);
+    process.exit(1);
+  }
+  assertRequiredHeaders(checkedResponse, input.label);
+
+  let checkedJson;
+  try {
+    checkedJson = JSON.parse(checkedBody);
+  } catch {
+    console.error(`${input.label} did not return JSON.`);
+    process.exit(1);
+  }
+
+  if (checkedJson?.ok !== false || checkedJson?.error?.code !== "not_found") {
+    console.error(`${input.label} returned an unexpected not found body.`);
     process.exit(1);
   }
 

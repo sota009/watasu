@@ -25,6 +25,10 @@ export function buildHostedCanaryCheckUrls(baseUrl) {
     unpublishedSubmit: new URL(
       `/requests/${hostedCanaryUnpublishedRequestId}/submit`,
       baseUrl
+    ).toString(),
+    unsafeEncodedRequestId: new URL(
+      "/requests/__watasu%2Fcanary__/agent-card.json",
+      baseUrl
     ).toString()
   };
 }
