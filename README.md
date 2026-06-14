@@ -168,7 +168,7 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
-The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_timeout_ms` so the cutover record shows the bound used.
+The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_timeout_ms` so the cutover record shows the bound used. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge without exposing payload or secret fragments.
 
 Hosted metadata retention dry run:
 

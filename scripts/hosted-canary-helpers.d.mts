@@ -9,6 +9,7 @@ export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   unpublishedPlaintextSchema: string;
   unpublishedEnvelopeSchema: string;
   unpublishedSubmit: string;
+  mcpEndpoint: string;
   unsafeEncodedRequestId: string;
 };
 

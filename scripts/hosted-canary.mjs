@@ -128,6 +128,11 @@ await assertNotFoundRoute({
   }
 });
 
+await assertMcpEndpoint({
+  label: "MCP endpoint",
+  url: urls.mcpEndpoint
+});
+
 console.log(JSON.stringify(buildHostedCanarySuccessReport({
   status: response.status,
   timeoutMs,
@@ -141,6 +146,50 @@ function assertRequiredHeaders(checkedResponse, label) {
       console.error(`${label} header ${name} expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}.`);
       process.exit(1);
     }
+  }
+}
+
+async function assertMcpEndpoint(input) {
+  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout({
+    method: "POST",
+    headers: {
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2025-11-25"
+    },
+    redirect: "manual"
+  }, timeoutMs));
+  const checkedBody = await checkedResponse.text();
+
+  if (checkedResponse.status !== 401) {
+    console.error(`${input.label} expected unauthenticated status 401 but got ${checkedResponse.status}.`);
+    process.exit(1);
+  }
+  assertRequiredHeaders(checkedResponse, input.label);
+
+  const challenge = checkedResponse.headers.get("www-authenticate");
+  if (challenge === null || !challenge.startsWith("Bearer resource_metadata=") || !challenge.includes("watasu:publish")) {
+    console.error(`${input.label} did not return the expected authentication challenge.`);
+    process.exit(1);
+  }
+
+  let checkedJson;
+  try {
+    checkedJson = JSON.parse(checkedBody);
+  } catch {
+    console.error(`${input.label} did not return JSON.`);
+    process.exit(1);
+  }
+
+  if (checkedJson?.ok !== false || checkedJson?.error?.code !== "mcp_transport_auth_required") {
+    console.error(`${input.label} returned an unexpected authentication body.`);
+    process.exit(1);
+  }
+
+  const mcpForbiddenFragments = forbiddenFragments.filter((fragment) => fragment !== "ledger");
+  const routeLeak = mcpForbiddenFragments.find((fragment) => checkedBody.includes(fragment) || challenge.includes(fragment));
+  if (routeLeak !== undefined) {
+    console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
+    process.exit(1);
   }
 }
 

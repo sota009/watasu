@@ -15,6 +15,7 @@
   "dependencies": {
     "@watasu/core": "workspace:*",
     "@watasu/http": "workspace:*",
+    "@watasu/mcp": "workspace:*",
     "pg": "8.21.0"
   },
   "devDependencies": {

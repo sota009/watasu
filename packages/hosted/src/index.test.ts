@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { Readable } from "node:stream";
 import {
   createHostedProductionServerFromEnv,
   runHostedPostgresRetentionJobFromEnv,
@@ -32,6 +33,44 @@ describe("hosted production runtime package", () => {
       port: 10000
     });
     expect(runtime.server.listening).toBe(false);
+    runtime.server.close();
+  });
+
+  test("test_hosted_production_server_from_env_mounts_mcp_auth_challenge", async () => {
+    // Arrange
+    const runtime = createHostedProductionServerFromEnv({
+      env: {
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        PORT: "10000"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z")
+    });
+    const request = Readable.from([]) as Readable & {
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+    };
+    request.headers = {
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2025-11-25"
+    };
+    request.method = "POST";
+    request.url = "/mcp";
+    const response = captureHostedResponse();
+
+    // Act
+    runtime.server.emit("request", request, response.response);
+    const handled = await response.ended;
+
+    // Assert
+    expect(handled.status).toBe(401);
+    expect(handled.headers["www-authenticate"]).toBe(
+      "Bearer resource_metadata=\"https://api.watasu.ai/.well-known/oauth-protected-resource\", scope=\"watasu:publish watasu:ledger:read\""
+    );
+    expect(handled.headers["x-content-type-options"]).toBe("nosniff");
+    expect(handled.body).toContain("\"code\":\"mcp_transport_auth_required\"");
     runtime.server.close();
   });
 
@@ -409,3 +448,47 @@ describe("hosted production runtime package", () => {
     expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
   });
 });
+
+type CapturedHostedResponse = {
+  body: string;
+  headers: Record<string, string>;
+  status: number;
+};
+
+function captureHostedResponse(): {
+  ended: Promise<CapturedHostedResponse>;
+  response: {
+    end(body?: string): void;
+    setHeader(name: string, value: string | number | readonly string[]): void;
+    writeHead(status: number, headers?: Record<string, string | number | readonly string[]>): void;
+  };
+} {
+  let status = 0;
+  const headers: Record<string, string> = {};
+  let resolveEnded: (value: CapturedHostedResponse) => void = () => {};
+  const ended = new Promise<CapturedHostedResponse>((resolve) => {
+    resolveEnded = resolve;
+  });
+
+  return {
+    ended,
+    response: {
+      setHeader(name, value) {
+        headers[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+      },
+      writeHead(nextStatus, nextHeaders = {}) {
+        status = nextStatus;
+        for (const [name, value] of Object.entries(nextHeaders)) {
+          headers[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+        }
+      },
+      end(body = "") {
+        resolveEnded({
+          body,
+          headers,
+          status
+        });
+      }
+    }
+  };
+}

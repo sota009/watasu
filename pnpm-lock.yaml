@@ -56,6 +56,9 @@ importers:
       '@watasu/http':
         specifier: workspace:*
         version: link:../http
+      '@watasu/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       pg:
         specifier: 8.21.0
         version: 8.21.0

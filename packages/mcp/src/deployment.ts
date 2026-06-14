@@ -45,11 +45,18 @@ function assertCleanHttpsUrl(value: string, label: string): void {
     throw new Error(`${label} must be an absolute HTTPS URL.`);
   }
 
-  if (url.protocol !== "https:") {
+  if (url.protocol !== "https:" && !isLocalLoopbackHost(url.hostname)) {
     throw new Error(`${label} must be an absolute HTTPS URL.`);
   }
 
   if (url.search !== "" || url.hash !== "") {
     throw new Error(`${label} must not include query string or fragment.`);
   }
+}
+
+function isLocalLoopbackHost(hostname: string): boolean {
+  const normalizedHostname = hostname.replace(/^\[|\]$/g, "");
+  return normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1";
 }

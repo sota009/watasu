@@ -68,5 +68,6 @@ export {
 export type {
   HostedPublicBaseUrlConfig,
   HostedPostgresRuntimeConfig,
+  HostedProductionServerBeforeAppRequest,
   HostedRuntimeConfig
 } from "./hosted-server.js";

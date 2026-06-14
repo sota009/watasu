@@ -193,6 +193,42 @@ describe("hosted production server runtime", () => {
     server.close();
   });
 
+  test("test_create_hosted_production_server_delegates_prehandled_request_before_app", async () => {
+    const server = createHostedProductionServer({
+      async handle(_request: HostedProductionRequest) {
+        throw new Error("app should not receive prehandled request");
+      }
+    }, {
+      async beforeAppRequest(_request, response) {
+        response.writeHead(401, {
+          "content-type": "application/json; charset=utf-8"
+        });
+        response.end("{\"ok\":false}\n");
+        return true;
+      }
+    });
+    const request = Readable.from(["body that should not reach the app"]) as Readable & {
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+    };
+    request.headers = {};
+    request.method = "POST";
+    request.url = "/mcp";
+    const response = captureHostedResponse();
+
+    server.emit("request", request, response.response);
+    const handled = await response.ended;
+
+    expect(handled.status).toBe(401);
+    expect(handled.headers).toMatchObject({
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    });
+    expect(handled.body).toBe("{\"ok\":false}\n");
+    server.close();
+  });
+
   test("test_create_hosted_production_server_returns_low_information_500_when_app_throws", async () => {
     const server = createHostedProductionServer({
       async handle(_request: HostedProductionRequest) {
@@ -271,6 +307,7 @@ function captureHostedResponse(): {
   ended: Promise<CapturedHostedResponse>;
   response: {
     end(body: string): void;
+    setHeader(name: string, value: string | number | readonly string[]): void;
     writeHead(status: number, headers: Record<string, string>): void;
   };
 } {
@@ -284,9 +321,15 @@ function captureHostedResponse(): {
   return {
     ended,
     response: {
+      setHeader(name, value) {
+        headers[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+      },
       writeHead(nextStatus, nextHeaders) {
         status = nextStatus;
-        headers = nextHeaders;
+        headers = {
+          ...headers,
+          ...nextHeaders
+        };
       },
       end(body) {
         resolveEnded({

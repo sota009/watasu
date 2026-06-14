@@ -35,6 +35,19 @@ describe("hosted MCP deployment metadata", () => {
     );
   });
 
+  test("test_unauthorized_challenge_allows_local_loopback_metadata_url", () => {
+    // Arrange
+    const challenge = buildMcpUnauthorizedChallenge({
+      resourceMetadataUrl: "http://127.0.0.1:8799/.well-known/oauth-protected-resource",
+      scopes: ["watasu:publish"]
+    });
+
+    // Act / Assert
+    expect(challenge).toBe(
+      "Bearer resource_metadata=\"http://127.0.0.1:8799/.well-known/oauth-protected-resource\", scope=\"watasu:publish\""
+    );
+  });
+
   test("test_unauthorized_challenge_rejects_query_string_metadata_url", () => {
     expect(() =>
       buildMcpUnauthorizedChallenge({

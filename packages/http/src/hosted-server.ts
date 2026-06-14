@@ -1,4 +1,10 @@
-import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse
+} from "node:http";
 import type { Readable } from "node:stream";
 import type {
   HostedProductionApp,
@@ -18,8 +24,14 @@ export interface HostedPublicBaseUrlConfig {
 }
 
 export interface HostedProductionServerOptions {
+  beforeAppRequest?: HostedProductionServerBeforeAppRequest | undefined;
   maxRequestBodyBytes?: number | undefined;
 }
+
+export type HostedProductionServerBeforeAppRequest = (
+  request: IncomingMessage,
+  response: ServerResponse
+) => Promise<boolean> | boolean;
 
 export type HostedPostgresRuntimeConfig =
   | {
@@ -132,6 +144,17 @@ export function createHostedProductionServer(
 
   return createServer(async (request, response) => {
     try {
+      if (options.beforeAppRequest !== undefined) {
+        for (const [name, value] of Object.entries(hostedSecurityHeaders)) {
+          response.setHeader(name, value);
+        }
+
+        const prehandled = await options.beforeAppRequest(request, response);
+        if (prehandled) {
+          return;
+        }
+      }
+
       if (isContentLengthOverLimit(request.headers, maxRequestBodyBytes)) {
         request.resume();
         const handled = requestBodyTooLargeResponse();
