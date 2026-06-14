@@ -5,6 +5,10 @@ import {
 } from "@watasu/core";
 import {
   loadHostedPostgresRuntimeConfig,
+  createSignedServiceIdentityHeaders,
+  createSignedServiceIdentityPrincipalResolver,
+  type CreateSignedServiceIdentityHeadersInput,
+  type HostedProductionRequest,
   type HostedPostgresRuntimeConfig
 } from "@watasu/http";
 import type {
@@ -23,6 +27,65 @@ export interface HostedPostgresLedgerRuntime {
   close(): Promise<void>;
 }
 
+export type HostedIdentityProviderConfig =
+  | {
+      provider: "signed_headers";
+      signingSecret: string;
+      maxSkewSeconds: number;
+    };
+
+export interface HostedSignedHeaderIdentityProvider {
+  resolvePrincipal(request: HostedProductionRequest): ReturnType<
+    ReturnType<typeof createSignedServiceIdentityPrincipalResolver>
+  >;
+  createHeaders(input: Omit<CreateSignedServiceIdentityHeadersInput, "signingSecret">): Record<string, string>;
+}
+
+export function loadHostedIdentityProviderConfig(
+  env: Record<string, string | undefined>
+): HostedIdentityProviderConfig {
+  const provider = env["WATASU_IDENTITY_PROVIDER"] ?? "signed_headers";
+  if (provider !== "signed_headers") {
+    throw new Error("WATASU_IDENTITY_PROVIDER must be signed_headers.");
+  }
+
+  const signingSecret = env["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"]?.trim();
+  if (signingSecret === undefined || signingSecret.length === 0) {
+    throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
+  }
+
+  return {
+    provider,
+    signingSecret,
+    maxSkewSeconds: parsePositiveIntegerEnv(env["WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"], {
+      defaultValue: 60,
+      name: "WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"
+    })
+  };
+}
+
+export function createSignedHeaderIdentityProviderFromEnv(input: {
+  env: Record<string, string | undefined>;
+  now: () => Date;
+}): HostedSignedHeaderIdentityProvider {
+  const config = loadHostedIdentityProviderConfig(input.env);
+  const resolvePrincipal = createSignedServiceIdentityPrincipalResolver({
+    signingSecret: config.signingSecret,
+    now: input.now,
+    maxSkewSeconds: config.maxSkewSeconds
+  });
+
+  return {
+    resolvePrincipal,
+    createHeaders(headerInput) {
+      return createSignedServiceIdentityHeaders({
+        ...headerInput,
+        signingSecret: config.signingSecret
+      });
+    }
+  };
+}
+
 export function createPostgresPoolQueryClient(pool: {
   query(text: string, values: readonly unknown[]): Promise<Pick<QueryResult, "rows">>;
 }): PostgresQueryClient {
@@ -31,6 +94,22 @@ export function createPostgresPoolQueryClient(pool: {
       return pool.query(text, values);
     }
   };
+}
+
+function parsePositiveIntegerEnv(value: string | undefined, input: {
+  defaultValue: number;
+  name: string;
+}): number {
+  if (value === undefined) {
+    return input.defaultValue;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${input.name} must be a positive integer.`);
+  }
+
+  return parsed;
 }
 
 export function createNodePostgresPoolConfig(input: Extract<

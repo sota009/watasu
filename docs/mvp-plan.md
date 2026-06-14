@@ -321,11 +321,11 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
-| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
-| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
-| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
-| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
+| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
+| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
+| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
+| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
+| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
 | Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, and hosted job runner | Hosted DB infrastructure provisioning |
