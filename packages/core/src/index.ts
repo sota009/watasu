@@ -46,6 +46,7 @@ export type {
 } from "./request-version.js";
 export type { JsonSchemaObject, JsonSchemaProperty } from "./schema.js";
 export type {
+  PublishedRequestVersionWithCapability,
   PublishMode,
   PublishRequestVersionResult,
   RequestVersionPublisher

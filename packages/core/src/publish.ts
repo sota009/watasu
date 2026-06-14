@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { sha256Hash, type Sha256Hash } from "./hash.js";
 import type { RequestDefinition, RequestDefinitionError } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 
@@ -10,12 +12,18 @@ export interface RequestVersionPublisher {
 export type PublishRequestVersionResult =
   | {
       ok: true;
-      published: PublishedRequestVersion;
+      published: PublishedRequestVersionWithCapability;
     }
   | {
       ok: false;
       error: RequestDefinitionError;
     };
+
+export interface PublishedRequestVersionWithCapability extends PublishedRequestVersion {
+  capability: {
+    token_hash: Sha256Hash;
+  };
+}
 
 export function publishRequestVersion(input: {
   requestId: string;
@@ -23,6 +31,7 @@ export function publishRequestVersion(input: {
   confirmed: boolean;
   mode: PublishMode;
   repository: RequestVersionPublisher;
+  generateCapabilityToken?: (() => string) | undefined;
 }): PublishRequestVersionResult {
   if (!input.confirmed) {
     return {
@@ -43,9 +52,17 @@ export function publishRequestVersion(input: {
     };
   }
 
+  const capabilityToken = input.generateCapabilityToken?.() ?? generateCapabilityToken();
+  const published = input.repository.publish(input.requestId, input.definition);
+
   return {
     ok: true,
-    published: input.repository.publish(input.requestId, input.definition)
+    published: {
+      ...published,
+      capability: {
+        token_hash: sha256Hash(capabilityToken)
+      }
+    }
   };
 }
 
@@ -76,4 +93,8 @@ function validateDestinationForMode(
 
 function isLocalhost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function generateCapabilityToken(): string {
+  return `cap_${randomBytes(32).toString("base64url")}`;
 }
