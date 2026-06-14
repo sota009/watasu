@@ -321,6 +321,91 @@ describe("watasu cli first slice", () => {
     expect(result.stderr).not.toContain("Alice Example");
   });
 
+  test("test_cli_submit_fixture_rejects_invalid_payload_json_without_echoing_contents", async () => {
+    const payloadFile = writeTempFile("{not-json: Alice Example");
+
+    const result = await runCli([
+      "submit-fixture",
+      fixtureFile,
+      "--payload",
+      payloadFile,
+      "--confirm"
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(parseJsonLine(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit-fixture",
+      error: {
+        code: "invalid_payload_json",
+        path: "$.payload",
+        message: "Payload file must be valid JSON."
+      }
+    });
+    expect(result.stderr).not.toContain("Alice Example");
+    expect(result.stderr).not.toContain("not-json");
+  });
+
+  test("test_cli_submit_fixture_rejects_non_object_payload", async () => {
+    const payloadFile = writeTempFile(JSON.stringify(["Alice Example"]));
+
+    const result = await runCli([
+      "submit-fixture",
+      fixtureFile,
+      "--payload",
+      payloadFile,
+      "--confirm"
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(parseJsonLine(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit-fixture",
+      error: {
+        code: "invalid_payload",
+        path: "$.payload",
+        message: "Payload file must contain a JSON object."
+      }
+    });
+    expect(result.stderr).not.toContain("Alice Example");
+  });
+
+  test("test_cli_submit_fixture_rejects_duplicate_payload_flags", async () => {
+    const firstPayloadFile = writeTempFile(
+      JSON.stringify({
+        full_name: "Alice Example",
+        email: "alice@example.test"
+      })
+    );
+    const secondPayloadFile = writeTempFile(
+      JSON.stringify({
+        full_name: "Mallory Example",
+        email: "mallory@example.test"
+      })
+    );
+
+    const result = await runCli([
+      "submit-fixture",
+      fixtureFile,
+      "--payload",
+      firstPayloadFile,
+      "--payload",
+      secondPayloadFile,
+      "--confirm"
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(parseJsonLine(result.stderr)).toMatchObject({
+      ok: false,
+      error: {
+        code: "duplicate_payload_file",
+        path: "$.payload"
+      }
+    });
+    expect(result.stderr).not.toContain("Alice Example");
+    expect(result.stderr).not.toContain("Mallory Example");
+  });
+
   test("test_cli_errors_are_machine_readable", async () => {
     const result = await runCli(["unknown-command"]);
 
