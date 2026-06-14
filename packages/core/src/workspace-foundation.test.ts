@@ -204,6 +204,12 @@ describe("workspace foundation", () => {
     expect(plan).not.toContain("`WATASU_POSTGRES_POOL_MAX=5`");
   });
 
+  test("test_private_alpha_plan_records_hosted_canary_timeout_evidence", () => {
+    const plan = readFileSync(new URL("docs/mvp-plan.md", rootDir), "utf8");
+
+    expect(plan).toContain("`checked_timeout_ms`");
+  });
+
   test("test_ci_workflow_runs_loop_with_read_only_permissions", () => {
     const ciYaml = readFileSync(new URL(".github/workflows/ci.yml", rootDir), "utf8");
 
