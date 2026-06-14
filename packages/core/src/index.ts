@@ -18,6 +18,10 @@ export {
   buildAgentCard,
   watasuEncryptedIntakeExtensionUri
 } from "./agent-card.js";
+export {
+  gateA2aSubmissionProtocol,
+  watasuA2aProtocolVersion
+} from "./a2a.js";
 export { publishRequestVersion } from "./publish.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
@@ -39,3 +43,9 @@ export type {
   RequestVersionPublisher
 } from "./publish.js";
 export type { AgentCard } from "./agent-card.js";
+export type {
+  A2aProtocolError,
+  A2aProtocolGateOptions,
+  A2aProtocolGateResult,
+  A2aSubmissionRequest
+} from "./a2a.js";
