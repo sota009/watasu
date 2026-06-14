@@ -18,6 +18,8 @@ describe("workspace foundation", () => {
 
     expect(packageJson.scripts).toMatchObject({
       lint: "node scripts/secret-scan.mjs --repo",
+      "pr:draft": "node scripts/create-draft-pr.mjs",
+      "review:self": "node scripts/gstack-review-preflight.mjs",
       test: "vitest run",
       typecheck: "tsc -b packages/core packages/cli packages/fixtures"
     });
@@ -30,6 +32,7 @@ describe("workspace foundation", () => {
     const cliPackageJson = readJson("packages/cli/package.json") as {
       bin: Record<string, string>;
       exports: Record<string, string>;
+      scripts: Record<string, string>;
     };
     const fixturesPackageJson = readJson("packages/fixtures/package.json") as {
       exports: Record<string, string>;
@@ -38,6 +41,7 @@ describe("workspace foundation", () => {
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.bin).toEqual({ watasu: "./src/bin.ts" });
+    expect(cliPackageJson.scripts).toHaveProperty("watasu", "node src/bin.ts");
     expect(fixturesPackageJson.exports).toHaveProperty(".");
   });
 

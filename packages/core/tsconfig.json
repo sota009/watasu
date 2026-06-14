@@ -4,5 +4,10 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "../../scripts/secret-scan.d.mts",
+    "../../scripts/workflow-helpers.d.mts"
+  ]
 }

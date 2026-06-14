@@ -33,3 +33,8 @@ This file records the latest-info gate before adding implementation dependencies
 - `pnpm --version`: `10.31.0`
 
 The repo targets Node.js 24 LTS, but Phase 0 scripts are kept compatible with the local Node.js 22 LTS runtime so tests can run before the developer environment is upgraded.
+
+## Local workflow helpers
+
+- `pnpm review:self` resolves the vendored or global gstack review checklist path and prints the standard validation and diff commands.
+- `pnpm pr:draft` creates a draft PR with `gh` when authenticated. If `gh` is not authenticated, it prints `gh auth login -h github.com` and the exact GitHub PR URL for the current branch.
