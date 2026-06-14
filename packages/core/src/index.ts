@@ -22,7 +22,7 @@ export { publishRequestVersion } from "./publish.js";
 export {
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
-  createIdempotencyRecordKey,
+  createIdempotencyClaimKey,
   validateSubmissionEnvelope
 } from "./submission.js";
 export type { Sha256Hash } from "./hash.js";
@@ -47,7 +47,7 @@ export type {
 export type { AgentCard } from "./agent-card.js";
 export type {
   AcceptedSubmission,
-  IdempotencyRecord,
+  IdempotencyValidationClaim,
   IdempotencyStore,
   SubmissionCapability,
   SubmissionEnvelope,
