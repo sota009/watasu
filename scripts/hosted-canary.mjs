@@ -2,7 +2,9 @@
 import {
   buildHostedCanaryCheckUrls,
   hostedCanaryRequiredHeaders,
-  resolveHostedCanaryBaseUrl
+  resolveHostedCanaryBaseUrl,
+  resolveHostedCanaryTimeoutMs,
+  withHostedCanaryTimeout
 } from "./hosted-canary-helpers.mjs";
 
 let baseUrl;
@@ -17,13 +19,14 @@ try {
 }
 
 const urls = buildHostedCanaryCheckUrls(baseUrl);
-const response = await fetch(urls.health, {
+const timeoutMs = resolveHostedCanaryTimeoutMs(process.env);
+const response = await fetch(urls.health, withHostedCanaryTimeout({
   method: "GET",
   headers: {
     accept: "application/json"
   },
   redirect: "manual"
-});
+}, timeoutMs));
 const body = await response.text();
 
 if (response.status !== 200) {
@@ -149,7 +152,7 @@ function assertRequiredHeaders(checkedResponse, label) {
 }
 
 async function assertUnpublishedRoute(input) {
-  const checkedResponse = await fetch(input.url, input.init);
+  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout(input.init, timeoutMs));
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 404) {
@@ -179,7 +182,7 @@ async function assertUnpublishedRoute(input) {
 }
 
 async function assertNotFoundRoute(input) {
-  const checkedResponse = await fetch(input.url, input.init);
+  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout(input.init, timeoutMs));
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 404) {

@@ -1,8 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   buildHostedCanaryCheckUrls,
+  defaultHostedCanaryTimeoutMs,
   hostedCanaryUnpublishedRequestId,
   parseHostedCanaryBaseUrl,
+  resolveHostedCanaryTimeoutMs,
+  withHostedCanaryTimeout,
   resolveHostedCanaryBaseUrl
 } from "../../../scripts/hosted-canary-helpers.mjs";
 
@@ -86,6 +89,33 @@ describe("hosted canary helpers", () => {
         argv: ["node", "scripts/hosted-canary.mjs", "https://api.watasu.ai", "extra"]
       })
     ).toThrow("Usage: pnpm canary:hosted -- <https://host>");
+  });
+
+  test("test_resolve_hosted_canary_timeout_uses_default", () => {
+    expect(resolveHostedCanaryTimeoutMs({})).toBe(defaultHostedCanaryTimeoutMs);
+  });
+
+  test("test_resolve_hosted_canary_timeout_reads_positive_integer_env", () => {
+    expect(resolveHostedCanaryTimeoutMs({
+      WATASU_CANARY_TIMEOUT_MS: "2500"
+    })).toBe(2500);
+  });
+
+  test("test_resolve_hosted_canary_timeout_rejects_partial_numeric_env", () => {
+    expect(() => resolveHostedCanaryTimeoutMs({
+      WATASU_CANARY_TIMEOUT_MS: "2500ms"
+    })).toThrow("WATASU_CANARY_TIMEOUT_MS must be a positive integer.");
+  });
+
+  test("test_with_hosted_canary_timeout_adds_abort_signal", () => {
+    const init = withHostedCanaryTimeout({
+      method: "GET",
+      redirect: "manual"
+    }, 2500);
+
+    expect(init.method).toBe("GET");
+    expect(init.redirect).toBe("manual");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   test("test_build_hosted_canary_check_urls_includes_health_and_public_routes", () => {

@@ -6,6 +6,7 @@ export const hostedCanaryRequiredHeaders = {
 };
 
 export const hostedCanaryUnpublishedRequestId = "__watasu_canary_missing__";
+export const defaultHostedCanaryTimeoutMs = 10_000;
 
 export function buildHostedCanaryCheckUrls(baseUrl) {
   return {
@@ -78,6 +79,31 @@ export function resolveHostedCanaryBaseUrl(input) {
   }
 
   return parseHostedCanaryBaseUrl(rawArgumentUrl ?? rawEnvUrl);
+}
+
+export function resolveHostedCanaryTimeoutMs(env) {
+  const rawTimeoutMs = env["WATASU_CANARY_TIMEOUT_MS"];
+  if (rawTimeoutMs === undefined) {
+    return defaultHostedCanaryTimeoutMs;
+  }
+
+  if (!/^[0-9]+$/.test(rawTimeoutMs)) {
+    throw new Error("WATASU_CANARY_TIMEOUT_MS must be a positive integer.");
+  }
+
+  const timeoutMs = Number(rawTimeoutMs);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("WATASU_CANARY_TIMEOUT_MS must be a positive integer.");
+  }
+
+  return timeoutMs;
+}
+
+export function withHostedCanaryTimeout(init, timeoutMs) {
+  return {
+    ...init,
+    signal: AbortSignal.timeout(timeoutMs)
+  };
 }
 
 function isLoopbackHostname(hostname) {
