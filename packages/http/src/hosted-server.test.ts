@@ -124,6 +124,29 @@ describe("hosted production server runtime", () => {
     });
   });
 
+  test("test_load_hosted_postgres_runtime_config_rejects_ssl_disable_for_remote_database", () => {
+    expect(() =>
+      loadHostedPostgresRuntimeConfig({
+        WATASU_METADATA_LEDGER_STORE: "postgres",
+        WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+        WATASU_POSTGRES_SSL: "disable"
+      })
+    ).toThrow("WATASU_POSTGRES_SSL=disable is allowed only for local loopback database URLs.");
+  });
+
+  test("test_load_hosted_postgres_runtime_config_allows_ssl_disable_for_local_database", () => {
+    const config = loadHostedPostgresRuntimeConfig({
+      WATASU_METADATA_LEDGER_STORE: "postgres",
+      WATASU_POSTGRES_URL: "postgres://127.0.0.1:5432/watasu",
+      WATASU_POSTGRES_SSL: "disable"
+    });
+
+    expect(config).toMatchObject({
+      mode: "postgres",
+      ssl: "disable"
+    });
+  });
+
   test("test_load_hosted_postgres_runtime_config_rejects_partial_numeric_pool_max", () => {
     expect(() =>
       loadHostedPostgresRuntimeConfig({

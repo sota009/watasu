@@ -110,6 +110,10 @@ export function loadHostedPostgresRuntimeConfig(
   if (databaseUrl === undefined || databaseUrl.length === 0) {
     throw new Error("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
   }
+  const ssl = parsePostgresSsl(env["WATASU_POSTGRES_SSL"]);
+  if (ssl === "disable" && !isLocalLoopbackPostgresUrl(databaseUrl)) {
+    throw new Error("WATASU_POSTGRES_SSL=disable is allowed only for local loopback database URLs.");
+  }
 
   return {
     mode: "postgres",
@@ -118,7 +122,7 @@ export function loadHostedPostgresRuntimeConfig(
       defaultValue: 10,
       name: "WATASU_POSTGRES_POOL_MAX"
     }),
-    ssl: parsePostgresSsl(env["WATASU_POSTGRES_SSL"]),
+    ssl,
     runMigrations: parseBooleanEnv(env["WATASU_POSTGRES_RUN_MIGRATIONS"], {
       defaultValue: true,
       name: "WATASU_POSTGRES_RUN_MIGRATIONS"
@@ -271,6 +275,15 @@ function parsePostgresSsl(value: string | undefined): "disable" | "require" {
   }
 
   throw new Error("WATASU_POSTGRES_SSL must be require or disable.");
+}
+
+function isLocalLoopbackPostgresUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return isLocalLoopbackHost(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function isLocalLoopbackHost(hostname: string): boolean {
