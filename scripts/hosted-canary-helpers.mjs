@@ -5,6 +5,22 @@ export const hostedCanaryRequiredHeaders = {
   "x-content-type-options": "nosniff"
 };
 
+export const hostedCanaryUnpublishedRequestId = "__watasu_canary_missing__";
+
+export function buildHostedCanaryCheckUrls(baseUrl) {
+  return {
+    health: new URL("/health", baseUrl).toString(),
+    unpublishedAgentCard: new URL(
+      `/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
+      baseUrl
+    ).toString(),
+    unpublishedSubmit: new URL(
+      `/requests/${hostedCanaryUnpublishedRequestId}/submit`,
+      baseUrl
+    ).toString()
+  };
+}
+
 export function parseHostedCanaryBaseUrl(rawBaseUrl) {
   if (rawBaseUrl === undefined || rawBaseUrl.trim() === "") {
     throw new Error("WATASU_CANARY_BASE_URL is required.");

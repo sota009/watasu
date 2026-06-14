@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  buildHostedCanaryCheckUrls,
+  hostedCanaryUnpublishedRequestId,
   parseHostedCanaryBaseUrl,
   resolveHostedCanaryBaseUrl
 } from "../../../scripts/hosted-canary-helpers.mjs";
@@ -72,5 +74,15 @@ describe("hosted canary helpers", () => {
         argv: ["node", "scripts/hosted-canary.mjs", "https://api.watasu.ai", "extra"]
       })
     ).toThrow("Usage: pnpm canary:hosted -- <https://host>");
+  });
+
+  test("test_build_hosted_canary_check_urls_includes_health_and_public_routes", () => {
+    const urls = buildHostedCanaryCheckUrls(parseHostedCanaryBaseUrl("https://api.watasu.ai"));
+
+    expect(urls).toEqual({
+      health: "https://api.watasu.ai/health",
+      unpublishedAgentCard: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
+      unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`
+    });
   });
 });
