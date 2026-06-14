@@ -576,7 +576,8 @@ Current progress:
 
 - `stateless_default` / `metadata_ledger_enabled` delivery ledger policy boundary is implemented in core.
 - Local HTTP demo uses `stateless_default` by default, even if a persistent store is present.
-- SQLite or hosted DB adapters are intentionally not implemented yet.
+- SQLite or hosted DB adapters are not implemented yet; future adapters should sit behind this policy boundary.
+- Phase 13 now includes durable-store leak regression tests that exercise the future persistent-store boundary without requiring a DB adapter.
 
 Refactor checkpoint:
 
