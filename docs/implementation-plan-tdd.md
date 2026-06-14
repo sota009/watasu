@@ -572,6 +572,12 @@ Green implementation:
 - Add repository implementations behind existing interfaces.
 - Add role and tenant boundary checks server-side.
 
+Current progress:
+
+- `stateless_default` / `metadata_ledger_enabled` delivery ledger policy boundary is implemented in core.
+- Local HTTP demo uses `stateless_default` by default, even if a persistent store is present.
+- SQLite or hosted DB adapters are intentionally not implemented yet.
+
 Refactor checkpoint:
 
 - No service should accept `tenant_id` or `role` from user-controlled request bodies.

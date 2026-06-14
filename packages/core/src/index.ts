@@ -39,6 +39,7 @@ export {
   decryptJsonPayload,
   encryptJsonPayload
 } from "./jwe.js";
+export { createPolicyControlledDeliveryLedger } from "./storage-policy.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -98,3 +99,8 @@ export type {
   WatasuJweAlgorithm,
   WatasuJweContentEncryption
 } from "./jwe.js";
+export type {
+  PersistentDeliveryLedgerStore,
+  StoragePolicy,
+  StoragePolicyMode
+} from "./storage-policy.js";

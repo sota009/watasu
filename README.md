@@ -139,6 +139,7 @@ Currently implemented:
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
+- storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
 - sender and receiver fixtures for local A2A handoff checks
