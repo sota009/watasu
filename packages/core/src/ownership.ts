@@ -1,4 +1,6 @@
 import { createPublicKey, randomBytes, verify, type JsonWebKey } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import type { PublishOwnershipVerification } from "./publish.js";
 
 export type OwnershipChallengeStatus = "pending" | "verified" | "expired";
@@ -47,6 +49,23 @@ export type OwnershipChallengeVerificationResult =
         message: string;
       };
     };
+
+export type WebhookOwnershipChallengeFetch = (
+  input: string,
+  init: {
+    method: "GET";
+    redirect: "manual";
+    signal: AbortSignal;
+    headers: Record<string, string>;
+  }
+) => Promise<{
+  status: number;
+  text(): Promise<string>;
+}>;
+
+export type WebhookOwnershipChallengeHostResolver = (
+  hostname: string
+) => Promise<string[]>;
 
 export class InMemoryOwnershipChallengeRegistry {
   readonly #challengesById = new Map<string, OwnershipChallenge>();
@@ -183,6 +202,67 @@ export class InMemoryOwnershipChallengeRegistry {
     };
   }
 
+  async verifyWebhookOriginChallengeFromHttps(input: {
+    challenge_id: string;
+    fetch?: WebhookOwnershipChallengeFetch | undefined;
+    resolveHost?: WebhookOwnershipChallengeHostResolver | undefined;
+    timeoutMs?: number | undefined;
+  }): Promise<OwnershipChallengeVerificationResult> {
+    const challenge = this.#challengesById.get(input.challenge_id);
+    if (challenge?.kind !== "webhook_origin") {
+      return verificationError("challenge_not_found", "Ownership challenge was not found.");
+    }
+
+    if (isExpired(challenge.expires_at, this.#clock())) {
+      this.#challengesById.set(challenge.challenge_id, {
+        ...challenge,
+        status: "expired"
+      });
+      return verificationError("challenge_expired", "Ownership challenge has expired.");
+    }
+
+    const originUrl = new URL(challenge.origin);
+    if (originUrl.protocol !== "https:") {
+      return verificationError("unsafe_challenge_url", "Webhook ownership challenge fetch requires HTTPS.");
+    }
+
+    const resolveHost = input.resolveHost ?? resolvePublicHost;
+    const addresses = await resolveHost(originUrl.hostname);
+    if (addresses.length === 0 || addresses.some(isPrivateOrMetadataAddress)) {
+      return verificationError(
+        "unsafe_challenge_host",
+        "Webhook ownership challenge host resolved to an unsafe address."
+      );
+    }
+
+    const fetchImplementation = input.fetch ?? defaultWebhookOwnershipChallengeFetch;
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), input.timeoutMs ?? 5_000);
+
+    try {
+      const response = await fetchImplementation(`${challenge.origin}${challenge.well_known_path}`, {
+        method: "GET",
+        redirect: "manual",
+        signal: abortController.signal,
+        headers: {
+          accept: "text/plain"
+        }
+      });
+      if (response.status < 200 || response.status >= 300) {
+        return verificationError("challenge_fetch_failed", "Webhook ownership challenge token could not be fetched.");
+      }
+
+      return this.verifyWebhookOriginChallenge({
+        challenge_id: challenge.challenge_id,
+        observed_token: (await response.text()).trim()
+      });
+    } catch {
+      return verificationError("challenge_fetch_failed", "Webhook ownership challenge token could not be fetched.");
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   listVerifiedServiceKeyIds(tenantId: string): string[] {
     return [...this.#challengesById.values()]
       .filter((challenge): challenge is ServiceKeyOwnershipChallenge =>
@@ -230,6 +310,54 @@ function verifyServiceKeySignature(
 
 function isExpired(expiresAt: string, now: Date): boolean {
   return new Date(expiresAt).getTime() <= now.getTime();
+}
+
+async function resolvePublicHost(hostname: string): Promise<string[]> {
+  const records = await lookup(hostname, {
+    all: true
+  });
+  return records.map((record) => record.address);
+}
+
+async function defaultWebhookOwnershipChallengeFetch(
+  input: string,
+  init: {
+    method: "GET";
+    redirect: "manual";
+    signal: AbortSignal;
+    headers: Record<string, string>;
+  }
+): Promise<{
+  status: number;
+  text(): Promise<string>;
+}> {
+  return fetch(input, init);
+}
+
+function isPrivateOrMetadataAddress(address: string): boolean {
+  const normalizedAddress = address.toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  const ipVersion = isIP(normalizedAddress);
+  if (ipVersion === 0) {
+    return true;
+  }
+
+  if (ipVersion === 6) {
+    return (
+      normalizedAddress === "::1" ||
+      normalizedAddress.startsWith("fc") ||
+      normalizedAddress.startsWith("fd") ||
+      normalizedAddress.startsWith("fe80:")
+    );
+  }
+
+  const [first = 0, second = 0] = normalizedAddress.split(".").map((part) => Number(part));
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
 }
 
 function verificationError(code: string, message: string): OwnershipChallengeVerificationResult {
