@@ -220,6 +220,8 @@ Done when:
 
 ### Phase 5: Hosted authorization and metadata ledger
 
+Status: done for the core metadata ledger read authorization helper.
+
 Goal: hosted metadata can be inspected only by the right service identity.
 
 Implementation:
@@ -300,11 +302,11 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial core checks only | Phase 5 |
-| Contractor or B2B onboarding | Partial core checks only | Phase 5 |
-| QR or email private handoff | Partial core checks only | Phase 5 |
-| Leaked capability URL recovery | Partial core checks only | Phase 5 |
-| Verified sender or private invite intake | Partial core checks only | Phase 5 |
+| Recruiting intake | Partial core checks only | Hosted service identity integration |
+| Contractor or B2B onboarding | Partial core checks only | Hosted service identity integration |
+| QR or email private handoff | Partial core checks only | Hosted service identity integration |
+| Leaked capability URL recovery | Partial core checks only | Hosted service identity integration |
+| Verified sender or private invite intake | Partial core checks only | Hosted service identity integration |
 | Hosted high-sensitivity intake | No | Phases 4-6 |
 | Tenant-scoped ledger inspection | No | Phase 5 |
 | Retention-backed hosted metadata ledger | No | Phase 6 |

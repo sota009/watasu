@@ -147,6 +147,7 @@ Currently implemented:
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
+- metadata ledger read authorization helper with tenant, role, and audit checks
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
 - MCP publish tool plus read tools and resources for Agent Card, plaintext schema, envelope schema, and metadata-only ledger rows
