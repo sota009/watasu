@@ -1,8 +1,43 @@
 # watasu
 
+[日本語版 README](README.ja.md)
+
 watasu is an agent-native intake MVP for service-side agents to define requests for personal data and publish encrypted intake endpoints that external user-side agents can read.
 
 Instead of building human-facing forms, watasu makes "what is being sent, why it is needed, and where it goes" machine-readable as a request definition, schema, and Agent Card. It provides the foundation for delivering encrypted submissions, based on user consent, to a service-side webhook.
+
+## System Overview
+
+The core flow mirrors the product contract in [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): service-side agents use MCP or the CLI to validate and publish a request; external user-side agents discover the Agent Card, confirm with the user, encrypt the payload, and submit through watasu. watasu validates and forwards the encrypted envelope without decrypting or keeping payload custody.
+
+```mermaid
+sequenceDiagram
+    participant Dev as Service developer
+    participant SA as Service-side agent
+    participant W as watasu
+    participant UA as External user-side agent
+    participant User as User
+    participant R as Service-side receiver
+
+    Dev->>SA: Create an intake endpoint for this service
+    SA->>W: MCP validate_request
+    W-->>SA: Validation result
+    SA->>Dev: Pre-publish summary
+    Dev->>SA: Approve
+    SA->>W: MCP publish_request
+    W-->>SA: Agent Card URL / schema / endpoint
+    UA->>W: Fetch Agent Card
+    W-->>UA: Request metadata / schema / public key info
+    UA->>User: Confirm what, why, and where
+    User->>UA: Consent
+    UA->>UA: Encrypt payload
+    UA->>W: A2A encrypted submission
+    W->>W: Validate envelope / hash / replay / rate limit
+    W->>R: Deliver encrypted envelope to webhook
+    R->>R: Verify signature, decrypt, validate schema
+    R-->>W: Delivery result
+    W-->>UA: delivered / rejected / resubmit_later
+```
 
 ## Security Promise
 
