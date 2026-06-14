@@ -17,6 +17,8 @@ services:
         value: 24.14.1
       - key: WATASU_IDENTITY_PROVIDER
         value: signed_headers
+      - key: WATASU_PUBLIC_BASE_URL
+        value: https://api.watasu.ai
       - key: WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS
         value: "60"
       - key: WATASU_METADATA_LEDGER_STORE

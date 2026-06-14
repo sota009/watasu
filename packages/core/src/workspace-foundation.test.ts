@@ -160,6 +160,7 @@ describe("workspace foundation", () => {
       domains: ["api.watasu.ai"]
     });
     expect(webEnv.get("NODE_VERSION")).toMatchObject({ value: "24.14.1" });
+    expect(webEnv.get("WATASU_PUBLIC_BASE_URL")).toMatchObject({ value: "https://api.watasu.ai" });
     expect(webEnv.get("WATASU_METADATA_LEDGER_STORE")).toMatchObject({ value: "disabled" });
     expect(webEnv.get("WATASU_SERVICE_IDENTITY_SIGNING_SECRET")).toMatchObject({ sync: false });
     expect(webEnv.has("WATASU_POSTGRES_URL")).toBe(false);

@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildHostedProductionRequest,
   createHostedProductionServer,
+  loadHostedPublicBaseUrlConfig,
   loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig,
   readHostedRequestBody,
@@ -38,6 +39,40 @@ describe("hosted production server runtime", () => {
         WATASU_HOSTED_PORT: "not-a-port"
       })
     ).toThrow("WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
+  });
+
+  test("test_load_hosted_public_base_url_config_normalizes_https_url", () => {
+    const config = loadHostedPublicBaseUrlConfig({
+      WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai/"
+    });
+
+    expect(config).toEqual({
+      publicBaseUrl: "https://api.watasu.ai"
+    });
+  });
+
+  test("test_load_hosted_public_base_url_config_rejects_non_https_public_url", () => {
+    expect(() =>
+      loadHostedPublicBaseUrlConfig({
+        WATASU_PUBLIC_BASE_URL: "http://api.watasu.ai"
+      })
+    ).toThrow("WATASU_PUBLIC_BASE_URL must use https outside local loopback.");
+  });
+
+  test("test_load_hosted_public_base_url_config_rejects_url_credentials", () => {
+    expect(() =>
+      loadHostedPublicBaseUrlConfig({
+        WATASU_PUBLIC_BASE_URL: "https://user:pass@api.watasu.ai"
+      })
+    ).toThrow("WATASU_PUBLIC_BASE_URL must not include username or password.");
+  });
+
+  test("test_load_hosted_public_base_url_config_rejects_url_path", () => {
+    expect(() =>
+      loadHostedPublicBaseUrlConfig({
+        WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai/nested"
+      })
+    ).toThrow("WATASU_PUBLIC_BASE_URL must not include a path, query, or fragment.");
   });
 
   test("test_load_hosted_postgres_runtime_config_defaults_to_disabled", () => {

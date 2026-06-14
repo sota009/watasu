@@ -13,6 +13,10 @@ export interface HostedRuntimeConfig {
   port: number;
 }
 
+export interface HostedPublicBaseUrlConfig {
+  publicBaseUrl: string;
+}
+
 export interface HostedProductionServerOptions {
   maxRequestBodyBytes?: number | undefined;
 }
@@ -41,6 +45,38 @@ export function loadHostedRuntimeConfig(env: Record<string, string | undefined>)
   return {
     host,
     port
+  };
+}
+
+export function loadHostedPublicBaseUrlConfig(
+  env: Record<string, string | undefined>
+): HostedPublicBaseUrlConfig {
+  const publicBaseUrl = env["WATASU_PUBLIC_BASE_URL"]?.trim();
+  if (publicBaseUrl === undefined || publicBaseUrl.length === 0) {
+    throw new Error("WATASU_PUBLIC_BASE_URL is required.");
+  }
+
+  let url: URL;
+  try {
+    url = new URL(publicBaseUrl);
+  } catch {
+    throw new Error("WATASU_PUBLIC_BASE_URL must be a valid absolute URL.");
+  }
+
+  if (url.username.length > 0 || url.password.length > 0) {
+    throw new Error("WATASU_PUBLIC_BASE_URL must not include username or password.");
+  }
+
+  if (url.protocol !== "https:" && !isLocalLoopbackHost(url.hostname)) {
+    throw new Error("WATASU_PUBLIC_BASE_URL must use https outside local loopback.");
+  }
+
+  if (url.pathname !== "/" || url.search.length > 0 || url.hash.length > 0) {
+    throw new Error("WATASU_PUBLIC_BASE_URL must not include a path, query, or fragment.");
+  }
+
+  return {
+    publicBaseUrl: url.origin
   };
 }
 
@@ -192,6 +228,13 @@ function parsePostgresSsl(value: string | undefined): "disable" | "require" {
   }
 
   throw new Error("WATASU_POSTGRES_SSL must be require or disable.");
+}
+
+function isLocalLoopbackHost(hostname: string): boolean {
+  const normalizedHostname = hostname.replace(/^\[|\]$/g, "");
+  return normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1";
 }
 
 export function buildHostedProductionRequest(input: {
