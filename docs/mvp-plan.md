@@ -1,23 +1,26 @@
-# watasu MVP action plan
+# watasu MVP plan
 
 Date: 2026-06-14
 
-## Goal
+## Purpose
 
-Move from the current local protocol proof to a production-ready hosted MVP without hiding the gap between the two.
+This is the single execution plan for watasu MVP work. It replaces the older split between the TDD implementation plan, action plan, and long use-case journey analysis.
 
-Current status:
+Use this document to answer three questions:
 
-- Local Protocol MVP: implemented and manually testable.
-- Hosted Production MVP: not complete yet. The remaining work is intentional scope, not a bug fix pile.
+- What can be tested locally today?
+- What remains before hosted production use?
+- Which user journeys are covered by each stage?
 
-## MVP split
+## MVP stages
 
 ### Local Protocol MVP
 
+Status: implemented and manually testable.
+
 Purpose: prove the core watasu promise on a developer machine.
 
-This means:
+This stage proves:
 
 - request definitions can be validated and published locally
 - Agent Card and schemas can be generated
@@ -61,9 +64,11 @@ Expected results:
 
 ### Hosted Production MVP
 
+Status: not complete.
+
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
-This requires additional trust boundaries:
+Hosted production requires additional trust boundaries:
 
 - MCP publish and read resources, not just validation
 - capability URL revoke and rotate
@@ -76,32 +81,44 @@ This requires additional trust boundaries:
 - retention jobs for ledger and operational metadata
 - delivery hardening: timeout, concurrency caps, circuit breaker, and SSRF-safe redirect handling
 
-Hosted Production MVP is complete only when the checks in the phase plan below pass.
+Do not call Hosted Production MVP complete until:
 
-## Recommended execution order
+```bash
+pnpm loop:full
+pnpm demo:handoff
+```
+
+both pass, and the manual checks for phases 2 through 6 below have run against the current implementation.
+
+## Execution phases
+
+Each phase should be implemented TDD-style when it changes behavior:
+
+1. Write the narrow failing test first.
+2. Confirm it fails for the expected reason.
+3. Implement the smallest behavior that passes.
+4. Refactor with all tests green.
+5. Run the listed manual checks.
+6. Commit at one behavior boundary.
 
 ### Phase 1: Document the MVP split
 
-Goal: make the completion language honest.
+Status: done.
 
-Implementation:
-
-- Keep README clear that Local Protocol MVP is implemented.
-- Keep Hosted Production MVP listed as remaining work.
-- Link this action plan from README.
+Goal: make completion language honest.
 
 Manual checks:
 
 ```bash
-rg -n "Local Protocol MVP|Hosted Production MVP|mvp-action-plan" README.md docs
+rg -n "Local Protocol MVP|Hosted Production MVP|mvp-plan" README.md docs
 pnpm loop
 ```
 
 Done when:
 
-- A new reader can tell which use cases work locally today.
-- A new reader can tell which use cases require hosted production work.
-- `pnpm loop` passes.
+- a new reader can tell which use cases work locally today
+- a new reader can tell which use cases require hosted production work
+- `pnpm loop` passes
 
 ### Phase 2: MCP publish and resources
 
@@ -156,10 +173,10 @@ pnpm loop
 
 Done when:
 
-- revoked capability submissions return structured rejection.
-- rotated capability submissions work with the same request version.
-- old capability URLs fail before webhook delivery.
-- no full capability token appears in logs, ledger rows, or CLI/MCP output.
+- revoked capability submissions return structured rejection
+- rotated capability submissions work with the same request version
+- old capability URLs fail before webhook delivery
+- no full capability token appears in logs, ledger rows, or CLI/MCP output
 
 ### Phase 4: Ownership verification
 
@@ -190,10 +207,10 @@ Try local_demo publish with localhost fixture: it should still work.
 
 Done when:
 
-- hosted publish rejects unverified service keys.
-- hosted publish rejects unverified webhook domains.
-- hosted publish rejects localhost, private IPs, metadata service IPs, and non-HTTPS destinations.
-- local demo behavior remains fast and simple.
+- hosted publish rejects unverified service keys
+- hosted publish rejects unverified webhook domains
+- hosted publish rejects localhost, private IPs, metadata service IPs, and non-HTTPS destinations
+- local demo behavior remains fast and simple
 
 ### Phase 5: Hosted authorization and metadata ledger
 
@@ -225,10 +242,10 @@ Try reading ledger metadata as ledger_viewer: it should succeed and write an aud
 
 Done when:
 
-- tenant id is derived from service identity, not request body or tool arguments.
-- role checks are enforced server-side.
-- metadata reads create audit rows.
-- ledger rows remain metadata-only.
+- tenant id is derived from service identity, not request body or tool arguments
+- role checks are enforced server-side
+- metadata reads create audit rows
+- ledger rows remain metadata-only
 
 ### Phase 6: Retention and delivery hardening
 
@@ -261,35 +278,94 @@ Try redirecting to a private IP: delivery must reject the redirected target.
 
 Done when:
 
-- timeouts return `resubmit_later`.
-- idempotency claims are released after delivery failure so senders can resubmit.
-- concurrency caps protect request and tenant workers.
-- retention removes expired metadata without touching active request versions.
-- no plaintext payload or encrypted payload body is persisted.
+- timeouts return `resubmit_later`
+- idempotency claims are released after delivery failure so senders can resubmit
+- concurrency caps protect request and tenant workers
+- retention removes expired metadata without touching active request versions
+- no plaintext payload or encrypted payload body is persisted
 
 ## Use-case coverage
 
-| Use case | Current Local Protocol MVP | Hosted Production MVP needed |
+| Use case | Local Protocol MVP | Hosted Production MVP needed |
 | --- | --- | --- |
 | Local encrypted handoff demo | Yes | No |
 | Fixture-based A2A contract check | Yes | No |
 | CLI request validation and local publish | Yes | No |
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | No | Phase 2 |
-| Public low-risk intake prototype | Partial | Phases 2-4 |
+| Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
+| Recruiting intake | Partial core checks only | Phases 4-5 |
+| Contractor or B2B onboarding | Partial core checks only | Phases 4-5 |
+| QR or email private handoff | Partial core checks only | Phases 3-5 |
 | Leaked capability URL recovery | No | Phase 3 |
 | Verified sender or private invite intake | Partial core checks only | Phases 4-5 |
 | Hosted high-sensitivity intake | No | Phases 4-6 |
 | Tenant-scoped ledger inspection | No | Phase 5 |
 | Retention-backed hosted metadata ledger | No | Phase 6 |
 
-## Release rule
+## Positioning boundaries
 
-Do not call the project "Hosted Production MVP complete" until:
+Good early wedges:
 
-```bash
-pnpm loop:full
-pnpm demo:handoff
-```
+- event, waitlist, and inquiry intake
+- recruiting intake
+- contractor onboarding
+- B2B vendor registration
+- QR or email handoff for private invites
 
-both pass, and the manual checks for Phases 2-6 have been run against the current implementation.
+Conditional later wedges:
+
+- healthcare-adjacent allergy or medical note intake
+- medical intake
+- financial or tax intake
+- KYC or government ID
+- minor data
+
+Avoid for MVP positioning:
+
+- anonymous whistleblowing
+- DV shelter, political, religious, or union-sensitive disclosure
+- emergency triage or disaster response
+- human web forms
+- CSV export or answer database
+- personal vault
+- DSAR or legal consent platform
+
+## Acceptance map
+
+| ERD acceptance area | Phase |
+| --- | --- |
+| validate request | Local Protocol MVP |
+| publish request confirmation | Local Protocol MVP, Phase 2 |
+| immutable request versions | Local Protocol MVP |
+| Agent Card and schemas | Local Protocol MVP, Phase 2 |
+| A2A protocol gate | Local Protocol MVP |
+| encrypted submission envelope | Local Protocol MVP |
+| replay, rate, and capability protection | Local Protocol MVP, Phase 3 |
+| webhook delivery | Local Protocol MVP, Phase 6 |
+| metadata-only ledger | Local Protocol MVP, Phase 5 |
+| tenant and role access control | Phase 5 |
+| retention | Phase 6 |
+| no payload custody | Local Protocol MVP, all hosted phases |
+| MCP publish and resources | Phase 2 |
+| reference sender and receiver | Local Protocol MVP |
+
+## Manual review checkpoints
+
+Ask for human review at these points:
+
+1. After Phase 2: MCP command names, publish confirmation, and agent experience.
+2. After Phase 3: capability revoke and rotate semantics.
+3. After Phase 4: ownership verification UX and local-demo bypass wording.
+4. After Phase 5: hosted roles, tenant boundaries, and metadata access behavior.
+5. After Phase 6: retention behavior and delivery failure semantics.
+
+## Not in scope
+
+- Dashboard UI.
+- Real user-side agent.
+- Legal consent engine.
+- Identity proof, KYC, or delegated authority.
+- Production retry queue for encrypted payload.
+- Custom crypto or HPKE-first design.
+- Full hosted deployment pipeline.
