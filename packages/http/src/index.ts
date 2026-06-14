@@ -35,3 +35,9 @@ export type {
   HostedSenderTrustResolver,
   HostedSenderTrustResult
 } from "./hosted-sender-auth.js";
+export { createHostedProductionApp } from "./hosted-production.js";
+export type {
+  HostedProductionApp,
+  HostedProductionRequest,
+  HostedProductionResponse
+} from "./hosted-production.js";

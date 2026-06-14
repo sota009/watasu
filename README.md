@@ -160,6 +160,7 @@ Currently implemented:
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
+- hosted production HTTP app that composes publish and metadata routes
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
 - in-memory sender key registration, revocation, and rotation lifecycle
@@ -174,11 +175,14 @@ Currently implemented:
 
 Still remaining for Hosted Production MVP:
 
-- dashboard UI or human form builder
-- user-side agent, personal vault, or consumer AI companion
-- hosted production service
+- deployable hosted server runtime and environment wiring
 - PostgreSQL-compatible hosted metadata store and scheduled hosted retention jobs
 - MCP hosted production surface beyond local in-memory publish and read tools
 - KMS/HSM-backed service private key custody beyond verified public-key registry
+
+Not in scope for the MVP:
+
+- dashboard UI or human form builder
+- user-side agent, personal vault, or consumer AI companion
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.
