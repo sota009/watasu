@@ -10,6 +10,7 @@
   "scripts": {
     "canary:hosted": "node scripts/hosted-canary.mjs",
     "cutover:plan": "node scripts/production-cutover-plan.mjs",
+    "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
     "cutover:verify": "node scripts/production-cutover-verify.mjs",
     "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
     "deploy:preflight": "node scripts/render-deploy-preflight.mjs",

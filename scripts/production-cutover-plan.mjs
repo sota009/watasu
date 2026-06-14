@@ -7,10 +7,7 @@ process.stdout.write(`${JSON.stringify({
   checked_at: new Date().toISOString(),
   target_origin: targetOrigin,
   before_render_commands: [
-    "mkdir -p cutover-evidence",
-    "git rev-parse HEAD > cutover-evidence/cutover-head.txt",
-    "pnpm --silent deploy:preflight",
-    "pnpm --silent smoke:hosted",
+    "pnpm --silent cutover:prepare",
     "pnpm --silent secret:identity --plain"
   ],
   external_actions: [

@@ -75,6 +75,7 @@ describe("workspace foundation", () => {
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
+      "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
       "cutover:verify": "node scripts/production-cutover-verify.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
@@ -262,6 +263,46 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
+  test("test_production_cutover_prepare_writes_secret_safe_local_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-prepare-"));
+
+    const result = spawnSync("pnpm", ["--silent", "cutover:prepare", "--dir", evidenceDir], {
+      cwd: rootDir,
+      encoding: "utf8",
+      timeout: 20_000
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      evidence_dir: string;
+      checked_head_sha: string;
+      wrote: string[];
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      evidence_dir: evidenceDir,
+      wrote: [
+        join(evidenceDir, "cutover-head.txt"),
+        join(evidenceDir, "preflight.json"),
+        join(evidenceDir, "smoke.json")
+      ]
+    });
+    expect(report.checked_head_sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(readFileSync(join(evidenceDir, "cutover-head.txt"), "utf8").trim()).toBe(report.checked_head_sha);
+    expect(JSON.parse(readFileSync(join(evidenceDir, "preflight.json"), "utf8"))).toMatchObject({
+      ok: true,
+      checked_domain: "api.watasu.ai"
+    });
+    expect(JSON.parse(readFileSync(join(evidenceDir, "smoke.json"), "utf8"))).toMatchObject({
+      ok: true,
+      checked_status: 200
+    });
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
   test("test_production_cutover_plan_outputs_ordered_secret_safe_commands", () => {
     const result = spawnSync("pnpm", ["--silent", "cutover:plan"], {
       cwd: rootDir,
@@ -282,10 +323,7 @@ describe("workspace foundation", () => {
       ok: true,
       target_origin: "https://api.watasu.ai",
       before_render_commands: [
-        "mkdir -p cutover-evidence",
-        "git rev-parse HEAD > cutover-evidence/cutover-head.txt",
-        "pnpm --silent deploy:preflight",
-        "pnpm --silent smoke:hosted",
+        "pnpm --silent cutover:prepare",
         "pnpm --silent secret:identity --plain"
       ],
       after_deploy_commands: [
@@ -320,9 +358,12 @@ describe("workspace foundation", () => {
 
     expect(japaneseReadme).toContain("pnpm --silent deploy:preflight");
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:prepare");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
     expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
-    expect(japaneseReadme).toContain("git rev-parse HEAD > cutover-evidence/cutover-head.txt");
+    expect(japaneseReadme).toContain("cutover-evidence/cutover-head.txt");
+    expect(japaneseReadme).toContain("cutover-evidence/preflight.json");
+    expect(japaneseReadme).toContain("cutover-evidence/smoke.json");
     expect(japaneseReadme).toContain("pnpm --silent cutover:verify --head \"$(cat cutover-evidence/cutover-head.txt)\" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json");
     expect(japaneseReadme).toContain("cutover-evidence/ci.json");
   });

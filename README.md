@@ -197,9 +197,10 @@ The cutover plan prints the before-Render commands, external account actions, af
 Record the cutover commit before connecting it to production evidence:
 
 ```bash
-mkdir -p cutover-evidence
-git rev-parse HEAD > cutover-evidence/cutover-head.txt
+pnpm --silent cutover:prepare
 ```
+
+The prepare command writes `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, and `cutover-evidence/smoke.json` without persisting secret-like assignment output.
 
 Production cutover evidence verification after deploy:
 

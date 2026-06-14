@@ -189,9 +189,10 @@ pnpm --silent cutover:plan
 production evidence と紐づける cutover commit を記録します:
 
 ```bash
-mkdir -p cutover-evidence
-git rev-parse HEAD > cutover-evidence/cutover-head.txt
+pnpm --silent cutover:prepare
 ```
+
+prepare command は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json` を書き出し、secret-like assignment output は保存しません。
 
 Production cutover evidence verification after deploy:
 
