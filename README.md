@@ -138,6 +138,7 @@ Currently implemented:
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
+- flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
@@ -148,7 +149,7 @@ Not yet in the MVP:
 - hosted production service
 - production DB migrations and hosted retention jobs
 - MCP server package
-- real JWE encryption/decryption flow with service-owned private keys
+- service-owned key management beyond the local JWE wrapper
 - production retry queue for payload bodies
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/implementation-plan-tdd.md` for the deeper product and engineering contract.
