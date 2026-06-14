@@ -252,6 +252,86 @@ describe("watasu MCP package", () => {
     }
   });
 
+  test("test_hosted_mcp_publish_uses_transport_auth_headers", async () => {
+    const handledRequests: Array<{
+      headers: Record<string, string | undefined>;
+    }> = [];
+    const connected = await createConnectedHostedClient({
+      hostedApp: {
+        async handle(request) {
+          handledRequests.push({
+            headers: request.headers
+          });
+          return {
+            status: 201,
+            headers: {
+              "content-type": "application/json; charset=utf-8"
+            },
+            body: "{\"ok\":true}\n"
+          };
+        }
+      },
+      resolveServiceHeaders: () => ({
+        authorization: "Bearer dynamic-service-token",
+        "x-watasu-tenant": "tenant-a"
+      })
+    });
+
+    try {
+      await connected.client.callTool({
+        name: "publish_hosted_request",
+        arguments: {
+          definitionText: validDefinition,
+          confirmed: true
+        }
+      });
+
+      expect(handledRequests).toHaveLength(1);
+      expect(handledRequests[0]?.headers).toMatchObject({
+        authorization: "Bearer dynamic-service-token",
+        "x-watasu-tenant": "tenant-a",
+        "content-type": "application/json; charset=utf-8"
+      });
+    } finally {
+      await connected.close();
+    }
+  });
+
+  test("test_hosted_mcp_publish_without_transport_auth_does_not_call_hosted_app", async () => {
+    let callCount = 0;
+    const connected = await createConnectedHostedClient({
+      hostedApp: {
+        async handle() {
+          callCount += 1;
+          throw new Error("hosted app must not be called without transport auth");
+        }
+      }
+    });
+
+    try {
+      const result = await connected.client.callTool({
+        name: "publish_hosted_request",
+        arguments: {
+          definitionText: validDefinition,
+          confirmed: true
+        }
+      });
+      const text = firstTextContent(result);
+
+      expect(JSON.parse(text)).toEqual({
+        ok: false,
+        status: "auth_required",
+        error: {
+          code: "hosted_mcp_transport_auth_required",
+          message: "Hosted MCP requires authenticated transport service headers."
+        }
+      });
+      expect(callCount).toBe(0);
+    } finally {
+      await connected.close();
+    }
+  });
+
   test("test_hosted_mcp_ledger_delegates_without_payload_body", async () => {
     const handledRequests: Array<{
       method: string;

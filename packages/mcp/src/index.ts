@@ -37,6 +37,9 @@ export interface HostedMcpApp {
 export interface CreateHostedWatasuMcpServerInput {
   hostedApp: HostedMcpApp;
   serviceHeaders?: Record<string, string> | undefined;
+  resolveServiceHeaders?: ((input: {
+    toolName: "publish_hosted_request" | "list_hosted_delivery_ledger";
+  }) => Record<string, string> | undefined) | undefined;
 }
 
 export function createWatasuMcpServer(): McpServer {
@@ -386,6 +389,13 @@ export function createHostedWatasuMcpServer(input: CreateHostedWatasuMcpServerIn
       }
     },
     async ({ definitionText, confirmed }) => {
+      const serviceHeaders = resolveHostedMcpServiceHeaders(input, {
+        toolName: "publish_hosted_request"
+      });
+      if (serviceHeaders === undefined) {
+        return hostedMcpAuthRequiredResponse();
+      }
+
       const validation = validateRequestDefinitionInput(definitionText);
       if (!validation.ok) {
         return jsonToolResponse({
@@ -398,7 +408,7 @@ export function createHostedWatasuMcpServer(input: CreateHostedWatasuMcpServerIn
         method: "POST",
         path: `/requests/${encodeURIComponent(validation.definition.name)}/publish`,
         headers: {
-          ...input.serviceHeaders,
+          ...serviceHeaders,
           "content-type": "application/json; charset=utf-8"
         },
         body: JSON.stringify({
@@ -419,17 +429,51 @@ export function createHostedWatasuMcpServer(input: CreateHostedWatasuMcpServerIn
       },
       annotations: readToolAnnotations()
     },
-    async ({ requestId }) => hostedJsonToolResponse(await input.hostedApp.handle({
-      method: "GET",
-      path: `/requests/${encodeURIComponent(requestId)}/ledger`,
-      headers: {
-        ...input.serviceHeaders
-      },
-      body: ""
-    }))
+    async ({ requestId }) => {
+      const serviceHeaders = resolveHostedMcpServiceHeaders(input, {
+        toolName: "list_hosted_delivery_ledger"
+      });
+      if (serviceHeaders === undefined) {
+        return hostedMcpAuthRequiredResponse();
+      }
+
+      return hostedJsonToolResponse(await input.hostedApp.handle({
+        method: "GET",
+        path: `/requests/${encodeURIComponent(requestId)}/ledger`,
+        headers: {
+          ...serviceHeaders
+        },
+        body: ""
+      }));
+    }
   );
 
   return server;
+}
+
+function resolveHostedMcpServiceHeaders(
+  input: CreateHostedWatasuMcpServerInput,
+  context: {
+    toolName: "publish_hosted_request" | "list_hosted_delivery_ledger";
+  }
+): Record<string, string> | undefined {
+  const serviceHeaders = input.resolveServiceHeaders?.(context) ?? input.serviceHeaders;
+  if (serviceHeaders?.authorization === undefined || serviceHeaders.authorization.trim() === "") {
+    return undefined;
+  }
+
+  return serviceHeaders;
+}
+
+function hostedMcpAuthRequiredResponse() {
+  return jsonToolResponse({
+    ok: false,
+    status: "auth_required",
+    error: {
+      code: "hosted_mcp_transport_auth_required",
+      message: "Hosted MCP requires authenticated transport service headers."
+    }
+  });
 }
 
 function jsonToolResponse(value: unknown) {
