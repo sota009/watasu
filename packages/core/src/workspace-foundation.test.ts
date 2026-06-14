@@ -70,6 +70,7 @@ describe("workspace foundation", () => {
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
+      "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
       loop: "node scripts/loop-engineer.mjs",
       "loop:full": "node scripts/loop-engineer.mjs --full",
@@ -183,6 +184,38 @@ describe("workspace foundation", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("Usage: pnpm --silent secret:identity [--plain]");
+  });
+
+  test("test_render_deploy_preflight_reports_repo_side_readiness_without_secrets", () => {
+    const result = spawnSync("pnpm", ["--silent", "deploy:preflight"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      checked_domain: string;
+      checked_render_services: string[];
+      checked_secret_command: string;
+      remaining_external_actions: string[];
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_render_services: ["watasu-hosted", "watasu-metadata-retention", "watasu-metadata"],
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    });
+    expect(report.remaining_external_actions).toEqual([
+      "Render workspace and billing enabled",
+      "GitHub repository connected to Render",
+      "Render secret value entered",
+      "api.watasu.ai DNS and TLS verified",
+      "post-deploy hosted canary passed"
+    ]);
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {

@@ -127,6 +127,7 @@ Current repo-side status:
 - Done: hosted production exposes request-specific plaintext and encrypted envelope schemas for published request versions at `/requests/{request_id}/schemas/*.json`.
 - Done: hosted production accepts A2A HTTP+JSON submissions at `/requests/{request_id}/submit`, validates envelope metadata, enforces idempotency/rate-limit hooks, and delivers encrypted envelopes without retaining payload bodies.
 - Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures.
+- Done: `pnpm --silent deploy:preflight` reports repo-side Render readiness and remaining external actions without printing secret values or database URLs.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
@@ -135,9 +136,10 @@ Product owner actions:
 2. Connect the GitHub repository to Render with least necessary repository access.
 3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
-5. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
-6. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
-7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, `pnpm --filter @watasu/hosted retention -- --dry-run`, and no-payload-custody checks pass on the deployed URL.
+5. Run `pnpm --silent deploy:preflight` before entering account-side values, and stop if it reports a repo-side mismatch.
+6. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
+7. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
+8. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, `pnpm --filter @watasu/hosted retention -- --dry-run`, and no-payload-custody checks pass on the deployed URL.
 
 Recommended production environment variables:
 
@@ -165,6 +167,7 @@ Owner checklist for the first production cutover:
 [x] Domain acquired and dedicated API subdomain chosen: `api.watasu.ai`.
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
+[x] Repo-side Render deploy preflight command exists: `pnpm --silent deploy:preflight`.
 [ ] GitHub Actions CI is green on the deployed commit.
 [ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, and `checked_timeout_ms`.
 [ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
@@ -486,4 +489,4 @@ Ask for human review at these points:
 - Identity proof, KYC, or delegated authority.
 - Production retry queue that stores encrypted payload bodies inside watasu.
 - Custom crypto or HPKE-first design.
-- Production deployment automation until the production entrypoint, hosting config, health check, and canary flow are added in a follow-up PR.
+- Push-button production exposure before Render account setup, DNS verification, real secrets, and post-deploy canary evidence exist.

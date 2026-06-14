@@ -178,6 +178,14 @@ pnpm --filter @watasu/hosted retention -- --dry-run
 
 Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `scanned`, `deleted`, and `retained`. Dry-run output also includes `dry_run` and `would_delete`, so the pre-cutover record can prove the scheduled cleanup boundary without deleting rows or exposing payload fragments.
 
+Render deploy preflight before account-side setup:
+
+```bash
+pnpm --silent deploy:preflight
+```
+
+The preflight checks the repo-side Render Blueprint, domain, secret-generation command, and remaining external actions without printing secret values or database URLs.
+
 Generate a production service identity signing secret for Render:
 
 ```bash
