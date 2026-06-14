@@ -12,3 +12,8 @@ export type {
   HostedMetadataRequest,
   HostedMetadataResponse
 } from "./hosted-metadata.js";
+export { createTrustedServiceIdentityResolver } from "./hosted-identity.js";
+export type {
+  HostedServiceIdentityResolver,
+  TrustedServicePrincipal
+} from "./hosted-identity.js";
