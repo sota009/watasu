@@ -1,0 +1,17 @@
+{
+  "name": "@watasu/http",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "demo": "node dist/bin.js",
+    "test": "vitest run --root ../.. packages/http/src/local-demo.test.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@watasu/core": "workspace:*"
+  }
+}

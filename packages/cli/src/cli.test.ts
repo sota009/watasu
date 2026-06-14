@@ -202,6 +202,49 @@ describe("watasu cli first slice", () => {
     });
   });
 
+  test("test_cli_ledger_never_prints_payload_body", async () => {
+    const result = await runCli(["ledger", fixtureFile, "--confirm"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "ledger",
+      ledger: [
+        {
+          request_id: "event-attendee-intake",
+          request_version: "v1",
+          idempotency_key: "fixture-submit-001",
+          delivery_status: "delivered",
+          encrypted_payload_hash: expect.any(String)
+        }
+      ]
+    });
+    expect(result.stdout).not.toContain("base64url-ciphertext");
+    expect(result.stdout).not.toContain("\"encrypted_payload\"");
+    expect(result.stdout).not.toContain("\"protected\"");
+    expect(result.stdout).not.toContain("\"tag\"");
+  });
+
+  test("test_cli_inspect_delivery_outputs_metadata_only", async () => {
+    const result = await runCli(["inspect-delivery", fixtureFile, "--confirm"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "inspect-delivery",
+      delivery: {
+        request_id: "event-attendee-intake",
+        request_version: "v1",
+        idempotency_key: "fixture-submit-001",
+        delivery_status: "delivered",
+        destination_url_hash: expect.any(String),
+        encrypted_payload_hash: expect.any(String)
+      }
+    });
+    expect(result.stdout).not.toContain("base64url-ciphertext");
+    expect(result.stdout).not.toContain("\"encrypted_payload\"");
+  });
+
   test("test_cli_errors_are_machine_readable", async () => {
     const result = await runCli(["unknown-command"]);
 

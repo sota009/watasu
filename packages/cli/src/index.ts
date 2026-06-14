@@ -2,12 +2,18 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import {
   buildAgentCard,
+  canonicalizeJson,
   createRequestVersionHashes,
+  deliverAcceptedSubmission,
   generateEncryptedEnvelopeSchema,
   generatePlaintextPayloadSchema,
   InMemoryRequestVersionRepository,
   publishRequestVersion,
+  sha256Hash,
   validateRequestDefinitionInput,
+  type DeliveryClient,
+  type DeliveryLedger,
+  type DeliveryLedgerRow,
   type RequestDefinition,
   type RequestDefinitionError
 } from "@watasu/core";
@@ -20,7 +26,7 @@ export interface CliResult {
   stderr: string;
 }
 
-type CommandName = "validate" | "publish" | "agent-card" | "schema";
+type CommandName = "validate" | "publish" | "agent-card" | "schema" | "ledger" | "inspect-delivery";
 
 interface ParsedArgs {
   command: CommandName;
@@ -53,6 +59,10 @@ export async function runCli(argv: string[]): Promise<CliResult> {
       return agentCardForFileDefinition(loaded.definition, parsed.value.confirm);
     case "schema":
       return schemaForFileDefinition(loaded.definition);
+    case "ledger":
+      return ledgerForFileDefinition(loaded.definition, parsed.value.confirm);
+    case "inspect-delivery":
+      return inspectDeliveryForFileDefinition(loaded.definition, parsed.value.confirm);
   }
 }
 
@@ -67,7 +77,8 @@ function parseArgs(
       error: {
         code: command === undefined ? "missing_command" : "unknown_command",
         path: "$.command",
-        message: "Command must be one of validate, publish, agent-card, or schema."
+        message:
+          "Command must be one of validate, publish, agent-card, schema, ledger, or inspect-delivery."
       }
     };
   }
@@ -313,6 +324,139 @@ function isCommand(command: string | undefined): command is CommandName {
     command === "validate" ||
     command === "publish" ||
     command === "agent-card" ||
-    command === "schema"
+    command === "schema" ||
+    command === "ledger" ||
+    command === "inspect-delivery"
   );
+}
+
+async function ledgerForFileDefinition(
+  definition: RequestDefinition,
+  confirmed: boolean
+): Promise<CliResult> {
+  const delivery = await runFixtureDelivery(definition, confirmed);
+  if (!delivery.ok) {
+    return errorResult("ledger", delivery.error);
+  }
+
+  return okResult({
+    ok: true,
+    command: "ledger",
+    mode: "file_based_phase_8_wrapper",
+    ledger: delivery.rows
+  });
+}
+
+async function inspectDeliveryForFileDefinition(
+  definition: RequestDefinition,
+  confirmed: boolean
+): Promise<CliResult> {
+  const delivery = await runFixtureDelivery(definition, confirmed);
+  if (!delivery.ok) {
+    return errorResult("inspect-delivery", delivery.error);
+  }
+
+  return okResult({
+    ok: true,
+    command: "inspect-delivery",
+    mode: "file_based_phase_8_wrapper",
+    delivery: delivery.rows[0]
+  });
+}
+
+async function runFixtureDelivery(
+  definition: RequestDefinition,
+  confirmed: boolean
+): Promise<
+  | {
+      ok: true;
+      rows: DeliveryLedgerRow[];
+    }
+  | {
+      ok: false;
+      error: RequestDefinitionError;
+    }
+> {
+  const repository = new InMemoryRequestVersionRepository();
+  const publishResult = publishRequestVersion({
+    requestId: definition.name,
+    definition,
+    confirmed,
+    mode: "hosted",
+    repository
+  });
+
+  if (!publishResult.ok) {
+    return {
+      ok: false,
+      error: publishResult.error
+    };
+  }
+
+  const rows: DeliveryLedgerRow[] = [];
+  const ledger: DeliveryLedger = {
+    writeDeliveryAttempt(row) {
+      rows.push(row);
+    }
+  };
+  const client: DeliveryClient = {
+    async post() {
+      return {
+        status: 204
+      };
+    }
+  };
+  const encryptedPayload = {
+    protected: "base64url-protected",
+    iv: "base64url-iv",
+    ciphertext: "base64url-ciphertext",
+    tag: "base64url-tag"
+  };
+  const submittedAt = "2026-06-14T11:59:00.000Z";
+
+  const result = await deliverAcceptedSubmission({
+    mode: "hosted",
+    published: publishResult.published,
+    envelope: {
+      request_id: publishResult.published.request_id,
+      request_version: publishResult.published.request_version,
+      schema_hash: publishResult.published.hashes.schema_hash,
+      consent_receipt_hash: publishResult.published.hashes.consent_text_hash,
+      idempotency_key: "fixture-submit-001",
+      submitted_at: submittedAt,
+      service_key_id: definition.encryption.service_key_id,
+      encrypted_payload: encryptedPayload,
+      encrypted_payload_hash: sha256Hash(canonicalizeJson(encryptedPayload)),
+      sender_key_id: "fixture-sender-key",
+      sender_signature: "fixture-sender-signature"
+    },
+    submission: {
+      request_id: publishResult.published.request_id,
+      request_version: publishResult.published.request_version,
+      idempotency_key: "fixture-submit-001",
+      submitted_at: submittedAt,
+      accepted_at: "2026-06-14T12:00:00.000Z",
+      capability_hash: sha256Hash("https://api.watasu.dev/capabilities/fixture")
+    },
+    client,
+    ledger,
+    clock: () => new Date("2026-06-14T12:00:01.000Z"),
+    signingSecret: "fixture-signing-secret"
+  });
+
+  if (!result.ok && result.status === "rejected") {
+    return {
+      ok: false,
+      error: {
+        code: result.error.code,
+        path: "$.destination.url",
+        message: result.error.message
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    rows
+  };
 }
