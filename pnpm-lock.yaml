@@ -35,6 +35,12 @@ importers:
 
   packages/fixtures: {}
 
+  packages/http:
+    dependencies:
+      '@watasu/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@emnapi/core@1.10.0':
