@@ -1,5 +1,6 @@
 import type {
   Sha256Hash,
+  TrustedSenderPublicKey,
   TrustedInviteBinding
 } from "@watasu/core";
 
@@ -10,6 +11,8 @@ export interface HostedSenderKeyRecord {
   request_id: string;
   request_version: string;
   sender_key_id: string;
+  alg: "ES256";
+  public_jwk: TrustedSenderPublicKey["public_jwk"];
   status: HostedSenderTrustRecordStatus;
   not_before: string;
   expires_at: string;
@@ -40,6 +43,7 @@ export interface HostedSenderTrustInput {
 
 export interface HostedSenderTrustResult {
   trustedSenderKeyIds: string[];
+  trustedSenderPublicKeys: TrustedSenderPublicKey[];
   trustedInvites: TrustedInviteBinding[];
 }
 
@@ -59,6 +63,13 @@ export function createHostedSenderTrustResolver(
     const trustedSenderKeyIds = input.senderKeys
       .filter((record) => isTrustedSenderKey(record, trustInput))
       .map((record) => record.sender_key_id);
+    const trustedSenderPublicKeys = input.senderKeys
+      .filter((record) => isTrustedSenderKey(record, trustInput))
+      .map((record) => ({
+        sender_key_id: record.sender_key_id,
+        alg: record.alg,
+        public_jwk: record.public_jwk
+      }));
     const trustedInvites = input.privateInvites
       .filter((record) => isTrustedInvite(record, trustInput, trustedSenderKeyIds))
       .map((record) => ({
@@ -68,6 +79,7 @@ export function createHostedSenderTrustResolver(
 
     return {
       trustedSenderKeyIds,
+      trustedSenderPublicKeys,
       trustedInvites
     };
   };

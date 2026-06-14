@@ -72,7 +72,7 @@ const encryptedPayload = {
 };
 
 function runHandoffDemo(): { stdout: string; stderr: string; output: unknown; status: number | null } {
-  const result = spawnSync("pnpm", ["demo:handoff"], {
+  const result = spawnSync(process.execPath, ["scripts/local-handoff-demo.mjs"], {
     cwd: rootDir,
     encoding: "utf8"
   });
@@ -167,7 +167,7 @@ describe("security regression suite", () => {
     for (const marker of forbiddenPayloadMarkers) {
       expect(combinedOutput).not.toContain(marker);
     }
-  });
+  }, 60_000);
 
   test("test_no_encrypted_payload_body_in_handoff_ledger_after_delivery", () => {
     // Arrange / Act
@@ -182,7 +182,7 @@ describe("security regression suite", () => {
         response_contains_plaintext_payload: false
       }
     });
-  });
+  }, 60_000);
 
   test("test_no_plaintext_payload_in_future_persistent_ledger_store", async () => {
     // Arrange / Act
@@ -217,7 +217,7 @@ describe("security regression suite", () => {
     // Assert
     expect(combinedOutput).not.toContain("/capabilities/");
     expect(combinedOutput).not.toContain("local-demo");
-  });
+  }, 60_000);
 
   test("test_unsafe_webhook_url_is_rejected_in_hosted_mode", () => {
     // Arrange

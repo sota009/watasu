@@ -145,6 +145,7 @@ Currently implemented:
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
+- ES256 detached JWS sender signature verification for registered sender keys
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - delivery timeout classification that returns `resubmit_later` without retaining payload bodies
@@ -173,7 +174,7 @@ Still remaining for Hosted Production MVP:
 - MCP hosted production surface beyond local in-memory publish and read tools
 - service-owned key management beyond the local JWE wrapper
 - service public key and webhook ownership challenge lifecycle beyond injected verification state
-- sender signature cryptographic verification and sender key registration lifecycle
+- EdDSA sender signatures and sender key registration lifecycle
 - production sender resubmission/backoff guidance that keeps the no payload retry queue rule
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.

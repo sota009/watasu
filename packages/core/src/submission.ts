@@ -1,3 +1,4 @@
+import { createPublicKey, verify, type JsonWebKey } from "node:crypto";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
 import { canonicalizeJson } from "./request-definition.js";
 import type { TrustProfile } from "./request-definition.js";
@@ -42,6 +43,12 @@ export interface TrustedInviteBinding {
   sender_key_id: string;
 }
 
+export interface TrustedSenderPublicKey {
+  sender_key_id: string;
+  alg: "ES256";
+  public_jwk: JsonWebKey;
+}
+
 export interface IdempotencyStore {
   claimValidation(recordKey: string, claim: IdempotencyValidationClaim): boolean;
   releaseValidation(recordKey: string): void;
@@ -68,6 +75,7 @@ export interface SubmissionValidationContext {
   clock: () => Date;
   maxSubmissionAgeMs?: number | undefined;
   trustedSenderKeyIds?: string[] | undefined;
+  trustedSenderPublicKeys?: TrustedSenderPublicKey[] | undefined;
   trustedInvites?: TrustedInviteBinding[] | undefined;
 }
 
@@ -414,7 +422,83 @@ function validateTrustedSenderKey(
     };
   }
 
+  const trustedSenderPublicKey = context.trustedSenderPublicKeys?.find(
+    (key) => key.sender_key_id === envelope.sender_key_id
+  );
+  if (trustedSenderPublicKey !== undefined && !verifySenderSignature({
+    envelope,
+    publicKey: trustedSenderPublicKey
+  })) {
+    return {
+      code: "sender_signature_invalid",
+      message: "Sender signature could not be verified."
+    };
+  }
+
   return undefined;
+}
+
+export function buildSenderSignaturePayload(envelope: SubmissionEnvelope): Record<string, string> {
+  return {
+    request_id: envelope.request_id,
+    request_version: envelope.request_version,
+    schema_hash: envelope.schema_hash,
+    idempotency_key: envelope.idempotency_key,
+    encrypted_payload_hash: envelope.encrypted_payload_hash,
+    service_key_id: envelope.service_key_id,
+    consent_receipt_hash: envelope.consent_receipt_hash,
+    submitted_at: envelope.submitted_at
+  };
+}
+
+function verifySenderSignature(input: {
+  envelope: SubmissionEnvelope;
+  publicKey: TrustedSenderPublicKey;
+}): boolean {
+  if (input.envelope.sender_signature === undefined || input.publicKey.alg !== "ES256") {
+    return false;
+  }
+
+  const parts = input.envelope.sender_signature.split(".");
+  if (parts.length !== 3 || parts[1] !== "") {
+    return false;
+  }
+
+  const [encodedProtected, , encodedSignature] = parts;
+  if (encodedProtected === undefined || encodedSignature === undefined) {
+    return false;
+  }
+
+  const protectedHeader = parseProtectedHeader(encodedProtected);
+  if (protectedHeader?.alg !== "ES256") {
+    return false;
+  }
+
+  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(input.envelope)))
+    .toString("base64url");
+  const signingInput = Buffer.from(`${encodedProtected}.${payload}`, "ascii");
+
+  try {
+    return verify("sha256", signingInput, {
+      key: createPublicKey({ key: input.publicKey.public_jwk, format: "jwk" }),
+      dsaEncoding: "ieee-p1363"
+    }, Buffer.from(encodedSignature, "base64url"));
+  } catch {
+    return false;
+  }
+}
+
+function parseProtectedHeader(encodedProtected: string): { alg?: unknown } | undefined {
+  try {
+    const value = JSON.parse(Buffer.from(encodedProtected, "base64url").toString("utf8")) as unknown;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return undefined;
+    }
+
+    return value;
+  } catch {
+    return undefined;
+  }
 }
 
 function hashEncryptedPayload(encryptedPayload: Record<string, unknown>): Sha256Hash {

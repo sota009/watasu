@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { createPrivateKey, generateKeyPairSync, sign, type JsonWebKey } from "node:crypto";
 import type { RequestDefinition, TrustProfile } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 import { createRequestVersionHashes } from "./request-version.js";
@@ -8,6 +9,7 @@ import {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
+  buildSenderSignaturePayload,
   validateSubmissionEnvelope,
   type SubmissionEnvelope,
   type SubmissionValidationContext
@@ -116,6 +118,38 @@ function createContext(
     clock: () => now,
     ...overrides
   };
+}
+
+function createSenderKeyPair() {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256"
+  });
+
+  return {
+    privateJwk: privateKey.export({ format: "jwk" }),
+    publicJwk: publicKey.export({ format: "jwk" })
+  };
+}
+
+function signSenderEnvelope(
+  envelope: SubmissionEnvelope,
+  privateJwk: JsonWebKey,
+  protectedHeaderOverrides: Record<string, unknown> = {}
+): string {
+  const protectedHeader = Buffer.from(JSON.stringify({
+    alg: "ES256",
+    typ: "watasu-sender-signature+jws",
+    ...protectedHeaderOverrides
+  })).toString("base64url");
+  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(envelope)))
+    .toString("base64url");
+  const signingInput = `${protectedHeader}.${payload}`;
+  const signature = sign("sha256", Buffer.from(signingInput, "ascii"), {
+    key: createPrivateKey({ key: privateJwk, format: "jwk" }),
+    dsaEncoding: "ieee-p1363"
+  }).toString("base64url");
+
+  return `${protectedHeader}..${signature}`;
 }
 
 describe("submission envelope validation", () => {
@@ -440,6 +474,105 @@ describe("submission envelope validation", () => {
       status: "accepted",
       submission: {
         sender_key_id: "sender-key-001"
+      }
+    });
+  });
+
+  test("test_verified_sender_with_valid_es256_detached_signature_is_accepted", () => {
+    const published = createPublished("verified_sender");
+    const senderKeys = createSenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-001",
+          alg: "ES256",
+          public_jwk: senderKeys.publicJwk
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "accepted",
+      submission: {
+        sender_key_id: "sender-key-001"
+      }
+    });
+  });
+
+  test("test_verified_sender_with_tampered_detached_signature_returns_auth_required", () => {
+    const published = createPublished("verified_sender");
+    const senderKeys = createSenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      idempotency_key: "submit-tampered",
+      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-001",
+          alg: "ES256",
+          public_jwk: senderKeys.publicJwk
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "auth_required",
+      error: {
+        code: "sender_signature_invalid"
+      }
+    });
+  });
+
+  test("test_verified_sender_with_unsupported_jws_alg_returns_auth_required", () => {
+    const published = createPublished("verified_sender");
+    const senderKeys = createSenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk, {
+        alg: "HS256"
+      })
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-001",
+          alg: "ES256",
+          public_jwk: senderKeys.publicJwk
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "auth_required",
+      error: {
+        code: "sender_signature_invalid"
       }
     });
   });

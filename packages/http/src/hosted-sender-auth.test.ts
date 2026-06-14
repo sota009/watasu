@@ -4,6 +4,12 @@ import { createHostedSenderTrustResolver } from "./hosted-sender-auth.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const capabilityHash = sha256Hash("capability-token");
+const senderPublicJwk = {
+  kty: "EC",
+  crv: "P-256",
+  x: "base64url-x",
+  y: "base64url-y"
+};
 
 describe("hosted sender trust resolver", () => {
   test("test_resolver_returns_only_active_sender_keys_for_request_scope", () => {
@@ -15,6 +21,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
@@ -24,6 +32,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-revoked",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "revoked",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z",
@@ -34,6 +44,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-tenant-b",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
@@ -43,6 +55,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v2",
           sender_key_id: "sender-key-wrong-version",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
@@ -52,6 +66,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-expired",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-13T00:00:00.000Z",
           expires_at: "2026-06-14T11:00:00.000Z"
@@ -72,6 +88,13 @@ describe("hosted sender trust resolver", () => {
     // Assert
     expect(trust).toEqual({
       trustedSenderKeyIds: ["sender-key-active"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk
+        }
+      ],
       trustedInvites: []
     });
   });
@@ -85,6 +108,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
@@ -116,6 +141,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
@@ -170,6 +197,13 @@ describe("hosted sender trust resolver", () => {
     // Assert
     expect(trust).toEqual({
       trustedSenderKeyIds: ["sender-key-active"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk
+        }
+      ],
       trustedInvites: [
         {
           invite_id: "invite-active",
@@ -211,6 +245,7 @@ describe("hosted sender trust resolver", () => {
     // Assert
     expect(trust).toEqual({
       trustedSenderKeyIds: [],
+      trustedSenderPublicKeys: [],
       trustedInvites: []
     });
   });
@@ -224,6 +259,8 @@ describe("hosted sender trust resolver", () => {
           request_id: "request-a",
           request_version: "v1",
           sender_key_id: "sender-key-active",
+          alg: "ES256",
+          public_jwk: senderPublicJwk,
           status: "active",
           not_before: "2026-06-14T00:00:00.000Z",
           expires_at: "2026-06-15T00:00:00.000Z"
