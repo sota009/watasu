@@ -48,6 +48,10 @@ export {
   createPolicyControlledDeliveryLedger,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
+export {
+  InMemoryOwnershipChallengeRegistry,
+  buildOwnershipVerification
+} from "./ownership.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -127,3 +131,10 @@ export type {
   StoragePolicy,
   StoragePolicyMode
 } from "./storage-policy.js";
+export type {
+  OwnershipChallenge,
+  OwnershipChallengeStatus,
+  OwnershipChallengeVerificationResult,
+  ServiceKeyOwnershipChallenge,
+  WebhookOriginOwnershipChallenge
+} from "./ownership.js";
