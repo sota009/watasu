@@ -140,6 +140,7 @@ Currently implemented:
 - canonical JSON and SHA-256 hash helpers
 - immutable in-memory request version publishing
 - hosted publish ownership checks for service keys, webhook origins, HTTPS, and unsafe destination hosts
+- hosted publish HTTP adapter using server-side identity and ownership resolution
 - plaintext payload schema and encrypted envelope schema generation
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
@@ -170,6 +171,7 @@ Still remaining for Hosted Production MVP:
 - optional persistent metadata store and hosted retention jobs
 - MCP hosted production surface beyond local in-memory publish and read tools
 - service-owned key management beyond the local JWE wrapper
+- service public key and webhook ownership challenge lifecycle beyond injected verification state
 - production sender resubmission/backoff guidance that keeps the no payload retry queue rule
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.
