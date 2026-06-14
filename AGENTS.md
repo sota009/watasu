@@ -4,6 +4,15 @@
 
 AI生成コードは「動く」と「安全」を分けて扱ってください。実装・レビュー・リリース判断では、最低限以下を毎回確認してください。
 
+## Loop engineering defaults
+
+- このリポジトリの通常ループは `pnpm loop`。内容は `pnpm typecheck`、`pnpm test`、`pnpm lint`、`pnpm review:self`。依存追加、release gate、supply-chain境界に触れた場合は `pnpm loop:full` も実行する。
+- Codexに非自明な作業を渡すときは `docs/loop-engineering.md` のテンプレートを使う。Goal、Context、Constraints、Done whenを明示し、完了条件は観測可能な挙動と検証コマンドで書く。
+- 振る舞い変更は原則TDD。先に失敗するテストを書き、期待した理由で落ちることを確認してから最小実装に進む。
+- 既存テストは外部の真実として扱う。ユーザーが明示しない限り、既存テストの削除、skip化、assertionの弱体化、期待値の都合よい変更は禁止。
+- ループ中に同じ手作業や判断が2回出たら、`AGENTS.md`、`docs/loop-engineering.md`、script、skillのどれかに捕まえる。
+- 最新情報が必要な技術選定では必ずWeb検索し、公式性、最終更新、maintenance状況、既知脆弱性、postinstall/install script risk、選定理由を短く記録する。
+
 ### Before implementation
 
 - このプロジェクトはアジャイルに進める。実装中に PRD (`docs/prd-cli-mvp.md`) や ERD (`docs/erd-cli-mvp.md`) の前提が現実と合わない、またはより良い仕様が見つかった場合は、必要性・影響範囲・代替案を短く説明し、ユーザー承認を得たうえで PRD/ERD を更新してよい。
