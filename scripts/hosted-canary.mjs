@@ -73,6 +73,30 @@ await assertUnpublishedRoute({
 });
 
 await assertUnpublishedRoute({
+  label: "Plaintext schema route",
+  url: urls.unpublishedPlaintextSchema,
+  init: {
+    method: "GET",
+    headers: {
+      accept: "application/json"
+    },
+    redirect: "manual"
+  }
+});
+
+await assertUnpublishedRoute({
+  label: "Envelope schema route",
+  url: urls.unpublishedEnvelopeSchema,
+  init: {
+    method: "GET",
+    headers: {
+      accept: "application/json"
+    },
+    redirect: "manual"
+  }
+});
+
+await assertUnpublishedRoute({
   label: "Submit route",
   url: urls.unpublishedSubmit,
   init: {
@@ -93,6 +117,8 @@ console.log(JSON.stringify({
   checked_url: urls.health,
   checked_public_routes: [
     urls.unpublishedAgentCard,
+    urls.unpublishedPlaintextSchema,
+    urls.unpublishedEnvelopeSchema,
     urls.unpublishedSubmit
   ],
   checked_headers: Object.keys(hostedCanaryRequiredHeaders),

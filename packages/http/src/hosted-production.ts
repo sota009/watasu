@@ -1,5 +1,7 @@
 import {
   buildAgentCard,
+  generateEncryptedEnvelopeSchema,
+  generatePlaintextPayloadSchema,
   type PublishedRequestVersion
 } from "@watasu/core";
 import type {
@@ -53,17 +55,26 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
         return input.submitApp.handle(request);
       }
 
+      const schemaRequest = matchSchemaPath(request);
+      if (schemaRequest !== undefined) {
+        const published = latestPublishedRequest(input.requestVersions.list(schemaRequest.requestId));
+        if (published === undefined) {
+          return publishedRequestNotFoundResponse();
+        }
+
+        return jsonResponse(
+          200,
+          schemaRequest.schema === "plaintext"
+            ? generatePlaintextPayloadSchema(published.definition)
+            : generateEncryptedEnvelopeSchema(published.definition, published.hashes)
+        );
+      }
+
       const agentCardRequestId = matchAgentCardPath(request);
       if (agentCardRequestId !== undefined) {
         const published = latestPublishedRequest(input.requestVersions.list(agentCardRequestId));
         if (published === undefined) {
-          return jsonResponse(404, {
-            ok: false,
-            error: {
-              code: "request_version_not_found",
-              message: "Published request was not found."
-            }
-          });
+          return publishedRequestNotFoundResponse();
         }
 
         return jsonResponse(200, buildAgentCard({
@@ -87,6 +98,35 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
   };
 }
 
+function matchSchemaPath(request: HostedProductionRequest): {
+  requestId: string;
+  schema: "plaintext" | "envelope";
+} | undefined {
+  if (request.method !== "GET") {
+    return undefined;
+  }
+
+  const match = /^\/requests\/([^/]+)\/schemas\/(plaintext|envelope)\.json$/.exec(request.path);
+  if (match === null) {
+    return undefined;
+  }
+
+  try {
+    const requestId = decodeURIComponent(match[1] ?? "");
+    const schema = match[2];
+    if (requestId.length === 0 || (schema !== "plaintext" && schema !== "envelope")) {
+      return undefined;
+    }
+
+    return {
+      requestId,
+      schema
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function matchAgentCardPath(request: HostedProductionRequest): string | undefined {
   if (request.method !== "GET") {
     return undefined;
@@ -107,6 +147,16 @@ function matchAgentCardPath(request: HostedProductionRequest): string | undefine
 
 function latestPublishedRequest(versions: PublishedRequestVersion[]): PublishedRequestVersion | undefined {
   return versions.at(-1);
+}
+
+function publishedRequestNotFoundResponse(): HostedProductionResponse {
+  return jsonResponse(404, {
+    ok: false,
+    error: {
+      code: "request_version_not_found",
+      message: "Published request was not found."
+    }
+  });
 }
 
 function jsonResponse(status: number, value: unknown): HostedProductionResponse {

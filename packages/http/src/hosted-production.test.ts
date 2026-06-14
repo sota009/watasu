@@ -200,6 +200,102 @@ describe("hosted production HTTP app", () => {
     });
   });
 
+  test("test_get_schema_routes_return_published_request_schemas_without_private_destination", async () => {
+    // Arrange
+    const requestVersions = new InMemoryRequestVersionRepository();
+    requestVersions.publish("event-attendee-intake", definition);
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle schema routes");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("schemas"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions,
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle schema routes");
+        }
+      }
+    });
+
+    // Act
+    const plaintextResponse = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/schemas/plaintext.json"
+    }));
+    const envelopeResponse = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/schemas/envelope.json"
+    }));
+
+    // Assert
+    expect(plaintextResponse.status).toBe(200);
+    expect(parseJson(plaintextResponse.body)).toMatchObject({
+      type: "object",
+      properties: {
+        email: {
+          type: "string",
+          format: "email"
+        }
+      },
+      required: ["email"]
+    });
+    expect(envelopeResponse.status).toBe(200);
+    expect(parseJson(envelopeResponse.body)).toMatchObject({
+      type: "object",
+      properties: {
+        schema_hash: {
+          const: requestVersions.list("event-attendee-intake")[0]?.hashes.schema_hash
+        },
+        service_key_id: {
+          const: "jwk-thumbprint:sha256:example"
+        },
+        encrypted_payload: {
+          type: "object"
+        }
+      }
+    });
+    expect(plaintextResponse.body).not.toContain("receiver.example.com/private");
+    expect(envelopeResponse.body).not.toContain("receiver.example.com/private");
+  });
+
+  test("test_get_schema_route_returns_not_found_for_unpublished_request", async () => {
+    // Arrange
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle unpublished schema route");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("unpublished schema"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: new InMemoryRequestVersionRepository(),
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle unpublished schema route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/missing/schemas/plaintext.json"
+    }));
+
+    // Assert
+    expect(response.status).toBe(404);
+    expect(parseJson(response.body)).toEqual({
+      ok: false,
+      error: {
+        code: "request_version_not_found",
+        message: "Published request was not found."
+      }
+    });
+  });
+
   test("test_post_publish_route_is_delegated_to_hosted_publish_app", async () => {
     // Arrange
     const handledPaths: string[] = [];

@@ -4,6 +4,8 @@ export const hostedCanaryUnpublishedRequestId: string;
 export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   health: string;
   unpublishedAgentCard: string;
+  unpublishedPlaintextSchema: string;
+  unpublishedEnvelopeSchema: string;
   unpublishedSubmit: string;
 };
 

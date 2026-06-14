@@ -82,6 +82,8 @@ describe("hosted canary helpers", () => {
     expect(urls).toEqual({
       health: "https://api.watasu.ai/health",
       unpublishedAgentCard: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
+      unpublishedPlaintextSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/plaintext.json`,
+      unpublishedEnvelopeSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
       unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`
     });
   });

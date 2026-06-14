@@ -14,6 +14,14 @@ export function buildHostedCanaryCheckUrls(baseUrl) {
       `/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
       baseUrl
     ).toString(),
+    unpublishedPlaintextSchema: new URL(
+      `/requests/${hostedCanaryUnpublishedRequestId}/schemas/plaintext.json`,
+      baseUrl
+    ).toString(),
+    unpublishedEnvelopeSchema: new URL(
+      `/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
+      baseUrl
+    ).toString(),
     unpublishedSubmit: new URL(
       `/requests/${hostedCanaryUnpublishedRequestId}/submit`,
       baseUrl
