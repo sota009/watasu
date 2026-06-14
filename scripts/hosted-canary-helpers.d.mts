@@ -34,6 +34,11 @@ export function buildHostedCanarySuccessReport(input: {
   checked_not_found_routes: string[];
   checked_headers: string[];
   checked_timeout_ms: number;
+  go_no_go: {
+    decision: "go";
+    required_followups: string[];
+    evidence: string[];
+  };
   status: number;
 };
 

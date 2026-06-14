@@ -213,6 +213,20 @@ describe("hosted canary helpers", () => {
         "x-content-type-options"
       ],
       checked_timeout_ms: 2500,
+      go_no_go: {
+        decision: "go",
+        required_followups: [
+          "Run retention dry run on the deployed environment.",
+          "Record no-payload-custody evidence before private-alpha exposure."
+        ],
+        evidence: [
+          "health endpoint returned 200",
+          "public low-information routes stayed non-successful",
+          "hosted MCP endpoint required authentication",
+          "protected-resource metadata allowed GET and rejected POST",
+          "required security headers were present"
+        ]
+      },
       status: 200
     });
   });
