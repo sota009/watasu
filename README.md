@@ -175,6 +175,7 @@ Currently implemented:
 - PostgreSQL delivery metadata ledger migration runner for injected hosted query clients
 - hosted PostgreSQL runtime config parser and migrated ledger store factory for injected pool clients
 - hosted Node/PostgreSQL runtime package with bounded pool config and query adapter
+- hosted signed-header identity provider runtime config for production entrypoints
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
@@ -188,7 +189,6 @@ Currently implemented:
 
 Still remaining for Hosted Production MVP:
 
-- production hosted runtime entrypoint for the selected deployment identity provider
 - PostgreSQL infrastructure provisioning for hosted metadata stores
 - production MCP HTTP transport entrypoint on the selected deployment platform
 - KMS/HSM-backed service private key custody beyond verified public-key registry

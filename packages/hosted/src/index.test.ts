@@ -1,11 +1,51 @@
 import { describe, expect, test } from "vitest";
 import {
+  createSignedHeaderIdentityProviderFromEnv,
   createHostedPostgresLedgerStoreFromEnv,
   createNodePostgresPoolConfig,
-  createPostgresPoolQueryClient
+  createPostgresPoolQueryClient,
+  loadHostedIdentityProviderConfig
 } from "./index.js";
 
 describe("hosted production runtime package", () => {
+  test("test_identity_provider_config_requires_signing_secret_for_signed_headers", () => {
+    expect(() =>
+      loadHostedIdentityProviderConfig({
+        WATASU_IDENTITY_PROVIDER: "signed_headers"
+      })
+    ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
+  });
+
+  test("test_signed_header_identity_provider_from_env_resolves_principal", () => {
+    // Arrange
+    const identityProvider = createSignedHeaderIdentityProviderFromEnv({
+      env: {
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z")
+    });
+    const headers = identityProvider.createHeaders({
+      tenantId: "tenant-a",
+      roles: ["publisher"],
+      issuedAt: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    // Act
+    const principal = identityProvider.resolvePrincipal({
+      method: "POST",
+      path: "/requests/request-a/publish",
+      headers,
+      body: "{\"tenant_id\":\"attacker\"}"
+    });
+
+    // Assert
+    expect(principal).toEqual({
+      tenant_id: "tenant-a",
+      roles: ["publisher"]
+    });
+  });
+
   test("test_pool_query_client_delegates_parameterized_query", async () => {
     // Arrange
     const calls: Array<{
