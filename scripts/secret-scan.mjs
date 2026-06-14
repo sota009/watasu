@@ -1,86 +1,98 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { relative, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+#!/usr/bin/env node
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { extname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ignoredDirectories = new Set([".git", "node_modules", "dist", "coverage"]);
-const envFilePattern = /^\.env(?:\.|$)/;
-const secretAssignmentPattern =
-  /\b(?:api[_-]?key|token|secret|private[_-]?key|password)\b\s*[:=]\s*["']?[A-Za-z0-9_\-./+=]{24,}/i;
+const SECRET_ASSIGNMENT_PATTERN =
+  /\b(?:api[_-]?key|secret|token|password|private[_-]?key)\b\s*[:=]\s*["']?[A-Za-z0-9_./+=-]{24,}/i;
+
+const ENV_FILE_PATTERN = /^\.env(?:\.|$)/;
+const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "coverage"]);
+const TEXT_EXTENSIONS = new Set([
+  "",
+  ".cjs",
+  ".cts",
+  ".js",
+  ".json",
+  ".md",
+  ".mjs",
+  ".mts",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".yaml",
+  ".yml"
+]);
 
 export function findSecretLikeValues(rootDir) {
-  const absoluteRoot = resolve(rootDir);
   const findings = [];
 
-  for (const filePath of listFiles(absoluteRoot)) {
-    const relativePath = relative(absoluteRoot, filePath);
-    const fileName = relativePath.split("/").at(-1) ?? relativePath;
+  for (const filePath of listCandidateFiles(rootDir)) {
+    const relPath = relative(rootDir, filePath);
+    const fileName = relPath.split("/").at(-1) ?? relPath;
 
-    if (envFilePattern.test(fileName)) {
+    if (ENV_FILE_PATTERN.test(fileName)) {
       findings.push({
-        path: relativePath,
+        path: relPath,
         reason: "env files must not be committed"
       });
       continue;
     }
 
     const content = readFileSync(filePath, "utf8");
-    if (secretAssignmentPattern.test(content)) {
+    if (SECRET_ASSIGNMENT_PATTERN.test(content)) {
       findings.push({
-        path: relativePath,
+        path: relPath,
         reason: "secret-like assignment detected"
       });
     }
   }
 
-  return findings.sort((left, right) => left.path.localeCompare(right.path));
+  return findings;
 }
 
-function listFiles(rootDir) {
+function listCandidateFiles(dir) {
+  const entries = readdirSync(dir, { withFileTypes: true });
   const files = [];
 
-  for (const entry of readdirSync(rootDir)) {
-    if (ignoredDirectories.has(entry)) {
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      if (!IGNORED_DIRS.has(entry.name)) {
+        files.push(...listCandidateFiles(fullPath));
+      }
       continue;
     }
 
-    const entryPath = resolve(rootDir, entry);
-    const stats = statSync(entryPath);
-    if (stats.isDirectory()) {
-      files.push(...listFiles(entryPath));
-      continue;
-    }
-
-    if (stats.isFile()) {
-      files.push(entryPath);
+    if (entry.isFile() && TEXT_EXTENSIONS.has(extname(entry.name))) {
+      files.push(fullPath);
     }
   }
 
   return files;
 }
 
-function runRepoScan() {
-  const rootDir = process.cwd();
-  const findings = findSecretLikeValues(rootDir);
-  if (findings.length === 0) {
+function main() {
+  if (!process.argv.includes("--repo")) {
     return;
   }
 
-  for (const finding of findings) {
-    console.error(`${finding.path}: ${finding.reason}`);
+  const rootDir = process.cwd();
+  if (!existsSync(rootDir) || !statSync(rootDir).isDirectory()) {
+    throw new Error(`Repository root does not exist: ${rootDir}`);
   }
-  process.exitCode = 1;
-}
 
-if (process.argv.includes("--repo")) {
-  const insideGit = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-    cwd: process.cwd(),
-    encoding: "utf8"
-  });
-  if (insideGit.status !== 0) {
-    console.error("secret scan must run inside a git work tree");
+  const findings = findSecretLikeValues(rootDir);
+  if (findings.length > 0) {
+    console.error(JSON.stringify({ ok: false, findings }, null, 2));
     process.exitCode = 1;
-  } else {
-    runRepoScan();
+    return;
   }
+
+  console.log(JSON.stringify({ ok: true, findings: [] }));
 }
 
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}

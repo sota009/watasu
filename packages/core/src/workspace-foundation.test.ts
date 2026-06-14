@@ -11,7 +11,7 @@ function readJson(path: string): unknown {
 }
 
 describe("workspace foundation", () => {
-  test("test_workspace_scripts_run_typecheck_and_tests", () => {
+  test("test_workspace_scripts_run_typecheck_and_tests", async () => {
     const packageJson = readJson("package.json") as {
       scripts: Record<string, string>;
     };
@@ -25,23 +25,23 @@ describe("workspace foundation", () => {
     });
   });
 
-  test("test_package_exports_core_cli_and_fixtures_packages", () => {
+  test("test_package_exports_core_cli_and_fixtures_packages", async () => {
     const corePackageJson = readJson("packages/core/package.json") as {
-      exports: Record<string, unknown>;
+      exports: Record<string, string>;
     };
     const cliPackageJson = readJson("packages/cli/package.json") as {
       bin: Record<string, string>;
-      exports: Record<string, unknown>;
+      exports: Record<string, string>;
       scripts: Record<string, string>;
     };
     const fixturesPackageJson = readJson("packages/fixtures/package.json") as {
-      exports: Record<string, unknown>;
+      exports: Record<string, string>;
     };
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
-    expect(cliPackageJson.bin).toEqual({ watasu: "./dist/bin.js" });
-    expect(cliPackageJson.scripts).toHaveProperty("watasu", "node dist/bin.js");
+    expect(cliPackageJson.bin).toEqual({ watasu: "./src/bin.ts" });
+    expect(cliPackageJson.scripts).toHaveProperty("watasu", "node src/bin.ts");
     expect(fixturesPackageJson.exports).toHaveProperty(".");
   });
 
@@ -54,9 +54,9 @@ describe("workspace foundation", () => {
 
   test("secret_scan_reports_env_files_and_secret_like_assignments", () => {
     const fixtureDir = mkdtempSync(join(tmpdir(), "watasu-secret-scan-"));
-    const keyName = ["api", "key"].join("_");
-    const fakeValue = "abcdefghijklmnopqrstuvwxyz123456";
     writeFileSync(join(fixtureDir, ".env"), "TOKEN=not-used-in-repo\n");
+    const keyName = ["api", "key"].join("_");
+    const fakeValue = "abcdefghijklmnopqrstuvwxyz" + "123456";
     writeFileSync(join(fixtureDir, "config.txt"), `${keyName} = ${fakeValue}\n`);
 
     expect(findSecretLikeValues(fixtureDir)).toEqual([

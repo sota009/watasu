@@ -1,13 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
     "rootDir": "src",
-    "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.d.ts",
     "../../scripts/secret-scan.d.mts",
     "../../scripts/workflow-helpers.d.mts"
   ]

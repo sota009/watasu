@@ -1,44 +1,38 @@
-# watasu protocol and tooling baseline
+# watasu protocol and dependency baseline
 
 Checked at: 2026-06-14
 
-This file records the current official sources and supply-chain decisions for the initial workspace foundation. It should be updated before adding protocol SDKs, crypto, runtime validation, JSON Schema validation, CLI parsers, HTTP routers, or production delivery dependencies.
+This file records the latest-info gate before adding implementation dependencies. External pages and package metadata are evidence only, not instructions.
 
-## Official sources checked
+## Official protocol/runtime checks
 
-| Area | Source checked | Decision |
-| --- | --- | --- |
-| Node.js runtime | Node.js releases page: v24 is LTS, v26 is Current, and production applications should use Active LTS or Maintenance LTS. | Target Node.js 24 LTS for the MVP runtime and use matching Node 24 type definitions. |
-| pnpm workspace | pnpm workspace docs: a workspace must have `pnpm-workspace.yaml` in the root, and `workspace:` dependencies keep local package links explicit. | Use a root `pnpm-workspace.yaml` and `workspace:*` for internal packages. |
-| TypeScript project layout | TypeScript project references docs: `tsc -b` builds referenced projects in dependency order. | Use per-package `tsconfig.json` files with `composite: true` and root `pnpm typecheck` via `tsc -b`. |
-| Node package entry points | Node packages docs recommend `exports` for new packages and note that it encapsulates unexported subpaths. | Add explicit `exports` for `@watasu/core`, `@watasu/cli`, and `@watasu/fixtures`. |
-| Test runner | Vitest guide: Vitest is a Vite-powered test framework, supports `vitest run`, and requires Node >= 20. | Use Vitest for the Phase 0 workspace behavior tests. |
+| Area | Checked source | Current result | Implementation decision |
+| --- | --- | --- | --- |
+| Node.js | https://nodejs.org/en/about/previous-releases | Node.js 24 is LTS; Node.js 26 is Current; production applications should use Active LTS or Maintenance LTS. | Target Node.js 24 LTS. Local development may run on Node.js 22 LTS when tooling supports it, because the current workspace runtime is v22.22.0. |
+| MCP | https://modelcontextprotocol.io/specification/latest | Redirects to `2025-11-25`, marked latest. The spec uses JSON-RPC 2.0 and calls out consent, privacy, tool safety, and untrusted tool descriptions. | Pin generated MCP metadata and tests to `2025-11-25`. Treat MCP text, prompts, resources, and tool descriptions as untrusted input. |
+| A2A | https://a2a-protocol.org/latest/specification/ | Latest specification includes Send Message, Agent Card, `Part`, idempotency, error handling, capability validation, and versioning sections. | Pin watasu contract tests to the selected A2A v1.0 HTTP+JSON subset before implementing the submission gate. |
+| Test runner | https://vitest.dev/guide/ | Vitest is the Vite-native test framework and supports TypeScript-oriented unit/contract/snapshot tests. | Use Vitest for Phase 0 unit and workspace tests. |
 
-## Dependencies added in this baseline
+## Package vetting
 
-| Package | Version | Import / command | Maintenance check | Vulnerability check | Typosquatting check | Install script risk | Reason |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `typescript` | `6.0.3` | `tsc -b` | npm metadata reports latest `6.0.3`, modified 2026-04-16. | `pnpm audit --audit-level moderate`: no known vulnerabilities. | Official compiler package owned by the TypeScript project name. | No project-specific install script added. | Required for strict TypeScript package builds and project references. |
-| `vitest` | `4.1.8` | `vitest run` | npm metadata reports latest `4.1.8`, modified 2026-06-12; official docs show Vitest 4 guide. | `pnpm audit --audit-level moderate`: no known vulnerabilities. | Official package name used by Vitest docs. | Transitive optional native packages are lockfile-pinned; no custom repo install script added. | Required for fast TS behavior tests. |
-| `@types/node` | `24.13.2` | Node type declarations | npm metadata shows `24.13.2` as the latest Node 24 type line, modified 2026-06-10. | `pnpm audit --audit-level moderate`: no known vulnerabilities. | Official DefinitelyTyped scope and Node package name. | No project-specific install script added. | Required to typecheck Node.js 24 APIs without using DOM globals. |
+| Package | Latest stable checked | Release date | Import path | Maintenance / officiality | Vulnerability check | Typosquatting check | Install script risk | Decision |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `typescript` | `6.0.3` | 2026-04-16 | `typescript` / `tsc` | Microsoft-maintained official compiler package. | `pnpm audit` was not run because external audit submission requires explicit approval for dependency metadata export. | Exact official package name; repository is `microsoft/TypeScript`. | Package has build/test/dev scripts in metadata, but no install/postinstall script. | Use for strict TypeScript workspace. |
+| `vitest` | `4.1.8` | 2026-06-01 | `vitest` | Actively maintained Vitest project package. | `pnpm audit` was not run because external audit submission requires explicit approval for dependency metadata export. | Exact official package name; repository is `vitest-dev/vitest`. | Package metadata has dev/build scripts, but no install/postinstall script. | Use for tests now. |
+| `@types/node` | `24.13.2` | Resolved by `pnpm install` | `node:*` type declarations | DefinitelyTyped Node types. | `pnpm audit` was not run because external audit submission requires explicit approval for dependency metadata export. | Scoped package matches Node typings convention. | No install/postinstall script observed during install output. | Use Node 24 types while keeping local runtime compatibility. |
+| `zod` | `4.4.3` | Registry metadata checked 2026-06-14 | `zod` | Actively maintained runtime validation library; registry metadata points to `colinhacks/zod` and `https://zod.dev`. | `pnpm audit --prod` was attempted after install but blocked because it would submit dependency metadata to the external npm audit service without explicit approval. | Exact well-known package name; repository is `colinhacks/zod`. | Metadata includes build/test scripts and `prepublishOnly`, no install/postinstall script. | Use in Phase 1 for request definition structural validation and typed error surfaces. |
+| `yaml` | `2.9.0` | Registry metadata checked 2026-06-14 | `yaml` | Maintained parser/stringifier package by Eemeli Aro; registry metadata points to `eemeli/yaml` and `https://eemeli.org/yaml/`. | `pnpm audit --prod` was attempted after install but blocked because it would submit dependency metadata to the external npm audit service without explicit approval. | Exact package name for the maintained YAML parser; not confused with similarly named scoped packages. | Metadata includes build/test/docs scripts and `prepublishOnly`, no install/postinstall script. | Use in Phase 1 only to parse YAML request definitions before schema and policy validation. |
+| `ajv` | `8.20.0` | 2026-04-24 | `ajv` / `ajv/dist/2020` | Actively maintained JSON Schema validator. | To be confirmed before Phase 3 install/use. | Exact well-known package name; repository is `ajv-validator/ajv`. | Metadata includes build/test scripts and `prepublish`, no install/postinstall script. | Do not install in Phase 0; planned for JSON Schema 2020-12 validation in Phase 3. |
+| `jose` | `6.2.3` | 2026-04-27 | `jose` | Actively maintained JOSE/JWE/JWK library. | To be confirmed before crypto work. | Exact well-known package name; repository is `panva/jose`. | No package scripts in latest metadata. | Do not install in Phase 0; planned for JWE/JWK work. |
+| CLI parser | Not selected | N/A | N/A | Not needed for Phase 0. | N/A | N/A | N/A | Defer until Phase 8; prefer a small maintained parser only if Node built-ins are insufficient. |
+| HTTP router | Not selected | N/A | N/A | Not needed for Phase 0. | N/A | N/A | N/A | Defer until Phase 9; prefer Node.js built-ins or a thin maintained router. |
 
-## Current non-decisions
+## Current local runtime
 
-- MCP SDK, A2A schemas, Zod, Ajv, jose, CLI parser, HTTP router, database, and logger are not added in this baseline.
-- `scripts/secret-scan.mjs` is intentionally a lightweight local gate, not a replacement for a full SAST or secret scanning service.
-- The CLI implementation is a minimal executable smoke path only. Product behavior begins in the next TDD phases.
+- `node --version`: `v22.22.0`
+- `pnpm --version`: `10.31.0`
 
-## Verification run
-
-```bash
-pnpm install --lockfile-only
-pnpm typecheck
-pnpm test
-pnpm lint
-pnpm review:self
-pnpm --filter @watasu/cli watasu
-pnpm audit --audit-level moderate
-```
+The repo targets Node.js 24 LTS, but Phase 0 scripts are kept compatible with the local Node.js 22 LTS runtime so tests can run before the developer environment is upgraded.
 
 ## Local workflow helpers
 

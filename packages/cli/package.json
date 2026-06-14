@@ -1,21 +1,18 @@
 {
   "name": "@watasu/cli",
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "bin": {
-    "watasu": "./dist/bin.js"
+    "watasu": "./src/bin.ts"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+    ".": "./src/index.ts"
   },
-  "files": ["dist"],
   "scripts": {
-    "watasu": "node dist/bin.js",
-    "typecheck": "tsc -b",
-    "test": "vitest run"
+    "watasu": "node src/bin.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@watasu/core": "workspace:*"

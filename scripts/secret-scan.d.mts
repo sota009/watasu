@@ -4,4 +4,3 @@ export interface SecretScanFinding {
 }
 
 export function findSecretLikeValues(rootDir: string): SecretScanFinding[];
-
