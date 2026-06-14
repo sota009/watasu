@@ -202,6 +202,9 @@ export function createHostedProductionServerFromEnv(input: {
   if (webLedgerConfig.mode !== "disabled") {
     throw new Error("WATASU_METADATA_LEDGER_STORE must be disabled for hosted production web runtime.");
   }
+  if (input.env["WATASU_POSTGRES_URL"]?.trim()) {
+    throw new Error("WATASU_POSTGRES_URL must not be set for hosted production web runtime.");
+  }
 
   const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);

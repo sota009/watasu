@@ -190,6 +190,22 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_METADATA_LEDGER_STORE must be disabled for hosted production web runtime.");
   });
 
+  test("test_hosted_production_server_from_env_rejects_web_database_url_even_when_store_disabled", () => {
+    expect(() =>
+      createHostedProductionServerFromEnv({
+        env: {
+          WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_METADATA_LEDGER_STORE: "disabled",
+          WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+          WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
+          PORT: "10000"
+        },
+        now: () => new Date("2026-06-15T00:00:00.000Z")
+      })
+    ).toThrow("WATASU_POSTGRES_URL must not be set for hosted production web runtime.");
+  });
+
   test("test_identity_provider_config_requires_signing_secret_for_signed_headers", () => {
     expect(() =>
       loadHostedIdentityProviderConfig({

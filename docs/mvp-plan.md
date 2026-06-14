@@ -147,7 +147,7 @@ Recommended production environment variables:
 | `WATASU_PUBLIC_BASE_URL=https://api.watasu.ai` | Codex can put the non-secret default in config. | Public origin for generated hosted URLs. Must stay HTTPS and must not include credentials, path, query, or fragment. |
 | `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a random value of at least 32 bytes outside the repo, enter it only in Render, and rotate if exposed. Runtime rejects documented test or placeholder values. |
 | `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived; runtime rejects values above 300 seconds. |
-| `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. |
+| `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. The web runtime rejects `WATASU_POSTGRES_URL` even when the store is disabled. |
 | `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |
 | `WATASU_POSTGRES_SSL=require` | Codex can put the non-secret default in config. | Hosted database connections require TLS; `disable` is rejected unless the database URL is local loopback. |
 | `WATASU_POSTGRES_POOL_MAX=2` | Codex can put the non-secret default in config. | Start small for the retention cron private-alpha workload; raise only with load evidence. |
