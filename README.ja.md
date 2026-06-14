@@ -168,6 +168,46 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
+Hosted metadata retention dry run:
+
+```bash
+pnpm --filter @watasu/hosted retention -- --dry-run
+```
+
+Render deploy preflight before account-side setup:
+
+```bash
+pnpm --silent deploy:preflight
+```
+
+Production cutover plan:
+
+```bash
+pnpm --silent cutover:plan
+```
+
+Production cutover evidence verification after deploy:
+
+```bash
+pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json
+```
+
+cutover verifier は `deploy:preflight`、`smoke:hosted`、`canary:hosted`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読み、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
+
+Hosted runtime smoke before deploy:
+
+```bash
+pnpm --silent smoke:hosted
+```
+
+Render に入れる production service identity signing secret を生成するコマンド:
+
+```bash
+pnpm --silent secret:identity --plain
+```
+
+このコマンドは `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` 用の 32 byte base64url value だけを出します。実値は Render の web service secret prompt にだけ入力し、git、README、log、PR text には残しません。
+
 `pnpm lint` は repository secret-scan helper を実行します。テストが通ることは安全性の証明ではありません。
 
 ## Current MVP Status

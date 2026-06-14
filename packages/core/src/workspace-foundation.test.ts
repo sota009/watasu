@@ -12,6 +12,10 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(new URL(path, rootDir), "utf8"));
 }
 
+function readText(path: string): string {
+  return readFileSync(new URL(path, rootDir), "utf8");
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Expected a YAML object.");
@@ -299,6 +303,17 @@ describe("workspace foundation", () => {
     ]);
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_japanese_readme_includes_production_cutover_commands", () => {
+    const japaneseReadme = readText("README.ja.md");
+
+    expect(japaneseReadme).toContain("pnpm --silent deploy:preflight");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
+    expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
+    expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json");
+    expect(japaneseReadme).toContain("ci.json");
   });
 
   test("test_production_cutover_verify_accepts_required_secret_safe_evidence", () => {
