@@ -163,6 +163,144 @@ describe("ownership challenge lifecycle", () => {
     ]);
   });
 
+  test("test_webhook_origin_challenge_fetches_https_well_known_token", async () => {
+    // Arrange
+    const fetchedUrls: string[] = [];
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromHttps({
+      challenge_id: "challenge-webhook-001",
+      resolveHost: async () => ["203.0.113.10"],
+      fetch: async (url, init) => {
+        fetchedUrls.push(url);
+        expect(init.redirect).toBe("manual");
+        return {
+          status: 200,
+          text: async () => "secret-webhook-001"
+        };
+      }
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: true,
+      origin: "https://receiver.example.com"
+    });
+    expect(fetchedUrls).toEqual([
+      "https://receiver.example.com/.well-known/watasu-webhook-challenge/challenge-webhook-001"
+    ]);
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([
+      "https://receiver.example.com"
+    ]);
+  });
+
+  test("test_webhook_origin_challenge_fetch_rejects_non_https_origin", async () => {
+    // Arrange
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "http://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromHttps({
+      challenge_id: "challenge-webhook-001",
+      resolveHost: async () => ["203.0.113.10"],
+      fetch: async () => {
+        throw new Error("fetch must not run");
+      }
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "unsafe_challenge_url"
+      }
+    });
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([]);
+  });
+
+  test("test_webhook_origin_challenge_fetch_rejects_private_dns_result", async () => {
+    // Arrange
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromHttps({
+      challenge_id: "challenge-webhook-001",
+      resolveHost: async () => ["169.254.169.254"],
+      fetch: async () => {
+        throw new Error("fetch must not run");
+      }
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "unsafe_challenge_host"
+      }
+    });
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([]);
+  });
+
+  test("test_webhook_origin_challenge_fetch_rejects_token_mismatch", async () => {
+    // Arrange
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromHttps({
+      challenge_id: "challenge-webhook-001",
+      resolveHost: async () => ["203.0.113.10"],
+      fetch: async () => ({
+        status: 200,
+        text: async () => "wrong-token"
+      })
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "challenge_token_mismatch"
+      }
+    });
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([]);
+  });
+
   test("test_verified_challenges_build_publish_ownership_state", () => {
     // Arrange
     const keys = createServiceKeyPair();
