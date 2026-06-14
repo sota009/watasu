@@ -20,6 +20,7 @@ import {
   createTrustedServiceIdentityResolver,
   type TrustedServicePrincipal
 } from "./hosted-identity.js";
+import type { HostedSenderTrustResolver } from "./hosted-sender-auth.js";
 import { createHostedMetadataApp } from "./hosted-metadata.js";
 import {
   createHostedProductionApp,
@@ -44,6 +45,7 @@ export interface CreateHostedProductionBootstrapAppInput {
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
   resolveDeliveryHost?: ((hostname: string) => Promise<string[]>) | undefined;
+  resolveSenderTrust?: HostedSenderTrustResolver | undefined;
   resolvePrincipal(request: HostedProductionRequest): TrustedServicePrincipal | undefined;
   resolveOwnershipVerification(input: {
     principal: TrustedServicePrincipal;
@@ -80,7 +82,8 @@ export function createHostedProductionBootstrapApp(
       clock,
       signingSecret: input.deliverySigningSecret,
       deliveryCircuitBreaker: input.deliveryCircuitBreaker,
-      deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter
+      deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
+      resolveSenderTrust: input.resolveSenderTrust
     }),
     publishApp: createHostedPublishApp({
       repository: input.repository,
