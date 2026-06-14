@@ -89,6 +89,9 @@ export function loadHostedIdentityProviderConfig(
   if (Buffer.byteLength(signingSecret, "utf8") < minimumHostedSigningSecretBytes) {
     throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
   }
+  if (isDocumentedPlaceholderSigningSecret(signingSecret)) {
+    throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must not use a documented test or placeholder value.");
+  }
 
   const maxSkewSeconds = parsePositiveIntegerEnv(env["WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"], {
     defaultValue: 60,
@@ -103,6 +106,12 @@ export function loadHostedIdentityProviderConfig(
     signingSecret,
     maxSkewSeconds
   };
+}
+
+function isDocumentedPlaceholderSigningSecret(signingSecret: string): boolean {
+  return signingSecret === "test-deployment-identity-secret-with-enough-entropy" ||
+    signingSecret === "local-demo-signing-secret" ||
+    signingSecret === "sample-secret-value";
 }
 
 export function createSignedHeaderIdentityProviderFromEnv(input: {

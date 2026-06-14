@@ -13,6 +13,8 @@ import {
   parseHostedRetentionArgs
 } from "./index.js";
 
+const hostedIdentitySigningSecret = "unit-fixture-hosted-identity-secret-with-enough-entropy";
+
 describe("hosted production runtime package", () => {
   test("test_hosted_production_server_from_env_constructs_closed_server", () => {
     // Arrange / Act
@@ -20,7 +22,7 @@ describe("hosted production runtime package", () => {
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
       },
       now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -42,7 +44,7 @@ describe("hosted production runtime package", () => {
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
       },
       now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -80,7 +82,7 @@ describe("hosted production runtime package", () => {
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
       },
       now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -125,7 +127,7 @@ describe("hosted production runtime package", () => {
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
       },
       now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -164,7 +166,7 @@ describe("hosted production runtime package", () => {
         env: {
           WATASU_IDENTITY_PROVIDER: "signed_headers",
           WATASU_PUBLIC_BASE_URL: "http://api.watasu.ai",
-          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
           PORT: "10000"
         },
         now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -180,7 +182,7 @@ describe("hosted production runtime package", () => {
           WATASU_METADATA_LEDGER_STORE: "postgres",
           WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
           WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
-          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
           PORT: "10000"
         },
         now: () => new Date("2026-06-15T00:00:00.000Z")
@@ -205,11 +207,20 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
   });
 
+  test("test_identity_provider_config_rejects_documented_placeholder_signing_secret", () => {
+    expect(() =>
+      loadHostedIdentityProviderConfig({
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy"
+      })
+    ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must not use a documented test or placeholder value.");
+  });
+
   test("test_identity_provider_config_rejects_partial_numeric_max_skew", () => {
     expect(() =>
       loadHostedIdentityProviderConfig({
         WATASU_IDENTITY_PROVIDER: "signed_headers",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS: "60x"
       })
     ).toThrow("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be a positive integer.");
@@ -219,7 +230,7 @@ describe("hosted production runtime package", () => {
     expect(() =>
       loadHostedIdentityProviderConfig({
         WATASU_IDENTITY_PROVIDER: "signed_headers",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS: "301"
       })
     ).toThrow("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be between 1 and 300.");
@@ -310,7 +321,7 @@ describe("hosted production runtime package", () => {
     const identityProvider = createSignedHeaderIdentityProviderFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
-        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy"
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret
       },
       now: () => new Date("2026-06-15T00:00:00.000Z")
     });
