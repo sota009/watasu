@@ -1,0 +1,85 @@
+import { describe, expect, test } from "vitest";
+import {
+  buildHostedProductionRequest,
+  createHostedProductionServer,
+  loadHostedRuntimeConfig,
+  type HostedProductionRequest
+} from "./hosted-server.js";
+
+describe("hosted production server runtime", () => {
+  test("test_load_hosted_runtime_config_reads_env_defaults", () => {
+    const config = loadHostedRuntimeConfig({});
+
+    expect(config).toEqual({
+      host: "0.0.0.0",
+      port: 8787
+    });
+  });
+
+  test("test_load_hosted_runtime_config_rejects_invalid_port", () => {
+    expect(() =>
+      loadHostedRuntimeConfig({
+        WATASU_HOSTED_PORT: "not-a-port"
+      })
+    ).toThrow("WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
+  });
+
+  test("test_create_hosted_production_server_returns_node_http_server", () => {
+    const server = createHostedProductionServer({
+      async handle() {
+        throw new Error("server should not handle a request without listen or emit");
+      }
+    });
+
+    expect(server.listening).toBe(false);
+    server.close();
+  });
+
+  test("test_build_hosted_production_request_uses_path_without_query", () => {
+    const request = buildHostedProductionRequest({
+      method: "GET",
+      url: "/requests/request-a/ledger?debug=true",
+      headers: {
+        authorization: "Bearer test-token"
+      },
+      body: ""
+    });
+
+    expect(request).toEqual({
+      method: "GET",
+      path: "/requests/request-a/ledger",
+      headers: {
+        authorization: "Bearer test-token"
+      },
+      body: ""
+    });
+  });
+
+  test("test_build_hosted_production_request_defaults_missing_url_to_root", () => {
+    const request = buildHostedProductionRequest({
+      method: "GET",
+      url: undefined,
+      headers: {},
+      body: ""
+    });
+
+    expect(request.path).toBe("/");
+  });
+
+  test("test_create_hosted_production_server_can_be_constructed_with_app", () => {
+    const server = createHostedProductionServer({
+      async handle(_request: HostedProductionRequest) {
+        return {
+          status: 202,
+          headers: {
+            "content-type": "application/json; charset=utf-8"
+          },
+          body: "{\"ok\":true}\n"
+        };
+      }
+    });
+
+    expect(server.listening).toBe(false);
+    server.close();
+  });
+});
