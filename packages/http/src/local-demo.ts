@@ -1,6 +1,7 @@
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server } from "node:http";
 import {
   buildAgentCard,
+  createPolicyControlledDeliveryLedger,
   deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
   generateEncryptedEnvelopeSchema,
@@ -13,8 +14,10 @@ import {
   type DeliveryClient,
   type DeliveryLedger,
   type DeliveryLedgerRow,
+  type PersistentDeliveryLedgerStore,
   type PublishedRequestVersion,
   type RequestDefinition,
+  type StoragePolicy,
   type SubmissionEnvelope
 } from "@watasu/core";
 
@@ -44,6 +47,8 @@ export interface CreateLocalDemoAppInput {
   deliveryClient?: DeliveryClient | undefined;
   clock?: (() => Date) | undefined;
   signingSecret?: string | undefined;
+  storagePolicy?: StoragePolicy | undefined;
+  persistentLedgerStore?: PersistentDeliveryLedgerStore | undefined;
 }
 
 export function createLocalDemoApp(input: CreateLocalDemoAppInput): LocalDemoApp {
@@ -51,11 +56,18 @@ export function createLocalDemoApp(input: CreateLocalDemoAppInput): LocalDemoApp
   const clock = input.clock ?? (() => new Date());
   const deliveryClient = input.deliveryClient ?? createNoopDeliveryClient();
   const ledgerRows: DeliveryLedgerRow[] = [];
-  const ledger: DeliveryLedger = {
+  const operationalLedger: DeliveryLedger = {
     writeDeliveryAttempt(row) {
       ledgerRows.push(row);
     }
   };
+  const ledger = createPolicyControlledDeliveryLedger({
+    policy: input.storagePolicy ?? {
+      mode: "stateless_default"
+    },
+    operationalLedger,
+    persistentStore: input.persistentLedgerStore
+  });
   const idempotencyStore = new InMemoryIdempotencyStore();
   const rateLimiter = new InMemorySubmissionRateLimiter({
     limit: 60,

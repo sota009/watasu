@@ -395,6 +395,36 @@ describe("local HTTP demo app", () => {
     expect(response.body).not.toContain("\"protected\"");
     expect(response.body).not.toContain("\"tag\"");
   });
+
+  test("test_default_demo_mode_does_not_persist_delivery_metadata", async () => {
+    // Arrange
+    const persistentRows: unknown[] = [];
+    const app = createLocalDemoApp({
+      baseUrl: "http://127.0.0.1:8787",
+      deliveryClient: createDeliveryClient(204),
+      clock: () => new Date("2026-06-14T12:00:00.000Z"),
+      persistentLedgerStore: {
+        writeDeliveryAttempt(row) {
+          persistentRows.push(row);
+        }
+      }
+    });
+
+    // Act
+    await app.handle({
+      method: "POST",
+      path: localDemoSubmitPath,
+      headers: {
+        "content-type": "application/a2a+json",
+        "a2a-version": "1.0",
+        "a2a-extensions": watasuEncryptedIntakeExtensionUri
+      },
+      body: createA2aSubmitBody(createValidEnvelope(app))
+    });
+
+    // Assert
+    expect(persistentRows).toHaveLength(0);
+  });
 });
 
 describe("local HTTP demo server", () => {
