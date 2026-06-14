@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isIP } from "node:net";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
 import type { RequestDefinition, RequestDefinitionError } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
@@ -7,6 +8,11 @@ export type PublishMode = "hosted" | "local_demo";
 
 export interface RequestVersionPublisher {
   publish(requestId: string, definition: RequestDefinition): PublishedRequestVersion;
+}
+
+export interface PublishOwnershipVerification {
+  verifiedServiceKeyIds: string[];
+  verifiedWebhookOrigins: string[];
 }
 
 export type PublishRequestVersionResult =
@@ -32,6 +38,7 @@ export function publishRequestVersion(input: {
   mode: PublishMode;
   repository: RequestVersionPublisher;
   generateCapabilityToken?: (() => string) | undefined;
+  ownership?: PublishOwnershipVerification | undefined;
 }): PublishRequestVersionResult {
   if (!input.confirmed) {
     return {
@@ -44,7 +51,7 @@ export function publishRequestVersion(input: {
     };
   }
 
-  const destinationError = validateDestinationForMode(input.definition, input.mode);
+  const destinationError = validateDestinationForMode(input.definition, input.mode, input.ownership);
   if (destinationError !== undefined) {
     return {
       ok: false,
@@ -68,7 +75,8 @@ export function publishRequestVersion(input: {
 
 function validateDestinationForMode(
   definition: RequestDefinition,
-  mode: PublishMode
+  mode: PublishMode,
+  ownership: PublishOwnershipVerification | undefined
 ): RequestDefinitionError | undefined {
   if (mode === "hosted" && definition.trust_profile === "local_demo") {
     return {
@@ -80,19 +88,76 @@ function validateDestinationForMode(
 
   const destinationUrl = new URL(definition.destination.url);
 
-  if (mode === "hosted" && isLocalhost(destinationUrl.hostname)) {
+  if (mode === "hosted" && destinationUrl.protocol !== "https:") {
     return {
       code: "unsafe_destination",
       path: "destination.url",
-      message: "Hosted publish cannot deliver to localhost destinations."
+      message: "Hosted publish requires an HTTPS webhook destination."
+    };
+  }
+
+  if (mode === "hosted" && isUnsafeHostedDestination(destinationUrl.hostname)) {
+    return {
+      code: "unsafe_destination",
+      path: "destination.url",
+      message: "Hosted publish cannot deliver to localhost, private IP, or metadata service destinations."
+    };
+  }
+
+  if (
+    mode === "hosted" &&
+    !ownership?.verifiedServiceKeyIds.includes(definition.encryption.service_key_id)
+  ) {
+    return {
+      code: "service_key_not_verified",
+      path: "encryption.service_key_id",
+      message: "Hosted publish requires service public key ownership verification."
+    };
+  }
+
+  if (
+    mode === "hosted" &&
+    !ownership?.verifiedWebhookOrigins.includes(destinationUrl.origin)
+  ) {
+    return {
+      code: "webhook_origin_not_verified",
+      path: "destination.url",
+      message: "Hosted publish requires destination webhook origin ownership verification."
     };
   }
 
   return undefined;
 }
 
-function isLocalhost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+function isUnsafeHostedDestination(hostname: string): boolean {
+  const normalizedHostname = hostname.replace(/^\[|\]$/g, "");
+  if (normalizedHostname === "localhost") {
+    return true;
+  }
+
+  if (isIP(normalizedHostname) === 0) {
+    return false;
+  }
+
+  if (normalizedHostname === "::1" || normalizedHostname.toLowerCase().startsWith("fe80:")) {
+    return true;
+  }
+
+  const octets = normalizedHostname.split(".").map((part) => Number.parseInt(part, 10));
+  if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet))) {
+    return false;
+  }
+
+  const first = octets[0] ?? -1;
+  const second = octets[1] ?? -1;
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254) ||
+    first === 0
+  );
 }
 
 function generateCapabilityToken(): string {

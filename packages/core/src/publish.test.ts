@@ -128,6 +128,118 @@ describe("request publishing", () => {
     expect(repository.list("event-attendee-intake")).toHaveLength(0);
   });
 
+  test("test_hosted_publish_rejects_unverified_service_key", () => {
+    const repository = new InMemoryRequestVersionRepository();
+
+    const result = publishRequestVersion({
+      requestId: "event-attendee-intake",
+      definition: baseDefinition,
+      confirmed: true,
+      mode: "hosted",
+      repository,
+      ownership: {
+        verifiedServiceKeyIds: [],
+        verifiedWebhookOrigins: ["https://example.com"]
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "service_key_not_verified",
+        path: "encryption.service_key_id"
+      }
+    });
+    expect(repository.list("event-attendee-intake")).toHaveLength(0);
+  });
+
+  test("test_hosted_publish_rejects_unverified_webhook_origin", () => {
+    const repository = new InMemoryRequestVersionRepository();
+
+    const result = publishRequestVersion({
+      requestId: "event-attendee-intake",
+      definition: baseDefinition,
+      confirmed: true,
+      mode: "hosted",
+      repository,
+      ownership: {
+        verifiedServiceKeyIds: ["jwk-thumbprint:sha256:example"],
+        verifiedWebhookOrigins: []
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "webhook_origin_not_verified",
+        path: "destination.url"
+      }
+    });
+    expect(repository.list("event-attendee-intake")).toHaveLength(0);
+  });
+
+  test("test_hosted_publish_accepts_verified_service_key_and_webhook_origin", () => {
+    const repository = new InMemoryRequestVersionRepository();
+
+    const result = publishRequestVersion({
+      requestId: "event-attendee-intake",
+      definition: baseDefinition,
+      confirmed: true,
+      mode: "hosted",
+      repository,
+      ownership: {
+        verifiedServiceKeyIds: ["jwk-thumbprint:sha256:example"],
+        verifiedWebhookOrigins: ["https://example.com"]
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      published: {
+        request_id: "event-attendee-intake"
+      }
+    });
+  });
+
+  test("test_hosted_publish_rejects_private_and_metadata_service_ips", () => {
+    const unsafeHosts = [
+      "10.0.0.7",
+      "172.16.0.7",
+      "192.168.0.7",
+      "169.254.169.254"
+    ];
+
+    for (const host of unsafeHosts) {
+      const repository = new InMemoryRequestVersionRepository();
+      const definition = definitionWith({
+        destination: {
+          type: "webhook",
+          url: `https://${host}/watasu/intake`
+        }
+      });
+
+      const result = publishRequestVersion({
+        requestId: "event-attendee-intake",
+        definition,
+        confirmed: true,
+        mode: "hosted",
+        repository,
+        ownership: {
+          verifiedServiceKeyIds: ["jwk-thumbprint:sha256:example"],
+          verifiedWebhookOrigins: [`https://${host}`]
+        }
+      });
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: "unsafe_destination",
+          path: "destination.url"
+        }
+      });
+    }
+  });
+
   test("test_hosted_publish_rejects_local_demo_trust_profile", () => {
     const repository = new InMemoryRequestVersionRepository();
     const definition = definitionWith({
@@ -161,6 +273,10 @@ describe("request publishing", () => {
       confirmed: true,
       mode: "hosted",
       repository,
+      ownership: {
+        verifiedServiceKeyIds: ["jwk-thumbprint:sha256:example"],
+        verifiedWebhookOrigins: ["https://example.com"]
+      },
       generateCapabilityToken: () => "cap_test_abcdefghijklmnopqrstuvwxyz1234567890"
     });
 

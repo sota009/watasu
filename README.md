@@ -139,6 +139,7 @@ Currently implemented:
 - sensitivity policy checks for high-risk and prohibited fields
 - canonical JSON and SHA-256 hash helpers
 - immutable in-memory request version publishing
+- hosted publish ownership checks for service keys, webhook origins, HTTPS, and unsafe destination hosts
 - plaintext payload schema and encrypted envelope schema generation
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
