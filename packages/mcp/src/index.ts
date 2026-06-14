@@ -17,6 +17,28 @@ import { z } from "zod";
 
 export const mcpPackageName = "@watasu/mcp";
 
+export interface HostedMcpRequest {
+  method: string;
+  path: string;
+  headers: Record<string, string | undefined>;
+  body: string;
+}
+
+export interface HostedMcpResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface HostedMcpApp {
+  handle(request: HostedMcpRequest): Promise<HostedMcpResponse>;
+}
+
+export interface CreateHostedWatasuMcpServerInput {
+  hostedApp: HostedMcpApp;
+  serviceHeaders?: Record<string, string> | undefined;
+}
+
 export function createWatasuMcpServer(): McpServer {
   const repository = new InMemoryRequestVersionRepository();
   const latestPublishedByRequestId = new Map<string, PublishedRequestVersion>();
@@ -341,6 +363,75 @@ export function createWatasuMcpServer(): McpServer {
   return server;
 }
 
+export function createHostedWatasuMcpServer(input: CreateHostedWatasuMcpServerInput): McpServer {
+  const server = new McpServer({
+    name: "watasu-hosted",
+    version: "0.0.0"
+  });
+
+  server.registerTool(
+    "publish_hosted_request",
+    {
+      title: "Publish hosted request",
+      description: "Publish a watasu request definition through the configured hosted production app.",
+      inputSchema: {
+        definitionText: z.string(),
+        confirmed: z.boolean()
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      }
+    },
+    async ({ definitionText, confirmed }) => {
+      const validation = validateRequestDefinitionInput(definitionText);
+      if (!validation.ok) {
+        return jsonToolResponse({
+          ok: false,
+          errors: validation.errors
+        });
+      }
+
+      return hostedJsonToolResponse(await input.hostedApp.handle({
+        method: "POST",
+        path: `/requests/${encodeURIComponent(validation.definition.name)}/publish`,
+        headers: {
+          ...input.serviceHeaders,
+          "content-type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify({
+          definition: validation.definition,
+          confirmed
+        })
+      }));
+    }
+  );
+
+  server.registerTool(
+    "list_hosted_delivery_ledger",
+    {
+      title: "List hosted delivery ledger",
+      description: "Read metadata-only delivery ledger rows through the configured hosted production app.",
+      inputSchema: {
+        requestId: z.string()
+      },
+      annotations: readToolAnnotations()
+    },
+    async ({ requestId }) => hostedJsonToolResponse(await input.hostedApp.handle({
+      method: "GET",
+      path: `/requests/${encodeURIComponent(requestId)}/ledger`,
+      headers: {
+        ...input.serviceHeaders
+      },
+      body: ""
+    }))
+  );
+
+  return server;
+}
+
 function jsonToolResponse(value: unknown) {
   return {
     content: [
@@ -350,6 +441,21 @@ function jsonToolResponse(value: unknown) {
       }
     ]
   };
+}
+
+function hostedJsonToolResponse(response: HostedMcpResponse) {
+  try {
+    return jsonToolResponse(JSON.parse(response.body) as unknown);
+  } catch {
+    return jsonToolResponse({
+      ok: false,
+      status: response.status,
+      error: {
+        code: "hosted_response_not_json",
+        message: "Hosted watasu response was not valid JSON."
+      }
+    });
+  }
 }
 
 function readToolAnnotations() {
