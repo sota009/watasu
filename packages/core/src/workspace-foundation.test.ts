@@ -21,7 +21,7 @@ describe("workspace foundation", () => {
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
       test: "pnpm typecheck && vitest run",
-      typecheck: "tsc -b packages/core packages/cli packages/fixtures"
+      typecheck: "tsc -b packages/core packages/cli packages/fixtures packages/http"
     });
   });
 
@@ -37,6 +37,9 @@ describe("workspace foundation", () => {
     const fixturesPackageJson = readJson("packages/fixtures/package.json") as {
       exports: Record<string, string>;
     };
+    const httpPackageJson = readJson("packages/http/package.json") as {
+      exports: Record<string, string>;
+    };
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
@@ -46,6 +49,7 @@ describe("workspace foundation", () => {
       "pnpm --dir ../.. typecheck && node dist/bin.js"
     );
     expect(fixturesPackageJson.exports).toHaveProperty(".");
+    expect(httpPackageJson.exports).toHaveProperty(".");
   });
 
   test("test_no_env_files_or_secret_like_values_are_committed", () => {

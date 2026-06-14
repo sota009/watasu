@@ -14,7 +14,7 @@
     "pr:draft": "node scripts/create-draft-pr.mjs",
     "review:self": "node scripts/gstack-review-preflight.mjs",
     "test": "pnpm typecheck && vitest run",
-    "typecheck": "tsc -b packages/core packages/cli packages/fixtures"
+    "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
