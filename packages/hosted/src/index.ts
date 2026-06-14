@@ -76,6 +76,7 @@ export function loadHostedIdentityProviderConfig(
   env: Record<string, string | undefined>
 ): HostedIdentityProviderConfig {
   const minimumHostedSigningSecretBytes = 32;
+  const maximumHostedServiceIdentitySkewSeconds = 300;
   const provider = env["WATASU_IDENTITY_PROVIDER"] ?? "signed_headers";
   if (provider !== "signed_headers") {
     throw new Error("WATASU_IDENTITY_PROVIDER must be signed_headers.");
@@ -89,13 +90,18 @@ export function loadHostedIdentityProviderConfig(
     throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
   }
 
+  const maxSkewSeconds = parsePositiveIntegerEnv(env["WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"], {
+    defaultValue: 60,
+    name: "WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"
+  });
+  if (maxSkewSeconds > maximumHostedServiceIdentitySkewSeconds) {
+    throw new Error("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be between 1 and 300.");
+  }
+
   return {
     provider,
     signingSecret,
-    maxSkewSeconds: parsePositiveIntegerEnv(env["WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"], {
-      defaultValue: 60,
-      name: "WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS"
-    })
+    maxSkewSeconds
   };
 }
 

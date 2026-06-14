@@ -215,6 +215,16 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be a positive integer.");
   });
 
+  test("test_identity_provider_config_rejects_excessive_max_skew", () => {
+    expect(() =>
+      loadHostedIdentityProviderConfig({
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS: "301"
+      })
+    ).toThrow("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be between 1 and 300.");
+  });
+
   test("test_retention_job_config_reads_tenant_and_days", () => {
     const config = loadHostedRetentionJobConfig({
       WATASU_RETENTION_TENANT_ID: "tenant-a",
