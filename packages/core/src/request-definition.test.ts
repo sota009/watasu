@@ -258,7 +258,7 @@ trust_profile: public_capability
         purpose: `Collect ${id}.`,
         sensitivity: "low"
       })),
-      trust_profile: "verified_sender"
+      trust_profile: "private_invite"
     });
 
     const result = validateRequestDefinitionInput(JSON.stringify(request));
@@ -269,6 +269,60 @@ trust_profile: public_capability
       "high",
       "high"
     ]);
+  });
+
+  test("test_government_identity_requires_private_invite", () => {
+    const request = validRequest({
+      fields: [
+        {
+          id: "government_id",
+          type: "string",
+          required: true,
+          purpose: "Collect government ID for onboarding.",
+          sensitivity: "low"
+        }
+      ],
+      trust_profile: "verified_sender"
+    });
+
+    const result = validateRequestDefinitionInput(JSON.stringify(request));
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [
+        {
+          code: "private_invite_required_for_government_identity",
+          path: "fields[0]"
+        }
+      ]
+    });
+  });
+
+  test("test_minor_data_requires_private_invite", () => {
+    const request = validRequest({
+      fields: [
+        {
+          id: "minor_age",
+          type: "number",
+          required: true,
+          purpose: "Collect minor age and guardian context.",
+          sensitivity: "low"
+        }
+      ],
+      trust_profile: "verified_sender"
+    });
+
+    const result = validateRequestDefinitionInput(JSON.stringify(request));
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [
+        {
+          code: "private_invite_required_for_minor_guardian",
+          path: "fields[0]"
+        }
+      ]
+    });
   });
 
   test("test_human_override_cannot_downgrade_to_public_capability", () => {

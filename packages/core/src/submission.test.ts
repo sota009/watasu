@@ -472,8 +472,12 @@ describe("submission envelope validation", () => {
 
   test("test_verified_sender_without_signature_returns_auth_required", () => {
     const published = createPublished("verified_sender");
-    const envelope = createEnvelope(published);
-    const context = createContext(published);
+    const envelope = createEnvelope(published, {
+      sender_key_id: "sender-key-001"
+    });
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"]
+    });
 
     const result = validateSubmissionEnvelope(envelope, context);
 
@@ -486,7 +490,7 @@ describe("submission envelope validation", () => {
     });
   });
 
-  test("test_verified_sender_with_trusted_signature_is_accepted", () => {
+  test("test_verified_sender_without_resolved_public_key_returns_auth_required", () => {
     const published = createPublished("verified_sender");
     const envelope = createEnvelope(published, {
       sender_key_id: "sender-key-001",
@@ -499,10 +503,10 @@ describe("submission envelope validation", () => {
     const result = validateSubmissionEnvelope(envelope, context);
 
     expect(result).toMatchObject({
-      ok: true,
-      status: "accepted",
-      submission: {
-        sender_key_id: "sender-key-001"
+      ok: false,
+      status: "auth_required",
+      error: {
+        code: "sender_public_key_required"
       }
     });
   });
@@ -691,6 +695,73 @@ describe("submission envelope validation", () => {
       status: "auth_required",
       error: {
         code: "invite_binding_required"
+      }
+    });
+  });
+
+  test("test_private_invite_without_signature_returns_auth_required", () => {
+    const published = createPublished("private_invite");
+    const envelope = createEnvelope(published, {
+      sender_key_id: "sender-key-001",
+      invite_id: "invite-001"
+    });
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedInvites: [
+        {
+          invite_id: "invite-001",
+          sender_key_id: "sender-key-001"
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "auth_required",
+      error: {
+        code: "sender_signature_required"
+      }
+    });
+  });
+
+  test("test_private_invite_with_valid_signature_and_invite_binding_is_accepted", () => {
+    const published = createPublished("private_invite");
+    const senderKeys = createSenderKeyPair();
+    const envelopeWithoutSignature = createEnvelope(published, {
+      sender_key_id: "sender-key-001",
+      invite_id: "invite-001"
+    });
+    const envelope = {
+      ...envelopeWithoutSignature,
+      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
+    };
+    const context = createContext(published, {
+      trustedSenderKeyIds: ["sender-key-001"],
+      trustedSenderPublicKeys: [
+        {
+          sender_key_id: "sender-key-001",
+          alg: "ES256",
+          public_jwk: senderKeys.publicJwk
+        }
+      ],
+      trustedInvites: [
+        {
+          invite_id: "invite-001",
+          sender_key_id: "sender-key-001"
+        }
+      ]
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "accepted",
+      submission: {
+        sender_key_id: "sender-key-001",
+        invite_id: "invite-001"
       }
     });
   });

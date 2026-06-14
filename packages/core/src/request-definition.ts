@@ -269,6 +269,29 @@ function validatePolicy(
         message: `${field.id} is prohibited for the MVP request definition.`
       });
     }
+
+    const inferenceCodes = inferFieldPolicyCodes(field);
+    if (
+      normalizedDefinition.trust_profile !== "private_invite" &&
+      inferenceCodes.includes("government_identity")
+    ) {
+      errors.push({
+        code: "private_invite_required_for_government_identity",
+        path: `fields[${index}]`,
+        message: `${field.id} requires the private_invite trust profile.`
+      });
+    }
+
+    if (
+      normalizedDefinition.trust_profile !== "private_invite" &&
+      inferenceCodes.includes("minor_guardian")
+    ) {
+      errors.push({
+        code: "private_invite_required_for_minor_guardian",
+        path: `fields[${index}]`,
+        message: `${field.id} requires the private_invite trust profile.`
+      });
+    }
   });
 
   if (
@@ -314,10 +337,7 @@ function validatePolicy(
 }
 
 function inferFieldSensitivity(field: RequestFieldDefinition): Sensitivity {
-  const haystack = [field.id, field.label, field.purpose, field.format, ...(field.examples ?? [])]
-    .filter((value): value is string => typeof value === "string")
-    .join(" ");
-
+  const haystack = buildFieldPolicyHaystack(field);
   return inferenceRules.reduce<Sensitivity>((current, rule) => {
     if (!rule.patterns.some((pattern) => pattern.test(haystack))) {
       return current;
@@ -325,6 +345,19 @@ function inferFieldSensitivity(field: RequestFieldDefinition): Sensitivity {
 
     return maxSensitivity(current, rule.sensitivity);
   }, "low");
+}
+
+function inferFieldPolicyCodes(field: RequestFieldDefinition): string[] {
+  const haystack = buildFieldPolicyHaystack(field);
+  return inferenceRules
+    .filter((rule) => rule.patterns.some((pattern) => pattern.test(haystack)))
+    .map((rule) => rule.code);
+}
+
+function buildFieldPolicyHaystack(field: RequestFieldDefinition): string {
+  return [field.id, field.label, field.purpose, field.format, ...(field.examples ?? [])]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
 }
 
 function maxSensitivity(left: Sensitivity, right: Sensitivity): Sensitivity {
