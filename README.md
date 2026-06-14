@@ -178,6 +178,14 @@ pnpm --filter @watasu/hosted retention -- --dry-run
 
 Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `scanned`, `deleted`, and `retained`. Dry-run output also includes `dry_run` and `would_delete`, so the pre-cutover record can prove the scheduled cleanup boundary without deleting rows or exposing payload fragments.
 
+Generate a production service identity signing secret for Render:
+
+```bash
+pnpm secret:identity
+```
+
+The command prints a 32 byte base64url value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`. Enter the generated value only in the Render web service secret prompt.
+
 `pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
 
 ## Current MVP Status

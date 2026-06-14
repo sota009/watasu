@@ -135,7 +135,7 @@ Product owner actions:
 2. Connect the GitHub repository to Render with least necessary repository access.
 3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
-5. In Render, set the prompted secret value for the production service. Real secret values must be entered in Render only, never committed to git.
+5. Run `pnpm secret:identity`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
 6. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
 7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, `pnpm --filter @watasu/hosted retention -- --dry-run`, and no-payload-custody checks pass on the deployed URL.
 
@@ -145,7 +145,7 @@ Recommended production environment variables:
 | --- | --- | --- |
 | `WATASU_IDENTITY_PROVIDER=signed_headers` | Codex can put the non-secret default in config. | Current hosted identity provider. |
 | `WATASU_PUBLIC_BASE_URL=https://api.watasu.ai` | Codex can put the non-secret default in config. | Public origin for generated hosted URLs. Must stay HTTPS and must not include credentials, path, query, or fragment. |
-| `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a random value of at least 32 bytes outside the repo, enter it only in the web service, and rotate if exposed. Runtime rejects documented test or placeholder values, and the retention cron rejects this variable entirely. |
+| `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate it with `pnpm secret:identity`, enter it only in the web service, and rotate if exposed. Runtime rejects documented test or placeholder values, and the retention cron rejects this variable entirely. |
 | `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived; runtime rejects values above 300 seconds. |
 | `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. The web runtime rejects `WATASU_POSTGRES_URL` even when the store is disabled. |
 | `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |

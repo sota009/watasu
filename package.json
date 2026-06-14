@@ -15,6 +15,7 @@
     "loop:full": "node scripts/loop-engineer.mjs --full",
     "pr:draft": "node scripts/create-draft-pr.mjs",
     "review:self": "node scripts/gstack-review-preflight.mjs",
+    "secret:identity": "node scripts/generate-identity-secret.mjs",
     "test": "pnpm typecheck && vitest run",
     "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
   },
