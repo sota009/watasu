@@ -6,7 +6,35 @@ import {
 } from "./a2a.js";
 import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
 
+const validEnvelope = {
+  request_id: "event-attendee-intake",
+  request_version: "v1",
+  schema_hash: "sha256-example",
+  consent_receipt_hash: "sha256-consent",
+  idempotency_key: "idem-1",
+  submitted_at: "2026-06-14T00:00:00.000Z",
+  service_key_id: "jwk-thumbprint:sha256:example",
+  encrypted_payload: { protected: "example" },
+  encrypted_payload_hash: "sha256-payload"
+};
+
 const validBody = {
+  message: {
+    role: "user",
+    parts: [
+      {
+        type: "data",
+        mediaType: "application/json",
+        data: validEnvelope
+      }
+    ]
+  },
+  configuration: {
+    acceptedOutputModes: ["application/json"]
+  }
+};
+
+const jsonRpcBody = {
   jsonrpc: "2.0",
   id: "submission-1",
   method: "message/send",
@@ -50,6 +78,20 @@ function validRequest(overrides?: {
 }
 
 describe("A2A submission protocol gate", () => {
+  test("test_rest_send_message_request_returns_envelope_candidate", () => {
+    // Arrange
+    const request = validRequest();
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request);
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: true,
+      envelopeCandidate: validEnvelope
+    });
+  });
+
   test("test_missing_content_type_is_rejected_before_envelope_validation", () => {
     // Arrange
     let envelopeValidationCalls = 0;
@@ -153,6 +195,27 @@ describe("A2A submission protocol gate", () => {
     expect(result.ok).toBe(true);
   });
 
+  test("test_json_rpc_shaped_body_is_rejected_by_default", () => {
+    // Arrange
+    const request = validRequest({
+      body: jsonRpcBody
+    });
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request);
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "json_rpc_body_not_supported",
+        status: 400,
+        message: "A2A HTTP+JSON submissions must use the REST SendMessageRequest body shape.",
+        path: "body.jsonrpc"
+      }
+    });
+  });
+
   test("test_missing_a2a_version_is_rejected", () => {
     // Arrange
     const request = validRequest({
@@ -224,17 +287,15 @@ describe("A2A submission protocol gate", () => {
     const request = validRequest({
       body: {
         ...validBody,
-        params: {
-          message: {
-            role: "user",
-            parts: [
-              {
-                kind: "data",
-                mediaType: "application/json",
-                data: {}
-              }
-            ]
-          }
+        message: {
+          role: "user",
+          parts: [
+            {
+              kind: "data",
+              mediaType: "application/json",
+              data: {}
+            }
+          ]
         }
       }
     });
@@ -248,7 +309,56 @@ describe("A2A submission protocol gate", () => {
       error: {
         code: "legacy_kind_discriminator",
         status: 400,
-        path: "body.params.message.parts[0].kind"
+        path: "body.message.parts[0].kind"
+      }
+    });
+  });
+
+  test("test_legacy_kind_discriminator_on_body_is_rejected", () => {
+    // Arrange
+    const request = validRequest({
+      body: {
+        ...validBody,
+        kind: "send-message"
+      }
+    });
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request);
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "legacy_kind_discriminator",
+        status: 400,
+        path: "body.kind"
+      }
+    });
+  });
+
+  test("test_legacy_kind_discriminator_on_message_is_rejected", () => {
+    // Arrange
+    const request = validRequest({
+      body: {
+        ...validBody,
+        message: {
+          ...validBody.message,
+          kind: "message"
+        }
+      }
+    });
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request);
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "legacy_kind_discriminator",
+        status: 400,
+        path: "body.message.kind"
       }
     });
   });
@@ -258,17 +368,15 @@ describe("A2A submission protocol gate", () => {
     const request = validRequest({
       body: {
         ...validBody,
-        params: {
-          message: {
-            role: "user",
-            parts: [
-              {
-                type: "data",
-                mediaType: "text/plain",
-                data: {}
-              }
-            ]
-          }
+        message: {
+          role: "user",
+          parts: [
+            {
+              type: "data",
+              mediaType: "text/plain",
+              data: {}
+            }
+          ]
         }
       }
     });
@@ -282,7 +390,7 @@ describe("A2A submission protocol gate", () => {
       error: {
         code: "unsupported_part_media_type",
         status: 415,
-        path: "body.params.message.parts[0].mediaType"
+        path: "body.message.parts[0].mediaType"
       }
     });
   });
