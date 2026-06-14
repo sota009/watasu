@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildHostedProductionRequest,
   createHostedProductionServer,
+  loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig,
   type HostedProductionRequest
 } from "./hosted-server.js";
@@ -22,6 +23,40 @@ describe("hosted production server runtime", () => {
         WATASU_HOSTED_PORT: "not-a-port"
       })
     ).toThrow("WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
+  });
+
+  test("test_load_hosted_postgres_runtime_config_defaults_to_disabled", () => {
+    const config = loadHostedPostgresRuntimeConfig({});
+
+    expect(config).toEqual({
+      mode: "disabled"
+    });
+  });
+
+  test("test_load_hosted_postgres_runtime_config_requires_database_url_for_postgres_mode", () => {
+    expect(() =>
+      loadHostedPostgresRuntimeConfig({
+        WATASU_METADATA_LEDGER_STORE: "postgres"
+      })
+    ).toThrow("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
+  });
+
+  test("test_load_hosted_postgres_runtime_config_reads_pool_and_migration_settings", () => {
+    const config = loadHostedPostgresRuntimeConfig({
+      WATASU_METADATA_LEDGER_STORE: "postgres",
+      WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+      WATASU_POSTGRES_POOL_MAX: "7",
+      WATASU_POSTGRES_SSL: "require",
+      WATASU_POSTGRES_RUN_MIGRATIONS: "false"
+    });
+
+    expect(config).toEqual({
+      mode: "postgres",
+      databaseUrl: "postgres://db.example.com/watasu",
+      poolMax: 7,
+      ssl: "require",
+      runMigrations: false
+    });
   });
 
   test("test_create_hosted_production_server_returns_node_http_server", () => {

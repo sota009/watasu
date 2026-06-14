@@ -6,6 +6,7 @@ import { sha256Hash } from "./hash.js";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import {
   createMetadataLedgerReader,
+  createMigratedPostgresDeliveryLedgerStore,
   createPostgresDeliveryLedgerSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
@@ -507,6 +508,35 @@ describe("storage policy controlled delivery ledger", () => {
     ]);
     expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
     expect(JSON.stringify(queries)).not.toContain("base64url-ciphertext");
+  });
+
+  test("test_create_migrated_postgres_delivery_ledger_store_runs_migration_before_write", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = await createMigratedPostgresDeliveryLedgerStore({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    await store.writeDeliveryAttempt(createLedgerRow());
+
+    expect(queries[0]).toEqual({
+      text: createPostgresDeliveryLedgerSchemaSql(),
+      values: []
+    });
+    expect(queries[1]?.values[0]).toBe("tenant-a");
   });
 
   test("test_policy_controlled_ledger_awaits_async_persistent_store", async () => {

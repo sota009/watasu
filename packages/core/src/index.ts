@@ -45,6 +45,7 @@ export {
 } from "./jwe.js";
 export {
   createMetadataLedgerReader,
+  createMigratedPostgresDeliveryLedgerStore,
   createPostgresDeliveryLedgerSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,

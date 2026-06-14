@@ -54,6 +54,10 @@ export type { CreateHostedProductionBootstrapAppInput } from "./hosted-bootstrap
 export {
   buildHostedProductionRequest,
   createHostedProductionServer,
+  loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig
 } from "./hosted-server.js";
-export type { HostedRuntimeConfig } from "./hosted-server.js";
+export type {
+  HostedPostgresRuntimeConfig,
+  HostedRuntimeConfig
+} from "./hosted-server.js";

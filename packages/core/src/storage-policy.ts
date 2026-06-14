@@ -205,6 +205,23 @@ export async function runPostgresDeliveryLedgerMigration(input: {
   await input.queryClient.query(createPostgresDeliveryLedgerSchemaSql(), []);
 }
 
+export async function createMigratedPostgresDeliveryLedgerStore(input: {
+  tenantId: string;
+  queryClient: PostgresQueryClient;
+  runMigration?: boolean | undefined;
+}): Promise<PostgresDeliveryLedgerStore> {
+  if (input.runMigration !== false) {
+    await runPostgresDeliveryLedgerMigration({
+      queryClient: input.queryClient
+    });
+  }
+
+  return new PostgresDeliveryLedgerStore({
+    tenantId: input.tenantId,
+    queryClient: input.queryClient
+  });
+}
+
 export function createPolicyControlledDeliveryLedger(input: {
   policy: StoragePolicy;
   operationalLedger: DeliveryLedger;
