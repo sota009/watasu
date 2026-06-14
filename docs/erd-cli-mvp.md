@@ -677,7 +677,7 @@ Delivery resilience defaults:
 
 MVP default は DB 永続化を必須にしない。watasu が default で保持してよいのは、replay protection、rate limits、sender-actionable response のための short-lived operational state である。
 
-Persistent metadata ledger は service owner が明示的に有効化した場合だけ使う optional feature とする。optional ledger を有効化する場合の最小 persistent entities:
+Persistent metadata ledger は service owner が明示的に有効化した場合だけ使う optional feature とする。local / single-node 検証では metadata-only JSONL store を使えるが、multi-tenant hosted production では PostgreSQL-compatible DB と scheduled retention job を前提にする。optional ledger を有効化する場合の最小 persistent entities:
 
 ### `requests`
 

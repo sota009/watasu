@@ -46,6 +46,7 @@ export {
 export {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
+  JsonlDeliveryLedgerStore,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
 export {

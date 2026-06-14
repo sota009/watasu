@@ -1,4 +1,7 @@
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
+import { canonicalizeJson } from "./request-definition.js";
 
 export type StoragePolicyMode = "stateless_default" | "metadata_ledger_enabled";
 
@@ -67,6 +70,44 @@ export interface MetadataLedgerReader {
   }): MetadataLedgerReadResult;
 }
 
+export class JsonlDeliveryLedgerStore implements PersistentDeliveryLedgerStore, RetentionDeliveryLedgerStore {
+  readonly #filePath: string;
+
+  constructor(input: {
+    filePath: string;
+  }) {
+    this.#filePath = input.filePath;
+    mkdirSync(dirname(input.filePath), {
+      recursive: true
+    });
+    if (!existsSync(input.filePath)) {
+      writeFileSync(input.filePath, "");
+    }
+  }
+
+  writeDeliveryAttempt(row: DeliveryLedgerRow): void {
+    appendFileSync(this.#filePath, `${canonicalizeJson(sanitizeDeliveryLedgerRow(row))}\n`);
+  }
+
+  listDeliveryRows(): DeliveryLedgerRow[] {
+    const content = readFileSync(this.#filePath, "utf8");
+    return content
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => sanitizeDeliveryLedgerRow(JSON.parse(line) as DeliveryLedgerRow));
+  }
+
+  deleteDeliveryRows(rows: DeliveryLedgerRow[]): void {
+    const deletionKeys = new Set(rows.map((row) => canonicalizeJson(sanitizeDeliveryLedgerRow(row))));
+    const retainedRows = this.listDeliveryRows()
+      .filter((row) => !deletionKeys.has(canonicalizeJson(row)));
+    const nextContent = retainedRows.length === 0
+      ? ""
+      : `${retainedRows.map((row) => canonicalizeJson(row)).join("\n")}\n`;
+    writeFileSync(this.#filePath, nextContent);
+  }
+}
+
 export function createPolicyControlledDeliveryLedger(input: {
   policy: StoragePolicy;
   operationalLedger: DeliveryLedger;
@@ -84,6 +125,21 @@ export function createPolicyControlledDeliveryLedger(input: {
         input.persistentStore?.writeDeliveryAttempt(row);
       }
     }
+  };
+}
+
+function sanitizeDeliveryLedgerRow(row: DeliveryLedgerRow): DeliveryLedgerRow {
+  return {
+    request_id: row.request_id,
+    request_version: row.request_version,
+    idempotency_key: row.idempotency_key,
+    submitted_at: row.submitted_at,
+    delivered_at: row.delivered_at,
+    delivery_status: row.delivery_status,
+    destination_url_hash: row.destination_url_hash,
+    encrypted_payload_hash: row.encrypted_payload_hash,
+    webhook_status: row.webhook_status,
+    error_code: row.error_code
   };
 }
 
