@@ -4,6 +4,7 @@ import {
   buildHostedCanaryCheckUrls,
   buildHostedCanarySuccessReport,
   defaultHostedCanaryTimeoutMs,
+  formatHostedCanaryRequestError,
   maxHostedCanaryTimeoutMs,
   hostedCanaryUnpublishedRequestId,
   parseHostedCanaryBaseUrl,
@@ -128,6 +129,21 @@ describe("hosted canary helpers", () => {
     expect(init.method).toBe("GET");
     expect(init.redirect).toBe("manual");
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  test("test_format_hosted_canary_request_error_hides_secret_like_details", () => {
+    const message = formatHostedCanaryRequestError(
+      "Health check",
+      new Error("fetch failed for https://user:password@api.watasu.ai?token=secret")
+    );
+
+    expect(message).toBe("Health check request failed.");
+  });
+
+  test("test_format_hosted_canary_request_error_reports_timeout_without_stack_details", () => {
+    const error = new DOMException("The operation was aborted", "TimeoutError");
+
+    expect(formatHostedCanaryRequestError("MCP endpoint", error)).toBe("MCP endpoint request timed out.");
   });
 
   test("test_build_hosted_canary_check_urls_includes_health_and_public_routes", () => {

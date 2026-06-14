@@ -2,6 +2,7 @@
 import {
   buildHostedCanaryCheckUrls,
   buildHostedCanarySuccessReport,
+  formatHostedCanaryRequestError,
   hostedCanaryRequiredHeaders,
   resolveHostedCanaryBaseUrl,
   resolveHostedCanaryTimeoutMs,
@@ -21,13 +22,13 @@ try {
 
 const urls = buildHostedCanaryCheckUrls(baseUrl);
 const timeoutMs = resolveHostedCanaryTimeoutMs(process.env);
-const response = await fetch(urls.health, withHostedCanaryTimeout({
+const response = await fetchHostedCanary("Health check", urls.health, {
   method: "GET",
   headers: {
     accept: "application/json"
   },
   redirect: "manual"
-}, timeoutMs));
+});
 const body = await response.text();
 
 if (response.status !== 200) {
@@ -154,14 +155,23 @@ function assertRequiredHeaders(checkedResponse, label) {
   }
 }
 
+async function fetchHostedCanary(label, url, init) {
+  try {
+    return await fetch(url, withHostedCanaryTimeout(init, timeoutMs));
+  } catch (error) {
+    console.error(formatHostedCanaryRequestError(label, error));
+    process.exit(1);
+  }
+}
+
 async function assertMcpProtectedResourceMetadata(input) {
-  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout({
+  const checkedResponse = await fetchHostedCanary(input.label, input.url, {
     method: "GET",
     headers: {
       accept: "application/json"
     },
     redirect: "manual"
-  }, timeoutMs));
+  });
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 200) {
@@ -199,14 +209,14 @@ async function assertMcpProtectedResourceMetadata(input) {
 }
 
 async function assertMcpEndpoint(input) {
-  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout({
+  const checkedResponse = await fetchHostedCanary(input.label, input.url, {
     method: "POST",
     headers: {
       accept: "application/json, text/event-stream",
       "mcp-protocol-version": "2025-11-25"
     },
     redirect: "manual"
-  }, timeoutMs));
+  });
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 401) {
@@ -252,7 +262,7 @@ function mcpForbiddenFragments() {
 }
 
 async function assertUnpublishedRoute(input) {
-  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout(input.init, timeoutMs));
+  const checkedResponse = await fetchHostedCanary(input.label, input.url, input.init);
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 404) {
@@ -282,7 +292,7 @@ async function assertUnpublishedRoute(input) {
 }
 
 async function assertNotFoundRoute(input) {
-  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout(input.init, timeoutMs));
+  const checkedResponse = await fetchHostedCanary(input.label, input.url, input.init);
   const checkedBody = await checkedResponse.text();
 
   if (checkedResponse.status !== 404) {

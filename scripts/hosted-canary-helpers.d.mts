@@ -40,3 +40,5 @@ export function withHostedCanaryTimeout(
   init: RequestInit,
   timeoutMs: number
 ): RequestInit;
+
+export function formatHostedCanaryRequestError(label: string, error: unknown): string;

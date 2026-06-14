@@ -135,6 +135,14 @@ export function withHostedCanaryTimeout(init, timeoutMs) {
   };
 }
 
+export function formatHostedCanaryRequestError(label, error) {
+  if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+    return `${label} request timed out.`;
+  }
+
+  return `${label} request failed.`;
+}
+
 function isLoopbackHostname(hostname) {
   return hostname === "localhost" ||
     hostname === "127.0.0.1" ||
