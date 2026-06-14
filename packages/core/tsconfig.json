@@ -8,6 +8,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.d.ts",
+    "../../scripts/hosted-canary-helpers.d.mts",
     "../../scripts/secret-scan.d.mts",
     "../../scripts/workflow-helpers.d.mts"
   ]

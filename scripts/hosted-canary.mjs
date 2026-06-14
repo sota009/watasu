@@ -1,8 +1,14 @@
 #!/usr/bin/env node
-const baseUrl = process.env.WATASU_CANARY_BASE_URL;
+import {
+  hostedCanaryRequiredHeaders,
+  parseHostedCanaryBaseUrl
+} from "./hosted-canary-helpers.mjs";
 
-if (baseUrl === undefined || baseUrl.trim() === "") {
-  console.error("WATASU_CANARY_BASE_URL is required.");
+let baseUrl;
+try {
+  baseUrl = parseHostedCanaryBaseUrl(process.env.WATASU_CANARY_BASE_URL);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "WATASU_CANARY_BASE_URL is invalid.");
   process.exit(1);
 }
 
@@ -21,13 +27,7 @@ if (response.status !== 200) {
   process.exit(1);
 }
 
-const requiredHeaders = {
-  "cache-control": "no-store",
-  "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-  "referrer-policy": "no-referrer",
-  "x-content-type-options": "nosniff"
-};
-for (const [name, expected] of Object.entries(requiredHeaders)) {
+for (const [name, expected] of Object.entries(hostedCanaryRequiredHeaders)) {
   const actual = response.headers.get(name);
   if (actual !== expected) {
     console.error(`Health check header ${name} expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}.`);
@@ -65,6 +65,6 @@ if (leakedFragment !== undefined) {
 console.log(JSON.stringify({
   ok: true,
   checked_url: healthUrl.toString(),
-  checked_headers: Object.keys(requiredHeaders),
+  checked_headers: Object.keys(hostedCanaryRequiredHeaders),
   status: response.status
 }));

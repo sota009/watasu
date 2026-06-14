@@ -233,7 +233,7 @@ Currently implemented:
 - hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
 - Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
 - GitHub Actions CI gate for Render `checksPass`
-- hosted canary script for `/health` status, body, leak fragments, and security headers
+- hosted canary script for `/health` status, body, leak fragments, security headers, and HTTPS production URLs
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 

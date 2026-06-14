@@ -120,7 +120,7 @@ Current repo-side status:
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
-- Done: `pnpm canary:hosted` for deployed health, leak-fragment, and security-header checks.
+- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, and HTTPS production URL checks. Local loopback HTTP remains allowed for smoke tests.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
@@ -159,6 +159,7 @@ Owner checklist for the first production cutover:
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary checks.
 [ ] GitHub Actions CI is green on the deployed commit.
+[ ] `WATASU_CANARY_BASE_URL=https://api.watasu.ai pnpm canary:hosted` passes.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 
