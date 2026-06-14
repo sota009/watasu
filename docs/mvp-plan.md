@@ -184,7 +184,7 @@ Done when:
 
 ### Phase 4: Ownership verification
 
-Status: done for the core hosted publish gate and HTTP adapter wiring.
+Status: done for the core hosted publish gate, ownership challenge lifecycle, and HTTP adapter wiring.
 
 Goal: prevent a service from publishing an intake for a key or webhook it does not control.
 
@@ -194,7 +194,7 @@ Implementation:
 - Add webhook domain ownership challenge.
 - Require both challenges before hosted publish.
 - Allow explicit local demo bypass only in `local_demo` mode.
-- Wire hosted HTTP publish to server-side service identity and injected ownership verification state.
+- Wire hosted HTTP publish to server-side service identity and verified ownership state.
 
 Manual checks:
 
