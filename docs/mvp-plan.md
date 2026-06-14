@@ -184,13 +184,14 @@ Done when:
 
 ### Phase 4: Ownership verification
 
-Status: done for the core hosted publish gate, ownership challenge lifecycle, and HTTP adapter wiring.
+Status: done for the core hosted publish gate, ownership challenge lifecycle, service public key registry, and HTTP adapter wiring.
 
 Goal: prevent a service from publishing an intake for a key or webhook it does not control.
 
 Implementation:
 
 - Add service public key ownership challenge.
+- Add verified service public key registry for register / rotate / revoke without private key custody.
 - Add webhook domain ownership challenge.
 - Require both challenges before hosted publish.
 - Allow explicit local demo bypass only in `local_demo` mode.
@@ -215,6 +216,7 @@ Try local_demo publish with localhost fixture: it should still work.
 Done when:
 
 - hosted publish rejects unverified service keys
+- rotated or revoked service public keys are removed from hosted publish ownership state
 - hosted publish rejects unverified webhook domains
 - hosted publish rejects localhost, private IPs, metadata service IPs, and non-HTTPS destinations
 - local demo behavior remains fast and simple

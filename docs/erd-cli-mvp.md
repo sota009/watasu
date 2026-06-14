@@ -871,6 +871,8 @@ Role rules:
 - `publisher` alone cannot register sender keys, rotate capability URLs, or read ledger metadata.
 - `ledger_viewer` cannot publish, revoke, rotate, or change keys.
 - `key_admin` cannot read ledger metadata unless it also has `ledger_viewer`.
+- service public key registry は verified ownership result がある public JWK だけを登録し、private JWK field (`d`) や secret material を保存しない。rotate / revoke 後の key は hosted publish ownership state から外す。
+- KMS/HSM-backed private key custody や secret manager integration は watasu の public-key registry の外側に置き、service 側責務として扱う。
 - Break-glass admin is out of MVP unless it has explicit time-bound elevation and audit log entries.
 - Every hosted MCP/CLI operation derives `tenant_id` from service identity, not from user-controlled request parameters.
 
