@@ -198,6 +198,7 @@ describe("workspace foundation", () => {
       ok: boolean;
       checked_domain: string;
       checked_render_services: string[];
+      checked_runtime_commands: string[];
       checked_secret_command: string;
       remaining_external_actions: string[];
     };
@@ -205,6 +206,10 @@ describe("workspace foundation", () => {
       ok: true,
       checked_domain: "api.watasu.ai",
       checked_render_services: ["watasu-hosted", "watasu-metadata-retention", "watasu-metadata"],
+      checked_runtime_commands: [
+        "pnpm --filter @watasu/hosted start",
+        "pnpm --filter @watasu/hosted retention"
+      ],
       checked_secret_command: "pnpm --silent secret:identity --plain"
     });
     expect(report.remaining_external_actions).toEqual([
