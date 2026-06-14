@@ -214,6 +214,7 @@ Currently implemented:
 - hosted request-specific plaintext and encrypted envelope schema routes for published request versions
 - hosted A2A submit route for validating and delivering encrypted submissions without retaining payload bodies
 - hosted submit sender-trust resolver hook for `verified_sender` and `private_invite` authentication boundaries
+- hosted bootstrap tenant ownership handoff from publish to submit trust and delivery boundaries
 - low-information hosted `/health` endpoint for deployment health checks
 - hosted HTTP security headers for low-information API responses
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring

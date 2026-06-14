@@ -54,6 +54,10 @@ export interface CreateHostedSubmitAppInput {
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
   resolveSenderTrust?: HostedSenderTrustResolver | undefined;
   tenantId?: string | undefined;
+  resolveTenantId?: ((input: {
+    request: HostedSubmitRequest;
+    published: PublishedRequestVersion;
+  }) => string | undefined) | undefined;
 }
 
 export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): HostedSubmitApp {
@@ -140,9 +144,13 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         });
       }
 
+      const tenantId = input.tenantId ?? input.resolveTenantId?.({
+        request,
+        published
+      });
       const senderTrust = resolveSenderTrust({
         resolver: input.resolveSenderTrust,
-        tenantId: input.tenantId,
+        tenantId,
         published,
         capabilityHash: hashCapabilityUrl(capabilityUrl),
         envelope: gateResult.envelopeCandidate,
@@ -181,7 +189,7 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         resolveDeliveryHost: input.resolveDeliveryHost,
         circuitBreaker: input.deliveryCircuitBreaker,
         concurrencyLimiter: input.deliveryConcurrencyLimiter,
-        tenantId: input.tenantId
+        tenantId
       });
       if (!deliveryResult.ok) {
         if (deliveryResult.status === "resubmit_later") {

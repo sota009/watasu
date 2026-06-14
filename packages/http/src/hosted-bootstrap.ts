@@ -60,9 +60,23 @@ export function createHostedProductionBootstrapApp(
   input: CreateHostedProductionBootstrapAppInput
 ): HostedProductionApp {
   const clock = input.clock ?? (() => new Date());
+  const tenantByRequestId = new Map<string, string>();
+  const pendingPublishTenants = new Map<string, string>();
   const resolveServiceIdentity = createTrustedServiceIdentityResolver({
     resolvePrincipal: input.resolvePrincipal
   });
+  const publishRepository: RequestVersionPublisher = {
+    publish(requestId, definition) {
+      const published = input.repository.publish(requestId, definition);
+      const tenantId = pendingPublishTenants.get(requestId);
+      if (tenantId !== undefined) {
+        tenantByRequestId.set(requestId, tenantId);
+        pendingPublishTenants.delete(requestId);
+      }
+
+      return published;
+    }
+  };
 
   return createHostedProductionApp({
     publicBaseUrl: input.publicBaseUrl,
@@ -83,12 +97,16 @@ export function createHostedProductionBootstrapApp(
       signingSecret: input.deliverySigningSecret,
       deliveryCircuitBreaker: input.deliveryCircuitBreaker,
       deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
-      resolveSenderTrust: input.resolveSenderTrust
+      resolveSenderTrust: input.resolveSenderTrust,
+      resolveTenantId({ published }) {
+        return tenantByRequestId.get(published.request_id);
+      }
     }),
     publishApp: createHostedPublishApp({
-      repository: input.repository,
+      repository: publishRepository,
       resolveServiceIdentity,
       resolveOwnershipVerification({ serviceIdentity, request, requestId, definition }) {
+        pendingPublishTenants.set(requestId, serviceIdentity.tenant_id);
         return input.resolveOwnershipVerification({
           principal: {
             tenant_id: serviceIdentity.tenant_id,
