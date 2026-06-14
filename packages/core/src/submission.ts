@@ -31,19 +31,21 @@ export interface TrustedInviteBinding {
 }
 
 export interface IdempotencyStore {
-  claim(recordKey: string, record: IdempotencyRecord): boolean;
+  claimValidation(recordKey: string, claim: IdempotencyValidationClaim): boolean;
+  releaseValidation(recordKey: string): void;
 }
 
 export interface SubmissionRateLimiter {
   consume(key: string): boolean;
 }
 
-export interface IdempotencyRecord {
+export interface IdempotencyValidationClaim {
   request_id: string;
   request_version: string;
   idempotency_key: string;
   submitted_at: string;
-  accepted_at: string;
+  claimed_at: string;
+  status: "validation_accepted";
 }
 
 export interface SubmissionValidationContext {
@@ -75,7 +77,7 @@ export interface AcceptedSubmission {
   idempotency_key: string;
   submitted_at: string;
   accepted_at: string;
-  capability_url: string;
+  capability_hash: Sha256Hash;
   sender_key_id?: string | undefined;
   invite_id?: string | undefined;
 }
@@ -86,19 +88,28 @@ export interface SubmissionValidationError {
 }
 
 export class InMemoryIdempotencyStore implements IdempotencyStore {
-  readonly #records = new Map<string, IdempotencyRecord>();
+  readonly #validationClaims = new Map<string, IdempotencyValidationClaim>();
 
-  claim(recordKey: string, record: IdempotencyRecord): boolean {
-    if (this.#records.has(recordKey)) {
+  claimValidation(recordKey: string, claim: IdempotencyValidationClaim): boolean {
+    if (this.#validationClaims.has(recordKey)) {
       return false;
     }
 
-    this.#records.set(recordKey, structuredClone(record));
+    this.#validationClaims.set(recordKey, structuredClone(claim));
     return true;
   }
 
+  releaseValidation(recordKey: string): void {
+    this.#validationClaims.delete(recordKey);
+  }
+
   has(recordKey: string): boolean {
-    return this.#records.has(recordKey);
+    return this.#validationClaims.has(recordKey);
+  }
+
+  getValidationClaim(recordKey: string): IdempotencyValidationClaim | undefined {
+    const claim = this.#validationClaims.get(recordKey);
+    return claim === undefined ? undefined : structuredClone(claim);
   }
 }
 
@@ -163,14 +174,15 @@ export function validateSubmissionEnvelope(
     return rejected("rate_limited", "Submission rate limit was exceeded.");
   }
 
-  const idempotencyRecordKey = createIdempotencyRecordKey(envelope);
+  const idempotencyClaimKey = createIdempotencyClaimKey(envelope);
   const acceptedAt = now.toISOString();
-  const claimed = context.idempotencyStore.claim(idempotencyRecordKey, {
+  const claimed = context.idempotencyStore.claimValidation(idempotencyClaimKey, {
     request_id: envelope.request_id,
     request_version: envelope.request_version,
     idempotency_key: envelope.idempotency_key,
     submitted_at: envelope.submitted_at,
-    accepted_at: acceptedAt
+    claimed_at: acceptedAt,
+    status: "validation_accepted"
   });
 
   if (!claimed) {
@@ -186,14 +198,14 @@ export function validateSubmissionEnvelope(
       idempotency_key: envelope.idempotency_key,
       submitted_at: envelope.submitted_at,
       accepted_at: acceptedAt,
-      capability_url: context.capability.url,
+      capability_hash: sha256Hash(context.capability.url),
       sender_key_id: envelope.sender_key_id,
       invite_id: envelope.invite_id
     }
   };
 }
 
-export function createIdempotencyRecordKey(envelope: Pick<
+export function createIdempotencyClaimKey(envelope: Pick<
   SubmissionEnvelope,
   "request_id" | "request_version" | "idempotency_key"
 >): string {
@@ -326,7 +338,7 @@ function hashEncryptedPayload(encryptedPayload: Record<string, unknown>): Sha256
 }
 
 function rateLimitKey(context: SubmissionValidationContext): string {
-  return `${context.published.request_id}:${context.published.request_version}:${context.capability.url}`;
+  return `${context.published.request_id}:${context.published.request_version}:${sha256Hash(context.capability.url)}`;
 }
 
 function rejected(code: string, message: string): SubmissionValidationResult {
