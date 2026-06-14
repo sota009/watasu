@@ -154,6 +154,7 @@ Currently implemented:
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
+- trusted service identity resolver for mapping authenticated server context into hosted roles
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
