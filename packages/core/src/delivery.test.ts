@@ -732,6 +732,39 @@ describe("fetch delivery client adapter", () => {
         body: "{\"envelope\":{\"encrypted_payload_hash\":\"sha256:test\"}}"
       }
     });
+    expect(calls[0]?.init.redirect).toBe("manual");
+  });
+
+  test("test_fetch_delivery_client_does_not_follow_redirects", async () => {
+    const calls: Array<{
+      url: string;
+      init: RequestInit;
+    }> = [];
+    const client = createFetchDeliveryClient({
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {}
+        });
+        return new Response(null, {
+          status: 302,
+          headers: {
+            location: "http://169.254.169.254/latest/meta-data"
+          }
+        });
+      }
+    });
+
+    const response = await client.post({
+      url: "https://receiver.example.com/watasu/intake",
+      headers: {},
+      body: "{}"
+    });
+
+    expect(response).toEqual({
+      status: 302
+    });
+    expect(calls[0]?.init.redirect).toBe("manual");
   });
 
   test("test_fetch_delivery_client_returns_non_2xx_status_to_delivery_layer", async () => {
