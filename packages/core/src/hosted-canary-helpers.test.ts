@@ -27,6 +27,18 @@ describe("hosted canary helpers", () => {
     );
   });
 
+  test("test_parse_hosted_canary_base_url_rejects_path_query_and_fragment", () => {
+    expect(() => parseHostedCanaryBaseUrl("https://api.watasu.ai/nested")).toThrow(
+      "WATASU_CANARY_BASE_URL must not include a path, query, or fragment."
+    );
+    expect(() => parseHostedCanaryBaseUrl("https://api.watasu.ai?debug=true")).toThrow(
+      "WATASU_CANARY_BASE_URL must not include a path, query, or fragment."
+    );
+    expect(() => parseHostedCanaryBaseUrl("https://api.watasu.ai#health")).toThrow(
+      "WATASU_CANARY_BASE_URL must not include a path, query, or fragment."
+    );
+  });
+
   test("test_parse_hosted_canary_base_url_allows_https_targets", () => {
     const url = parseHostedCanaryBaseUrl("https://api.watasu.ai");
 

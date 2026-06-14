@@ -49,6 +49,10 @@ export function parseHostedCanaryBaseUrl(rawBaseUrl) {
     throw new Error("WATASU_CANARY_BASE_URL must not include username or password credentials.");
   }
 
+  if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+    throw new Error("WATASU_CANARY_BASE_URL must not include a path, query, or fragment.");
+  }
+
   if (url.protocol === "https:") {
     return url;
   }
