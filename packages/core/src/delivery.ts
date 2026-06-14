@@ -31,6 +31,7 @@ export type FetchDeliveryClientFetch = (
     method: "POST";
     headers: Record<string, string>;
     body: string;
+    redirect: "manual";
     signal: AbortSignal;
   }
 ) => Promise<{
@@ -228,6 +229,7 @@ export function createFetchDeliveryClient(input: {
           method: "POST",
           headers: request.headers,
           body: request.body,
+          redirect: "manual",
           signal: abortController.signal
         });
 
