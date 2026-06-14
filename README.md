@@ -170,6 +170,12 @@ pnpm canary:hosted -- https://api.watasu.ai
 
 The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_at`, `checked_origin`, `checked_timeout_ms`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_headers`, `checked_forbidden_fragments`, and `go_no_go` so the cutover record shows when the check ran, which origin was checked, which public routes stayed low-information, which bound was used, which public metadata method boundary was verified, which security headers and leak fragments were checked, and which follow-up evidence is still required before private-alpha exposure. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge and that the protected-resource metadata URL is reachable without exposing payload or secret fragments.
 
+To save the production cutover canary evidence under `cutover-evidence/canary.json`, run:
+
+```bash
+pnpm --silent cutover:canary
+```
+
 Hosted metadata retention dry run:
 
 ```bash
@@ -208,13 +214,19 @@ After the matching GitHub Actions run is green, save CI evidence:
 pnpm --silent cutover:ci
 ```
 
+After DNS/TLS and the hosted deploy are ready, save canary evidence:
+
+```bash
+pnpm --silent cutover:canary
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash
 pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
 ```
 
-The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, the retention dry run, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
+The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `cutover:canary`, the retention dry run, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
 
 Hosted runtime smoke before deploy:
 

@@ -20,7 +20,7 @@ process.stdout.write(`${JSON.stringify({
   ],
   after_deploy_commands: [
     "pnpm --silent cutover:ci",
-    `pnpm canary:hosted -- ${targetOrigin}`,
+    "pnpm --silent cutover:canary",
     "pnpm --filter @watasu/hosted retention -- --dry-run"
   ],
   required_evidence: [

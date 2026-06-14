@@ -119,6 +119,7 @@ describe("workspace foundation", () => {
 
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
+      "cutover:canary": "node scripts/production-cutover-canary.mjs",
       "cutover:ci": "node scripts/production-cutover-ci.mjs",
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
       "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
@@ -397,6 +398,66 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("GITHUB_TOKEN=");
   });
 
+  test("test_production_cutover_canary_writes_secret_safe_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-canary-"));
+    const sourcePath = join(evidenceDir, "canary-source.json");
+    writeFileSync(sourcePath, JSON.stringify(buildCutoverCanaryEvidence()));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:canary",
+      "--dir",
+      evidenceDir,
+      "--source",
+      sourcePath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      checked_origin: string;
+      wrote: string;
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      wrote: join(evidenceDir, "canary.json")
+    });
+    expect(JSON.parse(readFileSync(join(evidenceDir, "canary.json"), "utf8"))).toMatchObject({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      go_no_go: {
+        decision: "go"
+      }
+    });
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+  });
+
+  test("test_production_cutover_canary_rejects_secret_like_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-canary-"));
+    const sourcePath = join(evidenceDir, "canary-source.json");
+    writeFileSync(sourcePath, `${JSON.stringify(buildCutoverCanaryEvidence())}\nWATASU_POSTGRES_URL=postgres://example\n`);
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:canary",
+      "--dir",
+      evidenceDir,
+      "--source",
+      sourcePath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("contains secret-like assignment output");
+  });
+
   test("test_production_cutover_plan_outputs_ordered_secret_safe_commands", () => {
     const result = spawnSync("pnpm", ["--silent", "cutover:plan"], {
       cwd: rootDir,
@@ -422,7 +483,7 @@ describe("workspace foundation", () => {
       ],
       after_deploy_commands: [
         "pnpm --silent cutover:ci",
-        "pnpm canary:hosted -- https://api.watasu.ai",
+        "pnpm --silent cutover:canary",
         "pnpm --filter @watasu/hosted retention -- --dry-run"
       ]
     });
@@ -459,6 +520,7 @@ describe("workspace foundation", () => {
     expect(japaneseReadme).toContain("pnpm --silent deploy:preflight");
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
     expect(japaneseReadme).toContain("pnpm --silent cutover:prepare");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:canary");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
     expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
     expect(japaneseReadme).toContain("cutover-evidence/cutover-head.txt");

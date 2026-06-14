@@ -170,6 +170,12 @@ pnpm canary:hosted -- https://api.watasu.ai
 
 成功時の output は `checked_at`、`checked_origin`、`checked_timeout_ms`、`checked_not_found_routes`、`checked_method_boundaries`、`checked_headers`、`checked_forbidden_fragments`、`go_no_go` を含みます。
 
+production cutover の canary evidence を `cutover-evidence/canary.json` に保存する場合:
+
+```bash
+pnpm --silent cutover:canary
+```
+
 Hosted metadata retention dry run:
 
 ```bash
@@ -204,13 +210,19 @@ prepare command は `cutover-evidence/cutover-head.txt`、`cutover-evidence/pref
 pnpm --silent cutover:ci
 ```
 
+DNS/TLS と hosted deploy が ready になったら canary evidence を保存します:
+
+```bash
+pnpm --silent cutover:canary
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash
 pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
 ```
 
-cutover verifier は `deploy:preflight`、`smoke:hosted`、`canary:hosted`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
+cutover verifier は `deploy:preflight`、`smoke:hosted`、`cutover:canary`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
 
 Hosted runtime smoke before deploy:
 
