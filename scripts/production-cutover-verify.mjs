@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const targetOrigin = "https://api.watasu.ai";
-const usage = "Usage: pnpm --silent cutover:verify --head <40-char-sha> --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>";
+const usage = "Usage: pnpm --silent cutover:verify [--dir <evidence-dir>] [--head <40-char-sha> --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>]";
 const requiredForbiddenFragments = [
   "tenant",
   "ledger",
@@ -64,6 +65,10 @@ process.stdout.write(`${JSON.stringify({
 })}\n`);
 
 function parseArgs(args) {
+  if (args.length === 0) {
+    return inputsFromEvidenceDir("cutover-evidence");
+  }
+
   const parsed = {};
   for (let index = 0; index < args.length; index += 2) {
     const name = args[index];
@@ -71,7 +76,9 @@ function parseArgs(args) {
     if (value === undefined) {
       throw new Error(usage);
     }
-    if (name === "--head") {
+    if (name === "--dir") {
+      return inputsFromEvidenceDir(value);
+    } else if (name === "--head") {
       parsed.head = value;
     } else if (name === "--preflight") {
       parsed.preflight = value;
@@ -100,6 +107,18 @@ function parseArgs(args) {
   }
 
   return parsed;
+}
+
+function inputsFromEvidenceDir(path) {
+  const evidenceDir = resolve(path);
+  return {
+    head: readFileSync(resolve(evidenceDir, "cutover-head.txt"), "utf8").trim(),
+    preflight: resolve(evidenceDir, "preflight.json"),
+    smoke: resolve(evidenceDir, "smoke.json"),
+    canary: resolve(evidenceDir, "canary.json"),
+    retention: resolve(evidenceDir, "retention.json"),
+    ci: resolve(evidenceDir, "ci.json")
+  };
 }
 
 function readJsonEvidence(path) {

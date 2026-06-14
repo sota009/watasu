@@ -231,10 +231,10 @@ pnpm --silent cutover:retention
 Production cutover evidence verification after deploy:
 
 ```bash
-pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
+pnpm --silent cutover:verify
 ```
 
-cutover verifier は `deploy:preflight`、`smoke:hosted`、`cutover:canary`、`cutover:retention`、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
+cutover verifier は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json`、`cutover-evidence/canary.json`、`cutover-evidence/retention.json`、`cutover-evidence/ci.json` を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。default 以外の evidence directory を確認する場合は `--dir <evidence-dir>` を使います。
 
 Hosted runtime smoke before deploy:
 

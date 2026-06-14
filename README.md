@@ -235,10 +235,10 @@ pnpm --silent cutover:retention
 Production cutover evidence verification after deploy:
 
 ```bash
-pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
+pnpm --silent cutover:verify
 ```
 
-The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `cutover:canary`, `cutover:retention`, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
+The verifier reads `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, `cutover-evidence/smoke.json`, `cutover-evidence/canary.json`, `cutover-evidence/retention.json`, and `cutover-evidence/ci.json`. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary. Use `--dir <evidence-dir>` when checking a non-default evidence directory.
 
 Hosted runtime smoke before deploy:
 
