@@ -285,11 +285,17 @@ describe("local HTTP demo app", () => {
 
     // Assert
     expect(response.status).toBe(503);
+    expect(response.headers["retry-after"]).toBe("60");
     expect(parseJson(response.body)).toMatchObject({
       ok: false,
       status: "resubmit_later",
       error: {
         code: "webhook_delivery_failed"
+      },
+      resubmission: {
+        retry_after_seconds: 60,
+        idempotency_key_policy: "reuse_for_same_payload",
+        payload_policy: "sender_resubmits_payload"
       }
     });
   });

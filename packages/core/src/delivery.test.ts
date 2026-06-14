@@ -319,6 +319,40 @@ describe("webhook delivery and metadata-only ledger", () => {
     ]);
   });
 
+  test("test_resubmit_later_includes_sender_actionable_backoff_without_payload_body", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const ledger = createLedger();
+    const client = createClient(503);
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    const resultJson = canonicalizeJson(result);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      resubmission: {
+        action: "resubmit_later",
+        retry_after_seconds: 60,
+        retry_after_source: "webhook_failure",
+        idempotency_key_policy: "reuse_for_same_payload",
+        payload_policy: "sender_resubmits_payload",
+        refresh_fields: ["submitted_at", "expires_at", "sender_signature"]
+      }
+    });
+    expect(resultJson).not.toContain("base64url-ciphertext");
+    expect(resultJson).not.toContain("\"encrypted_payload\"");
+  });
+
   test("test_timeout_returns_resubmit_later", async () => {
     const published = createPublished();
     const ledger = createLedger();
@@ -394,6 +428,10 @@ describe("webhook delivery and metadata-only ledger", () => {
       status: "resubmit_later",
       error: {
         code: "webhook_delivery_timeout"
+      },
+      resubmission: {
+        retry_after_seconds: 30,
+        retry_after_source: "webhook_timeout"
       }
     });
     expect(ledger.rows).toMatchObject([
@@ -494,6 +532,10 @@ describe("webhook delivery and metadata-only ledger", () => {
       status: "resubmit_later",
       error: {
         code: "webhook_circuit_open"
+      },
+      resubmission: {
+        retry_after_seconds: 120,
+        retry_after_source: "circuit_breaker"
       }
     });
     expect(ledger.rows).toMatchObject([
@@ -547,6 +589,10 @@ describe("webhook delivery and metadata-only ledger", () => {
       status: "resubmit_later",
       error: {
         code: "delivery_concurrency_limited"
+      },
+      resubmission: {
+        retry_after_seconds: 10,
+        retry_after_source: "concurrency_limit"
       }
     });
     expect(ledger.rows).toMatchObject([

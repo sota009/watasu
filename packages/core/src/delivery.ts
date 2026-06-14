@@ -196,6 +196,21 @@ export interface DeliveryLogEvent {
   error_code?: string | undefined;
 }
 
+export type ResubmissionRetryAfterSource =
+  | "webhook_failure"
+  | "webhook_timeout"
+  | "circuit_breaker"
+  | "concurrency_limit";
+
+export interface ResubmissionGuidance {
+  action: "resubmit_later";
+  retry_after_seconds: number;
+  retry_after_source: ResubmissionRetryAfterSource;
+  idempotency_key_policy: "reuse_for_same_payload";
+  payload_policy: "sender_resubmits_payload";
+  refresh_fields: ["submitted_at", "expires_at", "sender_signature"];
+}
+
 export type DeliveryResult =
   | {
       ok: true;
@@ -209,6 +224,7 @@ export type DeliveryResult =
         code: string;
         message: string;
       };
+      resubmission?: ResubmissionGuidance | undefined;
       ledger?: DeliveryLedgerRow | undefined;
     };
 
@@ -484,8 +500,48 @@ function resubmitLater(
       code,
       message
     },
+    resubmission: buildResubmissionGuidance(code),
     ledger
   };
+}
+
+function buildResubmissionGuidance(errorCode: string): ResubmissionGuidance {
+  return {
+    action: "resubmit_later",
+    retry_after_seconds: retryAfterSeconds(errorCode),
+    retry_after_source: retryAfterSource(errorCode),
+    idempotency_key_policy: "reuse_for_same_payload",
+    payload_policy: "sender_resubmits_payload",
+    refresh_fields: ["submitted_at", "expires_at", "sender_signature"]
+  };
+}
+
+function retryAfterSeconds(errorCode: string): number {
+  switch (errorCode) {
+    case "delivery_concurrency_limited":
+      return 10;
+    case "webhook_delivery_timeout":
+      return 30;
+    case "webhook_circuit_open":
+      return 120;
+    case "webhook_delivery_failed":
+    default:
+      return 60;
+  }
+}
+
+function retryAfterSource(errorCode: string): ResubmissionRetryAfterSource {
+  switch (errorCode) {
+    case "delivery_concurrency_limited":
+      return "concurrency_limit";
+    case "webhook_delivery_timeout":
+      return "webhook_timeout";
+    case "webhook_circuit_open":
+      return "circuit_breaker";
+    case "webhook_delivery_failed":
+    default:
+      return "webhook_failure";
+  }
 }
 
 function writeDeliveryLog(

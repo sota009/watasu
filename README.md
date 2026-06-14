@@ -152,6 +152,7 @@ Currently implemented:
 - delivery timeout classification that returns `resubmit_later` without retaining payload bodies
 - in-memory delivery circuit breaker for fail-fast `resubmit_later` after repeated webhook failures
 - in-memory delivery concurrency limiter for request and tenant caps
+- sender-actionable `resubmit_later` guidance with `Retry-After` and no payload retry queue
 - local HTTP demo wiring for injected delivery circuit breaker and concurrency limiter hooks
 - fetch delivery adapter disables automatic redirects for SSRF-safe delivery handling
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
@@ -177,6 +178,5 @@ Still remaining for Hosted Production MVP:
 - service-owned key management beyond the local JWE wrapper
 - live DNS / HTTPS ownership challenge fetching beyond local observed-token verification
 - EdDSA sender signatures
-- production sender resubmission/backoff guidance that keeps the no payload retry queue rule
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.

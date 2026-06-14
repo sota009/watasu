@@ -111,7 +111,9 @@ export type {
   DeliveryLedgerRow,
   DeliveryRequest,
   DeliveryResponse,
-  DeliveryResult
+  DeliveryResult,
+  ResubmissionGuidance,
+  ResubmissionRetryAfterSource
 } from "./delivery.js";
 export type {
   WatasuFlattenedJwe,
