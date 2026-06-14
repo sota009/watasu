@@ -267,7 +267,7 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
-Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL and migration runner, hosted PostgreSQL runtime config, hosted Node/PostgreSQL pool adapter package, hosted retention job runner, and local HTTP demo hook wiring.
+Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL, provisioning artifact, and migration runner, hosted PostgreSQL runtime config, hosted Node/PostgreSQL pool adapter package, hosted retention job runner, and local HTTP demo hook wiring.
 
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 
@@ -277,6 +277,7 @@ Implementation:
 - Add metadata-only persistent store for local/single-node validation.
 - Add PostgreSQL-compatible metadata adapter using parameterized queries.
 - Add PostgreSQL metadata ledger schema SQL with tenant-scoped primary key and no payload body columns.
+- Add PostgreSQL metadata ledger provisioning SQL artifact for hosted infrastructure setup.
 - Add PostgreSQL metadata ledger migration runner for injected hosted query clients.
 - Add hosted PostgreSQL runtime config and migrated store factory so production can inject a managed pool.
 - Add hosted Node/PostgreSQL package with bounded pool config, `pool.query` adapter, migration bootstrap, and clean shutdown.
@@ -323,14 +324,14 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
-| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
-| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
-| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
-| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
+| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface and private JWK rejection | Service-side KMS/HSM operations outside watasu |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
-| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, and hosted job runner | Hosted DB infrastructure provisioning |
+| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, provisioning artifact, and hosted job runner | Cloud database creation and credentials outside repo |
 
 ## Positioning boundaries
 
