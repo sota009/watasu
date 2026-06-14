@@ -7,6 +7,7 @@ export const hostedCanaryRequiredHeaders = {
 
 export const hostedCanaryUnpublishedRequestId = "__watasu_canary_missing__";
 export const defaultHostedCanaryTimeoutMs = 10_000;
+export const maxHostedCanaryTimeoutMs = 60_000;
 
 export function buildHostedCanaryCheckUrls(baseUrl) {
   return {
@@ -94,6 +95,10 @@ export function resolveHostedCanaryTimeoutMs(env) {
   const timeoutMs = Number(rawTimeoutMs);
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new Error("WATASU_CANARY_TIMEOUT_MS must be a positive integer.");
+  }
+
+  if (timeoutMs > maxHostedCanaryTimeoutMs) {
+    throw new Error("WATASU_CANARY_TIMEOUT_MS must be between 1 and 60000.");
   }
 
   return timeoutMs;

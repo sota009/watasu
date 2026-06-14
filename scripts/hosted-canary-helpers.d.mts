@@ -1,6 +1,7 @@
 export const hostedCanaryRequiredHeaders: Record<string, string>;
 export const hostedCanaryUnpublishedRequestId: string;
 export const defaultHostedCanaryTimeoutMs: number;
+export const maxHostedCanaryTimeoutMs: number;
 
 export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   health: string;

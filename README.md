@@ -168,7 +168,7 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
-The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` when a slow deploy needs a longer bounded check.
+The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check.
 
 Hosted metadata retention dry run:
 

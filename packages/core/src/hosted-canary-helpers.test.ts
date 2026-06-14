@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildHostedCanaryCheckUrls,
   defaultHostedCanaryTimeoutMs,
+  maxHostedCanaryTimeoutMs,
   hostedCanaryUnpublishedRequestId,
   parseHostedCanaryBaseUrl,
   resolveHostedCanaryTimeoutMs,
@@ -99,12 +100,21 @@ describe("hosted canary helpers", () => {
     expect(resolveHostedCanaryTimeoutMs({
       WATASU_CANARY_TIMEOUT_MS: "2500"
     })).toBe(2500);
+    expect(resolveHostedCanaryTimeoutMs({
+      WATASU_CANARY_TIMEOUT_MS: String(maxHostedCanaryTimeoutMs)
+    })).toBe(maxHostedCanaryTimeoutMs);
   });
 
   test("test_resolve_hosted_canary_timeout_rejects_partial_numeric_env", () => {
     expect(() => resolveHostedCanaryTimeoutMs({
       WATASU_CANARY_TIMEOUT_MS: "2500ms"
     })).toThrow("WATASU_CANARY_TIMEOUT_MS must be a positive integer.");
+  });
+
+  test("test_resolve_hosted_canary_timeout_rejects_values_over_maximum", () => {
+    expect(() => resolveHostedCanaryTimeoutMs({
+      WATASU_CANARY_TIMEOUT_MS: String(maxHostedCanaryTimeoutMs + 1)
+    })).toThrow("WATASU_CANARY_TIMEOUT_MS must be between 1 and 60000.");
   });
 
   test("test_with_hosted_canary_timeout_adds_abort_signal", () => {
