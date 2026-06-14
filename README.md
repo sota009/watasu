@@ -204,7 +204,7 @@ Render account setup brief:
 pnpm --silent render:brief
 ```
 
-The brief prints the Render service names, database name, domain, secret command, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
+The brief prints the Render service names, database name, domain, secret command, status command, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
 
 Production cutover plan:
 

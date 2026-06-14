@@ -299,6 +299,7 @@ describe("workspace foundation", () => {
       manual_secret_names: string[];
       dns_origin: string;
       external_actions: string[];
+      status_command: string;
       after_render_commands: string[];
     };
     expect(report).toMatchObject({
@@ -307,6 +308,7 @@ describe("workspace foundation", () => {
       render_services: ["watasu-hosted", "watasu-metadata-retention"],
       render_database: "watasu-metadata",
       secret_command: "pnpm --silent secret:identity --plain",
+      status_command: "pnpm --silent cutover:status",
       manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"],
       dns_origin: "https://api.watasu.ai",
       after_render_commands: [
@@ -317,6 +319,7 @@ describe("workspace foundation", () => {
       ]
     });
     expect(report.external_actions).toContain("Create the Render Blueprint from render.yaml.");
+    expect(report.external_actions).toContain("Run pnpm --silent cutover:status before and after Render setup.");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("postgres://");

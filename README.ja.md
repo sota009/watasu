@@ -202,7 +202,7 @@ Render account setup brief:
 pnpm --silent render:brief
 ```
 
-brief は Render service name、database name、domain、secret command、account-side actions、post-Render cutover commands を secret value や database URL なしで出します。
+brief は Render service name、database name、domain、secret command、status command、account-side actions、post-Render cutover commands を secret value や database URL なしで出します。
 
 Production cutover plan:
 
