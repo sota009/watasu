@@ -51,3 +51,32 @@ ${validationLines.map((line) => `- \`${line}\``).join("\n")}
 ${selfReview}`;
 }
 
+export function buildLoopCommandPlan({ includeAudit = false } = {}) {
+  const commands = [
+    {
+      label: "typecheck",
+      command: "pnpm typecheck"
+    },
+    {
+      label: "test",
+      command: "pnpm test"
+    },
+    {
+      label: "lint",
+      command: "pnpm lint"
+    },
+    {
+      label: "gstack-review-preflight",
+      command: "pnpm review:self"
+    }
+  ];
+
+  if (includeAudit) {
+    commands.push({
+      label: "audit",
+      command: "pnpm audit --audit-level moderate"
+    });
+  }
+
+  return commands;
+}

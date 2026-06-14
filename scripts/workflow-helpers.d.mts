@@ -20,3 +20,9 @@ export function buildDraftPullRequestBody(input: {
   selfReview: string;
 }): string;
 
+export type LoopCommand = {
+  label: string;
+  command: string;
+};
+
+export function buildLoopCommandPlan(input?: { includeAudit?: boolean }): LoopCommand[];

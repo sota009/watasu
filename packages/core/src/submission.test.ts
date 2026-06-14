@@ -244,6 +244,24 @@ describe("submission envelope validation", () => {
     });
   });
 
+  test("test_future_submission_outside_clock_skew_is_rejected", () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published, {
+      submitted_at: "2026-06-14T12:05:00.001Z"
+    });
+    const context = createContext(published);
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "submitted_at_in_future"
+      }
+    });
+  });
+
   test("test_replayed_idempotency_key_is_rejected", () => {
     const published = createPublished();
     const envelope = createEnvelope(published);

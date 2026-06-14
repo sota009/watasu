@@ -4,6 +4,7 @@ import type { TrustProfile } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 
 const defaultMaxSubmissionAgeMs = 15 * 60 * 1000;
+const defaultMaxSubmissionClockSkewMs = 5 * 60 * 1000;
 
 export interface SubmissionEnvelope {
   request_id: string;
@@ -166,6 +167,10 @@ export function validateSubmissionEnvelope(
 
   const now = context.clock();
   const maxSubmissionAgeMs = context.maxSubmissionAgeMs ?? defaultMaxSubmissionAgeMs;
+  if (submittedAt.getTime() - now.getTime() > defaultMaxSubmissionClockSkewMs) {
+    return rejected("submitted_at_in_future", "submitted_at is outside the accepted clock skew.");
+  }
+
   if (now.getTime() - submittedAt.getTime() > maxSubmissionAgeMs) {
     return rejected("submission_expired", "Submission is outside the accepted time window.");
   }
