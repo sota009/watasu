@@ -222,6 +222,21 @@ export function createHostedProductionServerFromEnv(input: {
     async beforeAppRequest(request, response) {
       const path = request.url === undefined ? "/" : new URL(request.url, config.publicBaseUrl).pathname;
       if (path === "/.well-known/oauth-protected-resource") {
+        if (request.method !== "GET") {
+          response.writeHead(405, {
+            allow: "GET",
+            "content-type": "application/json; charset=utf-8"
+          });
+          response.end(`${JSON.stringify({
+            ok: false,
+            error: {
+              code: "method_not_allowed",
+              message: "MCP protected-resource metadata supports GET."
+            }
+          })}\n`);
+          return true;
+        }
+
         response.writeHead(200, {
           "content-type": "application/json; charset=utf-8"
         });

@@ -119,6 +119,45 @@ describe("hosted production runtime package", () => {
     runtime.server.close();
   });
 
+  test("test_hosted_production_server_from_env_rejects_non_get_mcp_metadata_requests", async () => {
+    // Arrange
+    const runtime = createHostedProductionServerFromEnv({
+      env: {
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        PORT: "10000"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z")
+    });
+    const request = Readable.from(["ignored"]) as Readable & {
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+    };
+    request.headers = {
+      accept: "application/json"
+    };
+    request.method = "POST";
+    request.url = "/.well-known/oauth-protected-resource";
+    const response = captureHostedResponse();
+
+    // Act
+    runtime.server.emit("request", request, response.response);
+    const handled = await response.ended;
+
+    // Assert
+    expect(handled.status).toBe(405);
+    expect(handled.headers).toMatchObject({
+      allow: "GET",
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    });
+    expect(handled.body).toContain("\"code\":\"method_not_allowed\"");
+    expect(handled.body).not.toContain("scopes_supported");
+    runtime.server.close();
+  });
+
   test("test_hosted_production_server_from_env_rejects_invalid_public_base_url", () => {
     expect(() =>
       createHostedProductionServerFromEnv({

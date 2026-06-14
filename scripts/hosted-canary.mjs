@@ -216,7 +216,13 @@ async function assertMcpEndpoint(input) {
   assertRequiredHeaders(checkedResponse, input.label);
 
   const challenge = checkedResponse.headers.get("www-authenticate");
-  if (challenge === null || !challenge.startsWith("Bearer resource_metadata=") || !challenge.includes("watasu:publish")) {
+  const expectedChallengeMetadata = `resource_metadata="${urls.mcpProtectedResourceMetadata}"`;
+  if (
+    challenge === null ||
+    !challenge.startsWith("Bearer resource_metadata=") ||
+    !challenge.includes(expectedChallengeMetadata) ||
+    !challenge.includes("watasu:publish")
+  ) {
     console.error(`${input.label} did not return the expected authentication challenge.`);
     process.exit(1);
   }
