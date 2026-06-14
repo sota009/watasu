@@ -149,7 +149,10 @@ const inferenceRules: Array<{
   {
     code: "safety_sensitive_metadata",
     sensitivity: "prohibited",
-    patterns: [/\b(political|religious|union|dv[_ -]?shelter|whistleblow|anonymous[_ -]?source)\b/i]
+    patterns: [
+      /\b(political|religious|union)(?:\b|[_ -])/i,
+      /\b(dv[_ -]?shelter|whistleblow|anonymous[_ -]?source)\b/i
+    ]
   },
   {
     code: "government_identity",
