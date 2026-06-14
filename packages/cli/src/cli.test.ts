@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -102,6 +102,28 @@ describe("watasu cli first slice", () => {
             }
           ]
         }
+      }
+    });
+  });
+
+  test("test_cli_agent_card_encodes_request_id_path_segments", async () => {
+    const requestFile = writeTempFile(
+      readFileSync(fixtureFile, "utf8").replace(
+        "name: event-attendee-intake",
+        "name: event attendee/intake"
+      )
+    );
+
+    const result = await runCli(["agent-card", requestFile, "--confirm"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      agent_card: {
+        supportedInterfaces: [
+          {
+            url: "https://api.watasu.dev/a2a/requests/event%20attendee%2Fintake/v1"
+          }
+        ]
       }
     });
   });

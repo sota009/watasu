@@ -195,7 +195,9 @@ function agentCardForFileDefinition(definition: RequestDefinition, confirmed: bo
     return errorResult("agent-card", publishResult.error);
   }
 
-  const endpointUrl = `https://api.watasu.dev/a2a/requests/${publishResult.published.request_id}/${publishResult.published.request_version}`;
+  const requestIdPathSegment = encodeURIComponent(publishResult.published.request_id);
+  const requestVersionPathSegment = encodeURIComponent(publishResult.published.request_version);
+  const endpointUrl = `https://api.watasu.dev/a2a/requests/${requestIdPathSegment}/${requestVersionPathSegment}`;
 
   return okResult({
     ok: true,
