@@ -18,6 +18,11 @@ export {
   buildAgentCard,
   watasuEncryptedIntakeExtensionUri
 } from "./agent-card.js";
+export {
+  gateA2aSubmissionProtocol,
+  watasuA2aHttpJsonContentType,
+  watasuA2aProtocolVersion
+} from "./a2a.js";
 export { publishRequestVersion } from "./publish.js";
 export {
   InMemoryIdempotencyStore,
@@ -45,6 +50,12 @@ export type {
   RequestVersionPublisher
 } from "./publish.js";
 export type { AgentCard } from "./agent-card.js";
+export type {
+  A2aProtocolError,
+  A2aProtocolGateOptions,
+  A2aProtocolGateResult,
+  A2aSubmissionRequest
+} from "./a2a.js";
 export type {
   AcceptedSubmission,
   IdempotencyValidationClaim,
