@@ -289,7 +289,7 @@ export async function readHostedRequestBody(input: Readable, options: {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function isContentLengthOverLimit(
+export function isContentLengthOverLimit(
   headers: IncomingHttpHeaders,
   maxRequestBodyBytes: number
 ): boolean {
@@ -298,8 +298,8 @@ function isContentLengthOverLimit(
     return false;
   }
 
-  const contentLength = Number.parseInt(rawContentLength, 10);
-  return Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes;
+  const contentLength = parseStrictPositiveInteger(rawContentLength);
+  return contentLength !== undefined && contentLength > maxRequestBodyBytes;
 }
 
 function isHostedRequestBodyTooLargeError(error: unknown): error is HostedRequestBodyTooLargeError {

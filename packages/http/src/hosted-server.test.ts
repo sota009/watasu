@@ -6,6 +6,7 @@ import {
   loadHostedPublicBaseUrlConfig,
   loadHostedPostgresRuntimeConfig,
   loadHostedRuntimeConfig,
+  isContentLengthOverLimit,
   readHostedRequestBody,
   withHostedSecurityHeaders,
   type HostedProductionRequest
@@ -217,5 +218,13 @@ describe("hosted production server runtime", () => {
     })).rejects.toMatchObject({
       code: "request_body_too_large"
     });
+  });
+
+  test("test_content_length_limit_ignores_partial_numeric_header", () => {
+    const overLimit = isContentLengthOverLimit({
+      "content-length": "5x"
+    }, 4);
+
+    expect(overLimit).toBe(false);
   });
 });
