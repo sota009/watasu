@@ -20,9 +20,9 @@ async function createJwkPair() {
   };
 }
 
-function replaceLastBase64UrlCharacter(value: string): string {
-  const replacement = value.endsWith("A") ? "B" : "A";
-  return `${value.slice(0, -1)}${replacement}`;
+function replaceFirstBase64UrlCharacter(value: string): string {
+  const replacement = value.startsWith("A") ? "B" : "A";
+  return `${replacement}${value.slice(1)}`;
 }
 
 describe("JWE JSON payload encryption", () => {
@@ -124,7 +124,7 @@ describe("JWE JSON payload encryption", () => {
     });
     const tampered: WatasuFlattenedJwe = {
       ...encrypted,
-      ciphertext: replaceLastBase64UrlCharacter(encrypted.ciphertext)
+      ciphertext: replaceFirstBase64UrlCharacter(encrypted.ciphertext)
     };
 
     await expect(decryptJsonPayload({
