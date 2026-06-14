@@ -261,7 +261,7 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
-Status: done for the core/local hardening helpers, local JSONL metadata store, hosted retention job runner, and local HTTP demo hook wiring.
+Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, hosted retention job runner, and local HTTP demo hook wiring.
 
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 
@@ -269,6 +269,7 @@ Implementation:
 
 - Add retention job for optional ledger metadata, consent receipt metadata, rate limit events, and abuse logs.
 - Add metadata-only persistent store for local/single-node validation.
+- Add PostgreSQL-compatible metadata adapter using parameterized queries.
 - Add hosted retention job runner gated by auditor role.
 - Add request-level and tenant-level delivery concurrency caps.
 - Add short-lived circuit breaker for repeated webhook failures.
@@ -319,7 +320,7 @@ Done when:
 | Verified sender or private invite intake | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface | Hosted PostgreSQL-compatible store and scheduler |
-| Retention-backed hosted metadata ledger | Partial core/local JSONL and hosted job runner | Hosted PostgreSQL-compatible store |
+| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, and hosted job runner | Hosted DB provisioning and migrations |
 
 ## Positioning boundaries
 

@@ -47,6 +47,7 @@ export {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  PostgresDeliveryLedgerStore,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
@@ -136,6 +137,7 @@ export type {
   MetadataLedgerReadResult,
   MetadataLedgerRetentionResult,
   PersistentDeliveryLedgerStore,
+  PostgresQueryClient,
   RetentionDeliveryLedgerStore,
   StoragePolicy,
   StoragePolicyMode

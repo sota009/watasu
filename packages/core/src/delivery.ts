@@ -39,7 +39,7 @@ export type FetchDeliveryClientFetch = (
 }>;
 
 export interface DeliveryLedger {
-  writeDeliveryAttempt(row: DeliveryLedgerRow): void;
+  writeDeliveryAttempt(row: DeliveryLedgerRow): void | Promise<void>;
 }
 
 export interface DeliveryLogger {
@@ -297,7 +297,7 @@ export async function deliverAcceptedSubmission(input: {
       undefined,
       "delivery_concurrency_limited"
     );
-    input.ledger.writeDeliveryAttempt(ledgerRow);
+    await input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     return resubmitLater(
       "delivery_concurrency_limited",
@@ -314,7 +314,7 @@ export async function deliverAcceptedSubmission(input: {
       undefined,
       "webhook_circuit_open"
     );
-    input.ledger.writeDeliveryAttempt(ledgerRow);
+    await input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     concurrencyClaim?.release();
     return resubmitLater("webhook_circuit_open", "Webhook delivery circuit is open.", ledgerRow);
@@ -337,7 +337,7 @@ export async function deliverAcceptedSubmission(input: {
 
     if (response.status >= 200 && response.status < 300) {
       const ledgerRow = createLedgerRow(input, deliveredAt, "delivered", response.status);
-      input.ledger.writeDeliveryAttempt(ledgerRow);
+      await input.ledger.writeDeliveryAttempt(ledgerRow);
       writeDeliveryLog(input.logger, ledgerRow);
       input.circuitBreaker?.recordSuccess(circuitBreakerKey);
       concurrencyClaim?.release();
@@ -355,7 +355,7 @@ export async function deliverAcceptedSubmission(input: {
       response.status,
       "webhook_delivery_failed"
     );
-    input.ledger.writeDeliveryAttempt(ledgerRow);
+    await input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     input.circuitBreaker?.recordFailure(circuitBreakerKey);
     concurrencyClaim?.release();
@@ -374,7 +374,7 @@ export async function deliverAcceptedSubmission(input: {
       undefined,
       errorCode
     );
-    input.ledger.writeDeliveryAttempt(ledgerRow);
+    await input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     input.circuitBreaker?.recordFailure(circuitBreakerKey);
     concurrencyClaim?.release();

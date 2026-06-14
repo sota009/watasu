@@ -8,6 +8,7 @@ import {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  PostgresDeliveryLedgerStore,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
@@ -40,7 +41,7 @@ function createMemoryLedger(): DeliveryLedger & { rows: DeliveryLedgerRow[] } {
 }
 
 describe("storage policy controlled delivery ledger", () => {
-  test("test_default_hosted_mode_does_not_persist_delivery_metadata", () => {
+  test("test_default_hosted_mode_does_not_persist_delivery_metadata", async () => {
     const operationalLedger = createMemoryLedger();
     const persistentStore = createMemoryLedger();
     const ledger = createPolicyControlledDeliveryLedger({
@@ -51,13 +52,13 @@ describe("storage policy controlled delivery ledger", () => {
       persistentStore
     });
 
-    ledger.writeDeliveryAttempt(createLedgerRow());
+    await ledger.writeDeliveryAttempt(createLedgerRow());
 
     expect(operationalLedger.rows).toHaveLength(1);
     expect(persistentStore.rows).toHaveLength(0);
   });
 
-  test("test_optional_metadata_ledger_persists_delivery_metadata", () => {
+  test("test_optional_metadata_ledger_persists_delivery_metadata", async () => {
     const operationalLedger = createMemoryLedger();
     const persistentStore = createMemoryLedger();
     const row = createLedgerRow();
@@ -69,7 +70,7 @@ describe("storage policy controlled delivery ledger", () => {
       persistentStore
     });
 
-    ledger.writeDeliveryAttempt(row);
+    await ledger.writeDeliveryAttempt(row);
 
     expect(persistentStore.rows).toEqual([row]);
   });
@@ -409,5 +410,78 @@ describe("storage policy controlled delivery ledger", () => {
         force: true
       });
     }
+  });
+
+  test("test_postgres_delivery_ledger_store_writes_parameterized_metadata_only_row", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = new PostgresDeliveryLedgerStore({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+    const rowWithUnexpectedPayload = {
+      ...createLedgerRow(),
+      encrypted_payload: {
+        ciphertext: "base64url-ciphertext"
+      }
+    } as DeliveryLedgerRow;
+
+    await store.writeDeliveryAttempt(rowWithUnexpectedPayload);
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain("insert into watasu_delivery_ledger");
+    expect(queries[0]?.text).toContain("$1");
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+    expect(JSON.stringify(queries)).not.toContain("base64url-ciphertext");
+    expect(queries[0]?.values).toEqual([
+      "event-attendee-intake",
+      "v1",
+      "submit-001",
+      "2026-06-14T11:59:00.000Z",
+      "2026-06-14T12:00:00.000Z",
+      "delivered",
+      createLedgerRow().destination_url_hash,
+      createLedgerRow().encrypted_payload_hash,
+      204,
+      null
+    ]);
+  });
+
+  test("test_policy_controlled_ledger_awaits_async_persistent_store", async () => {
+    const writes: string[] = [];
+    const ledger = createPolicyControlledDeliveryLedger({
+      policy: {
+        mode: "metadata_ledger_enabled"
+      },
+      operationalLedger: {
+        writeDeliveryAttempt(row) {
+          writes.push(`operational:${row.idempotency_key}`);
+        }
+      },
+      persistentStore: {
+        async writeDeliveryAttempt(row) {
+          await Promise.resolve();
+          writes.push(`persistent:${row.idempotency_key}`);
+        }
+      }
+    });
+
+    await ledger.writeDeliveryAttempt(createLedgerRow());
+
+    expect(writes).toEqual([
+      "operational:submit-001",
+      "persistent:submit-001"
+    ]);
   });
 });
