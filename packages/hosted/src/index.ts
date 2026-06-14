@@ -198,12 +198,21 @@ function parsePositiveIntegerEnv(value: string | undefined, input: {
     return input.defaultValue;
   }
 
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const parsed = parseStrictPositiveInteger(value);
+  if (parsed === undefined) {
     throw new Error(`${input.name} must be a positive integer.`);
   }
 
   return parsed;
+}
+
+function parseStrictPositiveInteger(value: string): number | undefined {
+  if (!/^[0-9]+$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export function createNodePostgresPoolConfig(input: Extract<

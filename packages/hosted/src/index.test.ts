@@ -64,6 +64,16 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
   });
 
+  test("test_identity_provider_config_rejects_partial_numeric_max_skew", () => {
+    expect(() =>
+      loadHostedIdentityProviderConfig({
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS: "60x"
+      })
+    ).toThrow("WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS must be a positive integer.");
+  });
+
   test("test_retention_job_config_reads_tenant_and_days", () => {
     const config = loadHostedRetentionJobConfig({
       WATASU_RETENTION_TENANT_ID: "tenant-a",
@@ -78,6 +88,15 @@ describe("hosted production runtime package", () => {
 
   test("test_retention_job_config_requires_tenant", () => {
     expect(() => loadHostedRetentionJobConfig({})).toThrow("WATASU_RETENTION_TENANT_ID is required.");
+  });
+
+  test("test_retention_job_config_rejects_partial_numeric_days", () => {
+    expect(() =>
+      loadHostedRetentionJobConfig({
+        WATASU_RETENTION_TENANT_ID: "tenant-a",
+        WATASU_METADATA_RETENTION_DAYS: "14x"
+      })
+    ).toThrow("WATASU_METADATA_RETENTION_DAYS must be a positive integer.");
   });
 
   test("test_signed_header_identity_provider_from_env_resolves_principal", () => {

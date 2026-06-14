@@ -41,6 +41,14 @@ describe("hosted production server runtime", () => {
     ).toThrow("WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
   });
 
+  test("test_load_hosted_runtime_config_rejects_partial_numeric_port", () => {
+    expect(() =>
+      loadHostedRuntimeConfig({
+        PORT: "10000abc"
+      })
+    ).toThrow("PORT or WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
+  });
+
   test("test_load_hosted_public_base_url_config_normalizes_https_url", () => {
     const config = loadHostedPublicBaseUrlConfig({
       WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai/"
@@ -107,6 +115,16 @@ describe("hosted production server runtime", () => {
       ssl: "require",
       runMigrations: false
     });
+  });
+
+  test("test_load_hosted_postgres_runtime_config_rejects_partial_numeric_pool_max", () => {
+    expect(() =>
+      loadHostedPostgresRuntimeConfig({
+        WATASU_METADATA_LEDGER_STORE: "postgres",
+        WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+        WATASU_POSTGRES_POOL_MAX: "7x"
+      })
+    ).toThrow("WATASU_POSTGRES_POOL_MAX must be a positive integer.");
   });
 
   test("test_create_hosted_production_server_returns_node_http_server", () => {

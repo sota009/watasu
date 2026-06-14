@@ -36,9 +36,9 @@ export type HostedPostgresRuntimeConfig =
 export function loadHostedRuntimeConfig(env: Record<string, string | undefined>): HostedRuntimeConfig {
   const host = env["WATASU_HOSTED_HOST"] ?? "0.0.0.0";
   const portSource = env["PORT"] ?? env["WATASU_HOSTED_PORT"] ?? "8787";
-  const port = Number.parseInt(portSource, 10);
+  const port = parseStrictPositiveInteger(portSource);
 
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+  if (port === undefined || port > 65535) {
     throw new Error("PORT or WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
   }
 
@@ -191,12 +191,21 @@ function parsePositiveIntegerEnv(value: string | undefined, input: {
     return input.defaultValue;
   }
 
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const parsed = parseStrictPositiveInteger(value);
+  if (parsed === undefined) {
     throw new Error(`${input.name} must be a positive integer.`);
   }
 
   return parsed;
+}
+
+function parseStrictPositiveInteger(value: string): number | undefined {
+  if (!/^[0-9]+$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseBooleanEnv(value: string | undefined, input: {
