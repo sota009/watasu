@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "bin": {
-    "watasu": "./src/bin.ts"
+    "watasu": "./dist/bin.js"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/index.js"
   },
   "scripts": {
-    "watasu": "node src/bin.ts",
+    "watasu": "pnpm --dir ../.. typecheck && node dist/bin.js",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },

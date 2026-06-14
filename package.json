@@ -11,7 +11,7 @@
     "lint": "node scripts/secret-scan.mjs --repo",
     "pr:draft": "node scripts/create-draft-pr.mjs",
     "review:self": "node scripts/gstack-review-preflight.mjs",
-    "test": "vitest run",
+    "test": "pnpm typecheck && vitest run",
     "typecheck": "tsc -b packages/core packages/cli packages/fixtures"
   },
   "devDependencies": {

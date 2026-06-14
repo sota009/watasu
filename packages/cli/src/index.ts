@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 import {
   buildAgentCard,
   createRequestVersionHashes,
@@ -142,21 +143,42 @@ async function loadValidatedDefinition(file: string): Promise<
 async function readRequestFile(
   file: string
 ): Promise<{ ok: true; contents: string } | { ok: false; error: RequestDefinitionError }> {
-  try {
-    return {
-      ok: true,
-      contents: await readFile(file, "utf8")
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: {
-        code: "request_file_unreadable",
-        path: "$.file",
-        message: error instanceof Error ? error.message : "Request definition file is unreadable."
-      }
-    };
+  let lastError: unknown;
+
+  for (const candidate of requestFileCandidates(file)) {
+    try {
+      return {
+        ok: true,
+        contents: await readFile(candidate, "utf8")
+      };
+    } catch (error) {
+      lastError = error;
+    }
   }
+
+  return {
+    ok: false,
+    error: {
+      code: "request_file_unreadable",
+      path: "$.file",
+      message:
+        lastError instanceof Error ? lastError.message : "Request definition file is unreadable."
+    }
+  };
+}
+
+function requestFileCandidates(file: string): string[] {
+  if (isAbsolute(file)) {
+    return [file];
+  }
+
+  const candidates = [resolve(file)];
+  const initialCwd = process.env.INIT_CWD;
+  if (initialCwd !== undefined && initialCwd !== process.cwd()) {
+    candidates.push(resolve(initialCwd, file));
+  }
+
+  return candidates;
 }
 
 function publishFileDefinition(definition: RequestDefinition, confirmed: boolean): CliResult {
