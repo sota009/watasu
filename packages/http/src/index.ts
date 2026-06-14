@@ -41,6 +41,8 @@ export type {
   HostedProductionRequest,
   HostedProductionResponse
 } from "./hosted-production.js";
+export { createHostedProductionBootstrapApp } from "./hosted-bootstrap.js";
+export type { CreateHostedProductionBootstrapAppInput } from "./hosted-bootstrap.js";
 export {
   buildHostedProductionRequest,
   createHostedProductionServer,

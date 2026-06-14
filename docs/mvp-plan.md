@@ -314,11 +314,11 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial hosted HTTP surface and server runtime | Production bootstrap with real identity, ownership, and database wiring |
-| Contractor or B2B onboarding | Partial hosted HTTP surface and server runtime | Production bootstrap with real identity, ownership, and database wiring |
-| QR or email private handoff | Partial hosted HTTP surface and server runtime | Production bootstrap with real identity, ownership, and database wiring |
-| Leaked capability URL recovery | Partial hosted HTTP surface and server runtime | Production bootstrap with real identity, ownership, and database wiring |
-| Verified sender or private invite intake | Partial hosted HTTP surface and server runtime | Production bootstrap with real identity, ownership, and database wiring |
+| Recruiting intake | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
+| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
+| QR or email private handoff | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
+| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
+| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
 | Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, and hosted job runner | Hosted DB provisioning and migration runner wiring |

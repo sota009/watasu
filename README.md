@@ -161,6 +161,7 @@ Currently implemented:
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
+- hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
@@ -180,7 +181,7 @@ Currently implemented:
 
 Still remaining for Hosted Production MVP:
 
-- production hosted app bootstrap with real identity, ownership, and database wiring
+- production hosted runtime wiring for real deployment identity provider, database pool, and migration runner
 - PostgreSQL provisioning and migration runner wiring for hosted metadata stores
 - production MCP transport authentication and deployment wiring
 - KMS/HSM-backed service private key custody beyond verified public-key registry
