@@ -8,6 +8,7 @@ const trustProfiles = [
   "private_invite",
   "local_demo"
 ] as const;
+const privateJwkMembers = new Set(["d", "p", "q", "dp", "dq", "qi", "oth", "k"]);
 
 export type Sensitivity = (typeof sensitivityLevels)[number];
 export type TrustProfile = (typeof trustProfiles)[number];
@@ -279,6 +280,16 @@ function validatePolicy(
       path: "trust_profile",
       message: "public_capability cannot be used with high sensitivity fields."
     });
+  }
+
+  for (const key of Object.keys(normalizedDefinition.encryption.public_key_jwk)) {
+    if (privateJwkMembers.has(key)) {
+      errors.push({
+        code: "private_jwk_material",
+        path: `encryption.public_key_jwk.${key}`,
+        message: "public_key_jwk must not include private JWK material."
+      });
+    }
   }
 
   const overrides = originalDefinition.human_overrides ?? [];

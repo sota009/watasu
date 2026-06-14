@@ -326,7 +326,7 @@ Done when:
 | QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
 | Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
 | Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, and signed identity provider wiring | Managed DB pool deployment |
-| Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
+| Hosted high-sensitivity intake | Partial hosted HTTP surface and private JWK rejection | Service-side KMS/HSM operations outside watasu |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
 | Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, and hosted job runner | Hosted DB infrastructure provisioning |
 

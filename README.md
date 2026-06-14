@@ -149,6 +149,7 @@ Currently implemented:
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
+- request definition validation rejects private JWK material so service key custody stays outside watasu
 - ES256 and Ed25519 EdDSA detached JWS sender signature verification for registered sender keys
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
@@ -191,7 +192,6 @@ Still remaining for Hosted Production MVP:
 
 - PostgreSQL infrastructure provisioning for hosted metadata stores
 - production MCP HTTP transport entrypoint on the selected deployment platform
-- KMS/HSM-backed service private key custody beyond verified public-key registry
 
 Not in scope for the MVP:
 
