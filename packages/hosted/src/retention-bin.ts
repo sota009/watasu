@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+  formatHostedCommandError,
   parseHostedRetentionArgs,
   runHostedPostgresRetentionJobFromEnv
 } from "./index.js";
@@ -12,10 +13,16 @@ try {
   process.exit(1);
 }
 
-const result = await runHostedPostgresRetentionJobFromEnv({
-  dryRun: args.dryRun,
-  env: process.env,
-  now: () => new Date()
-});
+let result;
+try {
+  result = await runHostedPostgresRetentionJobFromEnv({
+    dryRun: args.dryRun,
+    env: process.env,
+    now: () => new Date()
+  });
+} catch (error) {
+  console.error(formatHostedCommandError(error, "Hosted retention command failed."));
+  process.exit(1);
+}
 
 process.stdout.write(`${JSON.stringify(result)}\n`);

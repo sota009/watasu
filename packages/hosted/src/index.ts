@@ -149,6 +149,19 @@ export function parseHostedRetentionArgs(argv: readonly string[]): HostedRetenti
   throw new Error("Usage: pnpm --filter @watasu/hosted retention -- [--dry-run]");
 }
 
+export function formatHostedCommandError(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof Error)) {
+    return fallbackMessage;
+  }
+
+  const message = error.message;
+  if (/^(PORT|WATASU_[A-Z0-9_]+|Usage: )/.test(message)) {
+    return message;
+  }
+
+  return fallbackMessage;
+}
+
 export function createHostedProductionServerFromEnv(input: {
   env: Record<string, string | undefined>;
   now: () => Date;

@@ -228,6 +228,7 @@ Currently implemented:
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
 - hosted production binary through `@watasu/hosted`
+- low-information hosted command errors for startup and retention failures
 - hosted signed service identity header resolver for deployment identity provider boundaries
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings

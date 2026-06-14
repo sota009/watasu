@@ -6,6 +6,7 @@ import {
   createHostedPostgresLedgerStoreFromEnv,
   createNodePostgresPoolConfig,
   createPostgresPoolQueryClient,
+  formatHostedCommandError,
   loadHostedRetentionJobConfig,
   loadHostedIdentityProviderConfig,
   parseHostedRetentionArgs
@@ -113,6 +114,24 @@ describe("hosted production runtime package", () => {
     expect(() => parseHostedRetentionArgs(["node", "retention-bin.js", "--delete-now"])).toThrow(
       "Usage: pnpm --filter @watasu/hosted retention -- [--dry-run]"
     );
+  });
+
+  test("test_format_hosted_command_error_preserves_operator_actionable_config_errors", () => {
+    expect(formatHostedCommandError(
+      new Error("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres."),
+      "Hosted retention command failed."
+    )).toBe("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
+  });
+
+  test("test_format_hosted_command_error_hides_untrusted_error_details", () => {
+    const message = formatHostedCommandError(
+      new Error("connect failed for postgres://user:password@db.example.com/watasu"),
+      "Hosted retention command failed."
+    );
+
+    expect(message).toBe("Hosted retention command failed.");
+    expect(message).not.toContain("postgres://");
+    expect(message).not.toContain("password");
   });
 
   test("test_signed_header_identity_provider_from_env_resolves_principal", () => {
