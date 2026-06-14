@@ -121,7 +121,7 @@ Current repo-side status:
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
-- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, URL-credential rejection, checked-origin evidence, unpublished Agent Card / submit routes, hosted MCP authentication challenge checks, and MCP protected-resource metadata checks. Local loopback HTTP remains allowed for smoke tests.
+- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, URL-credential rejection, checked-origin evidence, root low-information 404, unpublished Agent Card / submit routes, hosted MCP authentication challenge checks, and MCP protected-resource metadata checks. Local loopback HTTP remains allowed for smoke tests.
 - Done: hosted runtime validates `WATASU_PUBLIC_BASE_URL` at startup and the Render Blueprint pins it to `https://api.watasu.ai`.
 - Done: hosted production exposes request-specific Agent Card JSON for published request versions at `/requests/{request_id}/agent-card.json`.
 - Done: hosted production exposes request-specific plaintext and encrypted envelope schemas for published request versions at `/requests/{request_id}/schemas/*.json`.
@@ -166,7 +166,7 @@ Owner checklist for the first production cutover:
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
-[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, and `checked_timeout_ms`.
+[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, and `checked_timeout_ms`.
 [ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```

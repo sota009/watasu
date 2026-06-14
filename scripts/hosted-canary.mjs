@@ -66,6 +66,18 @@ if (leakedFragment !== undefined) {
   process.exit(1);
 }
 
+await assertNotFoundRoute({
+  label: "Root route",
+  url: urls.root,
+  init: {
+    method: "GET",
+    headers: {
+      accept: "application/json"
+    },
+    redirect: "manual"
+  }
+});
+
 await assertUnpublishedRoute({
   label: "Agent Card route",
   url: urls.unpublishedAgentCard,

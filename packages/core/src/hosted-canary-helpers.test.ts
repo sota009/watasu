@@ -161,6 +161,7 @@ describe("hosted canary helpers", () => {
 
     expect(urls).toEqual({
       health: "https://api.watasu.ai/health",
+      root: "https://api.watasu.ai/",
       unpublishedAgentCard: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
       unpublishedPlaintextSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/plaintext.json`,
       unpublishedEnvelopeSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
@@ -200,6 +201,10 @@ describe("hosted canary helpers", () => {
           allowed_methods: ["GET"],
           rejected_methods: ["POST"]
         }
+      ],
+      checked_not_found_routes: [
+        "https://api.watasu.ai/",
+        "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
       ],
       checked_headers: [
         "cache-control",

@@ -12,6 +12,7 @@ export const maxHostedCanaryTimeoutMs = 60_000;
 export function buildHostedCanaryCheckUrls(baseUrl) {
   return {
     health: new URL("/health", baseUrl).toString(),
+    root: new URL("/", baseUrl).toString(),
     unpublishedAgentCard: new URL(
       `/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,
       baseUrl
@@ -61,6 +62,10 @@ export function buildHostedCanarySuccessReport(input) {
         allowed_methods: ["GET"],
         rejected_methods: ["POST"]
       }
+    ],
+    checked_not_found_routes: [
+      input.urls.root,
+      input.urls.unsafeEncodedRequestId
     ],
     checked_headers: Object.keys(hostedCanaryRequiredHeaders),
     checked_timeout_ms: input.timeoutMs,

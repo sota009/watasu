@@ -5,6 +5,7 @@ export const maxHostedCanaryTimeoutMs: number;
 
 export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   health: string;
+  root: string;
   unpublishedAgentCard: string;
   unpublishedPlaintextSchema: string;
   unpublishedEnvelopeSchema: string;
@@ -30,6 +31,7 @@ export function buildHostedCanarySuccessReport(input: {
     allowed_methods: string[];
     rejected_methods: string[];
   }>;
+  checked_not_found_routes: string[];
   checked_headers: string[];
   checked_timeout_ms: number;
   status: number;
