@@ -142,6 +142,34 @@ trust_profile: public_capability
     });
   });
 
+  test("test_private_jwk_material_is_rejected", () => {
+    const request = validRequest({
+      encryption: {
+        mode: "required",
+        algorithm: "JWE",
+        key_management: "ECDH-ES+A256KW",
+        content_encryption: "A256GCM",
+        service_key_id: "jwk-thumbprint:sha256:example",
+        public_key_jwk: {
+          ...publicKeyJwk,
+          d: "private-key-material"
+        }
+      }
+    });
+
+    const result = validateRequestDefinitionInput(JSON.stringify(request));
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [
+        {
+          code: "private_jwk_material",
+          path: "encryption.public_key_jwk.d"
+        }
+      ]
+    });
+  });
+
   test("test_public_capability_with_high_sensitivity_field_is_rejected", () => {
     const request = validRequest({
       fields: [
