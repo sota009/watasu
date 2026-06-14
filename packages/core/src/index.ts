@@ -30,6 +30,7 @@ export {
   createIdempotencyClaimKey,
   validateSubmissionEnvelope
 } from "./submission.js";
+export { deliverAcceptedSubmission } from "./delivery.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -68,3 +69,11 @@ export type {
   SubmissionValidationResult,
   TrustedInviteBinding
 } from "./submission.js";
+export type {
+  DeliveryClient,
+  DeliveryLedger,
+  DeliveryLedgerRow,
+  DeliveryRequest,
+  DeliveryResponse,
+  DeliveryResult
+} from "./delivery.js";
