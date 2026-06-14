@@ -124,6 +124,7 @@ describe("workspace foundation", () => {
       "cutover:plan": "node scripts/production-cutover-plan.mjs",
       "cutover:prepare": "node scripts/production-cutover-prepare.mjs",
       "cutover:retention": "node scripts/production-cutover-retention.mjs",
+      "cutover:status": "node scripts/production-cutover-status.mjs",
       "cutover:verify": "node scripts/production-cutover-verify.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
@@ -568,6 +569,102 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
+  test("test_production_cutover_status_reports_missing_evidence_and_next_commands", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-status-"));
+    writeFileSync(join(evidenceDir, "cutover-head.txt"), `${expectedCutoverHeadSha}\n`);
+    writeFileSync(join(evidenceDir, "preflight.json"), JSON.stringify({
+      ok: true
+    }));
+    writeFileSync(join(evidenceDir, "smoke.json"), JSON.stringify({
+      ok: true
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:status",
+      "--dir",
+      evidenceDir
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      ready_for_verify: boolean;
+      present_evidence: string[];
+      missing_evidence: string[];
+      next_commands: string[];
+      remaining_external_actions: string[];
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      ready_for_verify: false,
+      present_evidence: ["cutover-head", "preflight", "smoke"],
+      missing_evidence: ["ci", "canary", "retention"],
+      next_commands: [
+        "pnpm --silent cutover:ci",
+        "pnpm --silent cutover:canary",
+        "pnpm --silent cutover:retention"
+      ]
+    });
+    expect(report.remaining_external_actions).toContain("Verify api.watasu.ai DNS and TLS in Render.");
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+  });
+
+  test("test_production_cutover_status_reports_prepare_first_without_local_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-status-"));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:status",
+      "--dir",
+      evidenceDir
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      ready_for_verify: false,
+      present_evidence: [],
+      missing_evidence: ["cutover-head", "preflight", "smoke", "ci", "canary", "retention"],
+      next_commands: ["pnpm --silent cutover:prepare"]
+    });
+  });
+
+  test("test_production_cutover_status_reports_ready_when_all_evidence_exists", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-status-"));
+    for (const name of ["cutover-head.txt", "preflight.json", "smoke.json", "ci.json", "canary.json", "retention.json"]) {
+      writeFileSync(join(evidenceDir, name), name === "cutover-head.txt" ? `${expectedCutoverHeadSha}\n` : "{\"ok\":true}\n");
+    }
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:status",
+      "--dir",
+      evidenceDir
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      ready_for_verify: true,
+      missing_evidence: [],
+      next_commands: ["pnpm --silent cutover:verify"],
+      remaining_external_actions: []
+    });
+  });
+
   test("test_cutover_evidence_directory_is_gitignored", () => {
     const gitignore = readText(".gitignore");
 
@@ -580,6 +677,7 @@ describe("workspace foundation", () => {
     expect(japaneseReadme).toContain("pnpm --silent deploy:preflight");
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
     expect(japaneseReadme).toContain("pnpm --silent cutover:prepare");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:status");
     expect(japaneseReadme).toContain("pnpm --silent cutover:canary");
     expect(japaneseReadme).toContain("pnpm --silent cutover:retention");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
@@ -652,30 +750,31 @@ describe("workspace foundation", () => {
   });
 
   test("test_production_cutover_verify_uses_default_evidence_directory", () => {
-    const evidenceDir = new URL("cutover-evidence/", rootDir);
+    const runDir = mkdtempSync(join(tmpdir(), "watasu-cutover-default-"));
+    const evidenceDir = join(runDir, "cutover-evidence");
     mkdirSync(evidenceDir, { recursive: true });
-    writeFileSync(new URL("cutover-head.txt", evidenceDir), `${expectedCutoverHeadSha}\n`);
-    writeFileSync(new URL("preflight.json", evidenceDir), JSON.stringify({
+    writeFileSync(join(evidenceDir, "cutover-head.txt"), `${expectedCutoverHeadSha}\n`);
+    writeFileSync(join(evidenceDir, "preflight.json"), JSON.stringify({
       ok: true,
       checked_domain: "api.watasu.ai",
       checked_secret_command: "pnpm --silent secret:identity --plain"
     }));
-    writeFileSync(new URL("smoke.json", evidenceDir), JSON.stringify({
+    writeFileSync(join(evidenceDir, "smoke.json"), JSON.stringify({
       ok: true,
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(new URL("canary.json", evidenceDir), JSON.stringify(buildCutoverCanaryEvidence()));
-    writeFileSync(new URL("retention.json", evidenceDir), JSON.stringify(buildCutoverRetentionEvidence()));
-    writeFileSync(new URL("ci.json", evidenceDir), JSON.stringify({
+    writeFileSync(join(evidenceDir, "canary.json"), JSON.stringify(buildCutoverCanaryEvidence()));
+    writeFileSync(join(evidenceDir, "retention.json"), JSON.stringify(buildCutoverRetentionEvidence()));
+    writeFileSync(join(evidenceDir, "ci.json"), JSON.stringify({
       workflowName: "ci",
       status: "completed",
       conclusion: "success",
       headSha: expectedCutoverHeadSha
     }));
 
-    const result = spawnSync("pnpm", ["--silent", "cutover:verify"], {
-      cwd: rootDir,
+    const result = spawnSync(process.execPath, [new URL("scripts/production-cutover-verify.mjs", rootDir).pathname], {
+      cwd: runDir,
       encoding: "utf8"
     });
 

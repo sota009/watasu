@@ -132,6 +132,7 @@ Current repo-side status:
 - Done: `pnpm --silent cutover:ci` records a completed successful GitHub Actions `ci` run that matches `cutover-evidence/cutover-head.txt`.
 - Done: `pnpm --silent cutover:canary` records the deployed hosted canary result under `cutover-evidence/canary.json` without saving payload or secret-like output.
 - Done: `pnpm --silent cutover:retention` records the hosted retention dry-run result under `cutover-evidence/retention.json` without saving payload or secret-like output.
+- Done: `pnpm --silent cutover:status` reports present evidence, missing evidence, next repo-side commands, and remaining external actions without printing payload or secret-like output.
 - Done: `pnpm --silent cutover:plan` reports before-Render commands, cutover evidence preparation, account-side actions, post-deploy checks, required evidence, and stop conditions as secret-safe JSON.
 - Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, retention, and CI-green JSON evidence from `cutover-evidence/` for the recorded cutover head before a private-alpha go decision.
 - Done: `pnpm --silent smoke:hosted` loads the compiled hosted runtime and verifies the low-information `/health` response without binding a network port.
@@ -144,7 +145,7 @@ Product owner actions:
 3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
 5. Run `pnpm --silent cutover:plan` to review the command order, required evidence, and stop conditions.
-6. Run `pnpm --silent cutover:prepare` before entering account-side values. Stop if it cannot record the exact cutover commit, deploy preflight, and hosted smoke evidence in the gitignored `cutover-evidence/` directory.
+6. Run `pnpm --silent cutover:prepare` before entering account-side values, then `pnpm --silent cutover:status`. Stop if it cannot record the exact cutover commit, deploy preflight, and hosted smoke evidence in the gitignored `cutover-evidence/` directory.
 7. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
 8. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
 9. Run `pnpm --silent cutover:ci`, `pnpm --silent cutover:canary`, `pnpm --silent cutover:retention`, then run `pnpm --silent cutover:verify`.
@@ -181,6 +182,7 @@ Owner checklist for the first production cutover:
 [x] Repo-side production cutover CI evidence command exists: `pnpm --silent cutover:ci`.
 [x] Repo-side production cutover canary evidence command exists: `pnpm --silent cutover:canary`.
 [x] Repo-side production cutover retention evidence command exists: `pnpm --silent cutover:retention`.
+[x] Repo-side production cutover status command exists: `pnpm --silent cutover:status`.
 [x] Repo-side production cutover verifier command exists: `pnpm --silent cutover:verify`.
 [x] Repo-side Render deploy preflight command exists: `pnpm --silent deploy:preflight`.
 [x] Repo-side hosted runtime smoke command exists: `pnpm --silent smoke:hosted`.

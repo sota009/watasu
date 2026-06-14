@@ -210,6 +210,12 @@ pnpm --silent cutover:prepare
 
 prepare command は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json` を書き出し、secret-like assignment output は保存しません。
 
+どの cutover evidence があり、何が足りず、次にどの repo-side command を打つべきか確認する場合:
+
+```bash
+pnpm --silent cutover:status
+```
+
 対応する GitHub Actions run が green になったら CI evidence を保存します:
 
 ```bash
