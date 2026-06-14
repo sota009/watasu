@@ -15,6 +15,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@watasu/core": "workspace:*"
+    "@watasu/core": "workspace:*",
+    "@watasu/fixtures": "workspace:*"
   }
 }

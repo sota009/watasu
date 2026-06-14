@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import {
+  buildSenderFixtureSubmission,
+  type SenderFixtureEncryptedPayload
+} from "@watasu/fixtures";
+import {
   buildAgentCard,
   canonicalizeJson,
   createRequestVersionHashes,
@@ -26,12 +30,20 @@ export interface CliResult {
   stderr: string;
 }
 
-type CommandName = "validate" | "publish" | "agent-card" | "schema" | "ledger" | "inspect-delivery";
+type CommandName =
+  | "validate"
+  | "publish"
+  | "agent-card"
+  | "schema"
+  | "ledger"
+  | "inspect-delivery"
+  | "submit-fixture";
 
 interface ParsedArgs {
   command: CommandName;
   file: string;
   confirm: boolean;
+  payloadFile?: string | undefined;
 }
 
 export async function runCli(argv: string[]): Promise<CliResult> {
@@ -63,6 +75,12 @@ export async function runCli(argv: string[]): Promise<CliResult> {
       return ledgerForFileDefinition(loaded.definition, parsed.value.confirm);
     case "inspect-delivery":
       return inspectDeliveryForFileDefinition(loaded.definition, parsed.value.confirm);
+    case "submit-fixture":
+      return submitFixtureForFileDefinition(
+        loaded.definition,
+        parsed.value.confirm,
+        parsed.value.payloadFile
+      );
   }
 }
 
@@ -78,13 +96,56 @@ function parseArgs(
         code: command === undefined ? "missing_command" : "unknown_command",
         path: "$.command",
         message:
-          "Command must be one of validate, publish, agent-card, schema, ledger, or inspect-delivery."
+          "Command must be one of validate, publish, agent-card, schema, ledger, inspect-delivery, or submit-fixture."
       }
     };
   }
 
-  const flags = args.filter((arg) => arg.startsWith("--"));
-  const files = args.filter((arg) => !arg.startsWith("--"));
+  const files: string[] = [];
+  let confirm = false;
+  let payloadFile: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--confirm") {
+      confirm = true;
+      continue;
+    }
+
+    if (arg === "--payload") {
+      const nextArg = args[index + 1];
+      if (nextArg === undefined || nextArg.startsWith("--")) {
+        return {
+          ok: false,
+          error: {
+            code: "missing_payload_file",
+            path: "$.payload",
+            message: "--payload requires a JSON payload file."
+          }
+        };
+      }
+
+      payloadFile = nextArg;
+      index += 1;
+      continue;
+    }
+
+    if (arg?.startsWith("--")) {
+      return {
+        ok: false,
+        error: {
+          code: "unknown_flag",
+          path: "$.flags",
+          message: `Unknown flag: ${arg}`
+        }
+      };
+    }
+
+    if (arg !== undefined) {
+      files.push(arg);
+    }
+  }
+
   const [file, extraFile] = files;
 
   if (file === undefined) {
@@ -109,14 +170,13 @@ function parseArgs(
     };
   }
 
-  const unknownFlag = flags.find((flag) => flag !== "--confirm");
-  if (unknownFlag !== undefined) {
+  if (payloadFile !== undefined && command !== "submit-fixture") {
     return {
       ok: false,
       error: {
         code: "unknown_flag",
         path: "$.flags",
-        message: `Unknown flag: ${unknownFlag}`
+        message: "--payload is only supported for submit-fixture."
       }
     };
   }
@@ -126,7 +186,8 @@ function parseArgs(
     value: {
       command,
       file,
-      confirm: flags.includes("--confirm")
+      confirm,
+      payloadFile
     }
   };
 }
@@ -326,7 +387,8 @@ function isCommand(command: string | undefined): command is CommandName {
     command === "agent-card" ||
     command === "schema" ||
     command === "ledger" ||
-    command === "inspect-delivery"
+    command === "inspect-delivery" ||
+    command === "submit-fixture"
   );
 }
 
@@ -458,5 +520,170 @@ async function runFixtureDelivery(
   return {
     ok: true,
     rows
+  };
+}
+
+async function submitFixtureForFileDefinition(
+  definition: RequestDefinition,
+  confirmed: boolean,
+  payloadFile: string | undefined
+): Promise<CliResult> {
+  if (payloadFile === undefined) {
+    return errorResult("submit-fixture", {
+      code: "missing_payload_file",
+      path: "$.payload",
+      message: "submit-fixture requires --payload <payload.json>."
+    });
+  }
+
+  const loadedPayload = await readPayloadFile(payloadFile);
+  if (!loadedPayload.ok) {
+    return errorResult("submit-fixture", loadedPayload.error);
+  }
+
+  const repository = new InMemoryRequestVersionRepository();
+  const publishResult = publishRequestVersion({
+    requestId: definition.name,
+    definition,
+    confirmed,
+    mode: "hosted",
+    repository
+  });
+
+  if (!publishResult.ok) {
+    return errorResult("submit-fixture", publishResult.error);
+  }
+
+  let fixtureSubmission;
+  try {
+    fixtureSubmission = buildSenderFixtureSubmission({
+      agentCard: buildAgentCard({
+        published: publishResult.published,
+        endpointUrl: "https://api.watasu.dev/a2a/fixture-submit"
+      }),
+      plaintextSchema: generatePlaintextPayloadSchema(definition),
+      payload: loadedPayload.payload,
+      idempotencyKey: "fixture-submit-001",
+      submittedAt: "2026-06-14T11:59:00.000Z",
+      encryptPayload: encryptFixturePayload
+    });
+  } catch (error) {
+    return errorResult("submit-fixture", {
+      code: "invalid_payload",
+      path: "$.payload",
+      message: error instanceof Error ? error.message : "Payload is invalid."
+    });
+  }
+
+  const envelope = fixtureSubmission.body.message.parts[0].data;
+  const rows: DeliveryLedgerRow[] = [];
+  const ledger: DeliveryLedger = {
+    writeDeliveryAttempt(row) {
+      rows.push(row);
+    }
+  };
+  const client: DeliveryClient = {
+    async post() {
+      return {
+        status: 204
+      };
+    }
+  };
+
+  const delivery = await deliverAcceptedSubmission({
+    mode: "hosted",
+    published: publishResult.published,
+    envelope,
+    submission: {
+      request_id: publishResult.published.request_id,
+      request_version: publishResult.published.request_version,
+      idempotency_key: envelope.idempotency_key,
+      submitted_at: envelope.submitted_at,
+      accepted_at: "2026-06-14T12:00:00.000Z",
+      capability_hash: sha256Hash("https://api.watasu.dev/capabilities/fixture")
+    },
+    client,
+    ledger,
+    clock: () => new Date("2026-06-14T12:00:01.000Z"),
+    signingSecret: "fixture-signing-secret"
+  });
+
+  if (!delivery.ok) {
+    return errorResult("submit-fixture", {
+      code: delivery.error.code,
+      path: "$.delivery",
+      message: delivery.error.message
+    });
+  }
+
+  return okResult({
+    ok: true,
+    command: "submit-fixture",
+    mode: "file_based_phase_8_wrapper",
+    delivery: delivery.ledger
+  });
+}
+
+async function readPayloadFile(
+  file: string
+): Promise<
+  | {
+      ok: true;
+      payload: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      error: RequestDefinitionError;
+    }
+> {
+  const fileContents = await readRequestFile(file);
+  if (!fileContents.ok) {
+    return {
+      ok: false,
+      error: {
+        code: "payload_file_unreadable",
+        path: "$.payload",
+        message: fileContents.error.message
+      }
+    };
+  }
+
+  try {
+    const payload = JSON.parse(fileContents.contents);
+    if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid_payload",
+          path: "$.payload",
+          message: "Payload file must contain a JSON object."
+        }
+      };
+    }
+
+    return {
+      ok: true,
+      payload: payload as Record<string, unknown>
+    };
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_payload_json",
+        path: "$.payload",
+        message: "Payload file must be valid JSON."
+      }
+    };
+  }
+}
+
+function encryptFixturePayload(input: { payload: Record<string, unknown> }): SenderFixtureEncryptedPayload {
+  const payloadHash = sha256Hash(canonicalizeJson(input.payload));
+
+  return {
+    protected: "base64url-protected",
+    iv: "base64url-iv",
+    ciphertext: `fixture-ciphertext-${payloadHash}`,
+    tag: "base64url-tag"
   };
 }

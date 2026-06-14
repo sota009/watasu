@@ -245,6 +245,82 @@ describe("watasu cli first slice", () => {
     expect(result.stdout).not.toContain("\"encrypted_payload\"");
   });
 
+  test("test_cli_submit_fixture_accepts_payload_file_and_outputs_delivery_metadata_only", async () => {
+    const payloadFile = writeTempFile(
+      JSON.stringify({
+        full_name: "Alice Example",
+        email: "alice@example.test"
+      })
+    );
+
+    const result = await runCli([
+      "submit-fixture",
+      fixtureFile,
+      "--payload",
+      payloadFile,
+      "--confirm"
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "submit-fixture",
+      delivery: {
+        request_id: "event-attendee-intake",
+        request_version: "v1",
+        idempotency_key: expect.any(String),
+        delivery_status: "delivered",
+        encrypted_payload_hash: expect.any(String)
+      }
+    });
+    expect(result.stdout).not.toContain("Alice Example");
+    expect(result.stdout).not.toContain("alice@example.test");
+    expect(result.stdout).not.toContain("\"encrypted_payload\"");
+    expect(result.stdout).not.toContain("\"ciphertext\"");
+  });
+
+  test("test_cli_submit_fixture_requires_payload_file", async () => {
+    const result = await runCli(["submit-fixture", fixtureFile, "--confirm"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(parseJsonLine(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit-fixture",
+      error: {
+        code: "missing_payload_file",
+        path: "$.payload"
+      }
+    });
+  });
+
+  test("test_cli_submit_fixture_rejects_payload_missing_required_field", async () => {
+    const payloadFile = writeTempFile(
+      JSON.stringify({
+        full_name: "Alice Example"
+      })
+    );
+
+    const result = await runCli([
+      "submit-fixture",
+      fixtureFile,
+      "--payload",
+      payloadFile,
+      "--confirm"
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(parseJsonLine(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit-fixture",
+      error: {
+        code: "invalid_payload",
+        path: "$.payload",
+        message: "Payload is missing required field: email"
+      }
+    });
+    expect(result.stderr).not.toContain("Alice Example");
+  });
+
   test("test_cli_errors_are_machine_readable", async () => {
     const result = await runCli(["unknown-command"]);
 

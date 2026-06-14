@@ -53,6 +53,13 @@ pnpm --filter @watasu/cli watasu ledger packages/fixtures/requests/event-attende
 pnpm --filter @watasu/cli watasu inspect-delivery packages/fixtures/requests/event-attendee.yaml --confirm
 ```
 
+To submit a local JSON payload through the sender fixture without printing payload values:
+
+```bash
+printf '{"full_name":"Alice Example","email":"alice@example.test"}' > /tmp/watasu-payload.json
+pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event-attendee.yaml --payload /tmp/watasu-payload.json --confirm
+```
+
 ## Local Demo
 
 Build first, then start the local HTTP demo:

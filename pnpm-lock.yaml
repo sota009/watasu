@@ -23,6 +23,9 @@ importers:
       '@watasu/core':
         specifier: workspace:*
         version: link:../core
+      '@watasu/fixtures':
+        specifier: workspace:*
+        version: link:../fixtures
 
   packages/core:
     dependencies:
