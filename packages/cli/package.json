@@ -1,0 +1,23 @@
+{
+  "name": "@watasu/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "watasu": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "watasu": "node dist/bin.js",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@watasu/core": "workspace:*"
+  }
+}
