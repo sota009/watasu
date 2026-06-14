@@ -64,6 +64,32 @@ Done when:
   - Security-sensitive changes include a threat-model note.
 ```
 
+## Natural Language Intake
+
+The user does not need to write the full template every time. When the user gives a natural-language request, Codex must translate it internally into the loop template before acting.
+
+Default translation rules:
+
+1. Infer `Goal` from the observable product or developer outcome the user wants.
+2. Infer `Context` by reading `AGENTS.md`, PRD/ERD when relevant, nearby source files, existing tests, and package scripts.
+3. Carry forward default `Constraints` from `AGENTS.md`, especially test protection, security-first review, dependency approval, and PRD/ERD separation.
+4. Set `Done when` to the narrowest meaningful acceptance behavior plus `pnpm loop`.
+5. If the request is broad, split it into the smallest loopable behavior and start with the highest-risk or most foundational behavior.
+
+Codex should proceed without asking when the next step is clear and low risk. Ask first when any of these are true:
+
+- The change would alter PRD, ERD, protocol semantics, storage policy, security posture, public API, or data retention.
+- The change requires a new dependency, MCP, GitHub Action, Docker image, deployment setting, secret, credential, or external account.
+- The request has multiple plausible product meanings with different user-visible outcomes.
+- The implementation might delete data, rewrite history, weaken tests, or make an irreversible external change.
+
+For broad instructions such as "make this work", "continue", "improve it", or "いい感じにやって", Codex should:
+
+1. Inspect the current repo state.
+2. Pick the next unfinished item from `docs/implementation-plan-tdd.md` or the failing verification output.
+3. Announce the inferred one-loop goal in one or two sentences.
+4. Execute the loop through tests, implementation, verification, review, and commit hygiene.
+
 ## Loop Rules
 
 - Start by reading `AGENTS.md`, `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and the files in the requested area.
