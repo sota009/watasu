@@ -146,6 +146,7 @@ Currently implemented:
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
+- delivery timeout classification that returns `resubmit_later` without retaining payload bodies
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist

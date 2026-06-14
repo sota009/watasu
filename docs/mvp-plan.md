@@ -257,6 +257,8 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
+Status: started; delivery timeout classification is covered.
+
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 
 Implementation:
