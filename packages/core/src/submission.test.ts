@@ -5,6 +5,7 @@ import { createRequestVersionHashes } from "./request-version.js";
 import { canonicalizeJson } from "./request-definition.js";
 import { sha256Hash } from "./hash.js";
 import {
+  InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
   validateSubmissionEnvelope,
@@ -332,6 +333,76 @@ describe("submission envelope validation", () => {
       status: "rejected",
       error: {
         code: "capability_revoked"
+      }
+    });
+  });
+
+  test("test_capability_registry_revokes_without_mutating_request_version", () => {
+    const published = createPublished();
+    const registry = new InMemoryCapabilityRegistry();
+    const capability = registry.issueCapability({
+      published,
+      url: "https://example.com/.well-known/watasu/cap/old"
+    });
+
+    registry.revokeCapability(capability);
+    const resolved = registry.resolveCapability(capability.url);
+
+    expect(resolved).toMatchObject({
+      url: capability.url,
+      revoked: true
+    });
+    expect(published.request_version).toBe("v1");
+  });
+
+  test("test_capability_registry_records_hash_without_full_url_token", () => {
+    const published = createPublished();
+    const registry = new InMemoryCapabilityRegistry();
+
+    registry.issueCapability({
+      published,
+      url: "https://example.com/.well-known/watasu/cap/high-entropy-secret-token"
+    });
+    const recordsJson = canonicalizeJson(registry.listRecords());
+
+    expect(recordsJson).toContain("capability_hash");
+    expect(recordsJson).not.toContain("high-entropy-secret-token");
+    expect(recordsJson).not.toContain(".well-known/watasu/cap");
+  });
+
+  test("test_rotated_capability_accepts_new_url_and_rejects_old_url", () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const registry = new InMemoryCapabilityRegistry();
+    const oldCapability = registry.issueCapability({
+      published,
+      url: "https://example.com/.well-known/watasu/cap/old"
+    });
+    const newCapability = registry.rotateCapability({
+      published,
+      previous: oldCapability,
+      url: "https://example.com/.well-known/watasu/cap/new"
+    });
+
+    const oldResult = validateSubmissionEnvelope(envelope, createContext(published, {
+      capability: registry.resolveCapability(oldCapability.url)
+    }));
+    const newResult = validateSubmissionEnvelope(envelope, createContext(published, {
+      capability: registry.resolveCapability(newCapability.url)
+    }));
+
+    expect(oldResult).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "capability_revoked"
+      }
+    });
+    expect(newResult).toMatchObject({
+      ok: true,
+      status: "accepted",
+      submission: {
+        request_version: "v1"
       }
     });
   });
