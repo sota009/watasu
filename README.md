@@ -163,6 +163,7 @@ Currently implemented:
 - hosted production HTTP app that composes publish and metadata routes
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
+- hosted signed service identity header resolver for deployment identity provider boundaries
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
 - in-memory sender key registration, revocation, and rotation lifecycle
@@ -183,7 +184,7 @@ Currently implemented:
 
 Still remaining for Hosted Production MVP:
 
-- production hosted runtime wiring for real deployment identity provider, database pool, and migration runner
+- production hosted runtime wiring for a selected deployment identity provider, database pool, and migration runner
 - PostgreSQL provisioning and database pool wiring for hosted metadata stores
 - production MCP deployment wiring
 - KMS/HSM-backed service private key custody beyond verified public-key registry
