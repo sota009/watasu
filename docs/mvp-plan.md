@@ -122,6 +122,8 @@ Done when:
 
 ### Phase 2: MCP publish and resources
 
+Status: done for the local in-memory MCP workspace.
+
 Goal: service-side agents can finish the local workflow through MCP, not only CLI.
 
 Implementation:
@@ -292,7 +294,7 @@ Done when:
 | Fixture-based A2A contract check | Yes | No |
 | CLI request validation and local publish | Yes | No |
 | MCP service-side validate only | Yes | No |
-| MCP validate and publish workflow | No | Phase 2 |
+| MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
 | Recruiting intake | Partial core checks only | Phases 4-5 |
 | Contractor or B2B onboarding | Partial core checks only | Phases 4-5 |
@@ -347,7 +349,7 @@ Avoid for MVP positioning:
 | tenant and role access control | Phase 5 |
 | retention | Phase 6 |
 | no payload custody | Local Protocol MVP, all hosted phases |
-| MCP publish and resources | Phase 2 |
+| MCP publish and resources | Local Protocol MVP |
 | reference sender and receiver | Local Protocol MVP |
 
 ## Manual review checkpoints
