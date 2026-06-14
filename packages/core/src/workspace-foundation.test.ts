@@ -69,6 +69,7 @@ describe("workspace foundation", () => {
 
     expect(packageJson.scripts).toMatchObject({
       "canary:hosted": "node scripts/hosted-canary.mjs",
+      "cutover:plan": "node scripts/production-cutover-plan.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
@@ -252,6 +253,49 @@ describe("workspace foundation", () => {
       }
     });
     expect(report.checked_url).toBe("http://127.0.0.1:1/health");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_production_cutover_plan_outputs_ordered_secret_safe_commands", () => {
+    const result = spawnSync("pnpm", ["--silent", "cutover:plan"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      target_origin: string;
+      before_render_commands: string[];
+      after_deploy_commands: string[];
+      external_actions: string[];
+      required_evidence: string[];
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      target_origin: "https://api.watasu.ai",
+      before_render_commands: [
+        "pnpm --silent deploy:preflight",
+        "pnpm --silent smoke:hosted",
+        "pnpm --silent secret:identity --plain"
+      ],
+      after_deploy_commands: [
+        "pnpm canary:hosted -- https://api.watasu.ai",
+        "pnpm --filter @watasu/hosted retention -- --dry-run"
+      ]
+    });
+    expect(report.external_actions).toContain("Verify api.watasu.ai DNS and TLS in Render.");
+    expect(report.required_evidence).toEqual([
+      "deploy:preflight ok=true",
+      "smoke:hosted checked_status=200",
+      "GitHub Actions CI green on deployed commit",
+      "canary checked_origin=https://api.watasu.ai",
+      "canary checked_forbidden_fragments present",
+      "retention dry_run=true",
+      "no payload body retained or printed"
+    ]);
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 

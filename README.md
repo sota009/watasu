@@ -186,6 +186,14 @@ pnpm --silent deploy:preflight
 
 The preflight checks the repo-side Render Blueprint, domain, runtime commands, secret-generation command, and remaining external actions without printing secret values or database URLs.
 
+Production cutover plan:
+
+```bash
+pnpm --silent cutover:plan
+```
+
+The cutover plan prints the before-Render commands, external account actions, after-deploy checks, required evidence, and stop conditions as secret-safe JSON.
+
 Hosted runtime smoke before deploy:
 
 ```bash
