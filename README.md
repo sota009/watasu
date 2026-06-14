@@ -147,6 +147,7 @@ Currently implemented:
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
+- MCP publish tool plus read tools and resources for Agent Card, plaintext schema, envelope schema, and metadata-only ledger rows
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
@@ -156,7 +157,7 @@ Still remaining for Hosted Production MVP:
 - user-side agent, personal vault, or consumer AI companion
 - hosted production service
 - optional persistent metadata store and hosted retention jobs
-- MCP production surface beyond request definition validation
+- MCP hosted production surface beyond local in-memory publish and read tools
 - service-owned key management beyond the local JWE wrapper
 - production retry queue for payload bodies
 
