@@ -174,17 +174,23 @@ export async function deliverAcceptedSubmission(input: {
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
     return resubmitLater("webhook_delivery_failed", "Webhook delivery did not return 2xx.", ledgerRow);
-  } catch {
+  } catch (error) {
+    const errorCode = isAbortError(error)
+      ? "webhook_delivery_timeout"
+      : "webhook_delivery_failed";
+    const message = isAbortError(error)
+      ? "Webhook delivery timed out."
+      : "Webhook delivery could not be completed.";
     const ledgerRow = createLedgerRow(
       input,
       deliveredAt,
       "resubmit_later",
       undefined,
-      "webhook_delivery_failed"
+      errorCode
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
     writeDeliveryLog(input.logger, ledgerRow);
-    return resubmitLater("webhook_delivery_failed", "Webhook delivery could not be completed.", ledgerRow);
+    return resubmitLater(errorCode, message, ledgerRow);
   }
 }
 
@@ -325,4 +331,15 @@ function writeDeliveryLog(
     webhook_status: row.webhook_status,
     error_code: row.error_code
   });
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof DOMException && error.name === "AbortError"
+  ) || (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name: unknown }).name === "AbortError"
+  );
 }

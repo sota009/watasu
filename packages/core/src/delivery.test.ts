@@ -352,6 +352,68 @@ describe("webhook delivery and metadata-only ledger", () => {
     ]);
   });
 
+  test("test_fetch_timeout_returns_resubmit_later_without_payload_body_retention", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const ledger = createLedger();
+    const logs: DeliveryLogEvent[] = [];
+    const client = createFetchDeliveryClient({
+      timeoutMs: 1,
+      fetch: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      })
+    });
+
+    const result = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      logger: {
+        write(event) {
+          logs.push(event);
+        }
+      },
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    const retainedJson = canonicalizeJson({
+      result,
+      ledger: ledger.rows,
+      logs
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "webhook_delivery_timeout"
+      }
+    });
+    expect(ledger.rows).toMatchObject([
+      {
+        delivery_status: "resubmit_later",
+        error_code: "webhook_delivery_timeout",
+        encrypted_payload_hash: envelope.encrypted_payload_hash
+      }
+    ]);
+    expect(logs).toMatchObject([
+      {
+        delivery_status: "resubmit_later",
+        error_code: "webhook_delivery_timeout",
+        encrypted_payload_hash: envelope.encrypted_payload_hash
+      }
+    ]);
+    expect(retainedJson).not.toContain("base64url-ciphertext");
+    expect(retainedJson).not.toContain("\"encrypted_payload\"");
+    expect(retainedJson).not.toContain("\"protected\"");
+    expect(retainedJson).not.toContain("\"tag\"");
+  });
+
   test("test_ledger_row_does_not_store_plaintext_or_encrypted_payload_body", async () => {
     const published = createPublished();
     const ledger = createLedger();
