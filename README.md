@@ -218,6 +218,7 @@ Currently implemented:
 - hosted publish guard that rejects cross-tenant reuse of an existing `request_id`
 - low-information hosted `/health` endpoint for deployment health checks
 - hosted HTTP security headers for low-information API responses
+- low-information hosted server error responses when production app delegation fails
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
 - hosted production binary through `@watasu/hosted`
