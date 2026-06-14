@@ -32,6 +32,22 @@ export function parseHostedCanaryBaseUrl(rawBaseUrl) {
   throw new Error("WATASU_CANARY_BASE_URL must use https outside local loopback targets.");
 }
 
+export function resolveHostedCanaryBaseUrl(input) {
+  const rawEnvUrl = input.env["WATASU_CANARY_BASE_URL"];
+  const rawArguments = input.argv.slice(2);
+  const urlArguments = rawArguments[0] === "--" ? rawArguments.slice(1) : rawArguments;
+  if (urlArguments.length > 1) {
+    throw new Error("Usage: pnpm canary:hosted -- <https://host>");
+  }
+
+  const rawArgumentUrl = urlArguments[0];
+  if (rawEnvUrl !== undefined && rawEnvUrl.trim() !== "" && rawArgumentUrl !== undefined) {
+    throw new Error("Provide WATASU_CANARY_BASE_URL or one canary URL argument, not both.");
+  }
+
+  return parseHostedCanaryBaseUrl(rawArgumentUrl ?? rawEnvUrl);
+}
+
 function isLoopbackHostname(hostname) {
   return hostname === "localhost" ||
     hostname === "127.0.0.1" ||

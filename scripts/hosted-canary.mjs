@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 import {
   hostedCanaryRequiredHeaders,
-  parseHostedCanaryBaseUrl
+  resolveHostedCanaryBaseUrl
 } from "./hosted-canary-helpers.mjs";
 
 let baseUrl;
 try {
-  baseUrl = parseHostedCanaryBaseUrl(process.env.WATASU_CANARY_BASE_URL);
+  baseUrl = resolveHostedCanaryBaseUrl({
+    env: process.env,
+    argv: process.argv
+  });
 } catch (error) {
   console.error(error instanceof Error ? error.message : "WATASU_CANARY_BASE_URL is invalid.");
   process.exit(1);

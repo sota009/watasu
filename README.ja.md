@@ -162,6 +162,12 @@ pnpm exec vitest run packages/core/src/security-regression.test.ts
 pnpm --filter @watasu/http test
 ```
 
+Hosted canary after deploy:
+
+```bash
+pnpm canary:hosted -- https://api.watasu.ai
+```
+
 `pnpm lint` は repository secret-scan helper を実行します。テストが通ることは安全性の証明ではありません。
 
 ## Current MVP Status

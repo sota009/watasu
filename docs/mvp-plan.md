@@ -159,7 +159,7 @@ Owner checklist for the first production cutover:
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary checks.
 [ ] GitHub Actions CI is green on the deployed commit.
-[ ] `WATASU_CANARY_BASE_URL=https://api.watasu.ai pnpm canary:hosted` passes.
+[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 

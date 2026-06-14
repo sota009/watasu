@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { parseHostedCanaryBaseUrl } from "../../../scripts/hosted-canary-helpers.mjs";
+import {
+  parseHostedCanaryBaseUrl,
+  resolveHostedCanaryBaseUrl
+} from "../../../scripts/hosted-canary-helpers.mjs";
 
 describe("hosted canary helpers", () => {
   test("test_parse_hosted_canary_base_url_requires_value", () => {
@@ -31,5 +34,43 @@ describe("hosted canary helpers", () => {
   test("test_parse_hosted_canary_base_url_allows_local_http_targets", () => {
     expect(parseHostedCanaryBaseUrl("http://127.0.0.1:8789").origin).toBe("http://127.0.0.1:8789");
     expect(parseHostedCanaryBaseUrl("http://localhost:8789").origin).toBe("http://localhost:8789");
+  });
+
+  test("test_resolve_hosted_canary_base_url_accepts_cli_argument", () => {
+    const url = resolveHostedCanaryBaseUrl({
+      env: {},
+      argv: ["node", "scripts/hosted-canary.mjs", "https://api.watasu.ai"]
+    });
+
+    expect(url.origin).toBe("https://api.watasu.ai");
+  });
+
+  test("test_resolve_hosted_canary_base_url_ignores_pnpm_argument_separator", () => {
+    const url = resolveHostedCanaryBaseUrl({
+      env: {},
+      argv: ["node", "scripts/hosted-canary.mjs", "--", "https://api.watasu.ai"]
+    });
+
+    expect(url.origin).toBe("https://api.watasu.ai");
+  });
+
+  test("test_resolve_hosted_canary_base_url_rejects_ambiguous_sources", () => {
+    expect(() =>
+      resolveHostedCanaryBaseUrl({
+        env: {
+          WATASU_CANARY_BASE_URL: "https://api.watasu.ai"
+        },
+        argv: ["node", "scripts/hosted-canary.mjs", "https://other.example.com"]
+      })
+    ).toThrow("Provide WATASU_CANARY_BASE_URL or one canary URL argument, not both.");
+  });
+
+  test("test_resolve_hosted_canary_base_url_rejects_extra_arguments", () => {
+    expect(() =>
+      resolveHostedCanaryBaseUrl({
+        env: {},
+        argv: ["node", "scripts/hosted-canary.mjs", "https://api.watasu.ai", "extra"]
+      })
+    ).toThrow("Usage: pnpm canary:hosted -- <https://host>");
   });
 });
