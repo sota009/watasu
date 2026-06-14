@@ -155,11 +155,20 @@ export function formatHostedCommandError(error: unknown, fallbackMessage: string
   }
 
   const message = error.message;
+  if (containsSecretLikeHostedCommandFragment(message)) {
+    return fallbackMessage;
+  }
+
   if (/^(PORT|WATASU_[A-Z0-9_]+|Usage: )/.test(message)) {
     return message;
   }
 
   return fallbackMessage;
+}
+
+function containsSecretLikeHostedCommandFragment(message: string): boolean {
+  return /postgres(?:ql)?:\/\//i.test(message) ||
+    /\b(?:password|token|secret|private[_ -]?key)\b/i.test(message);
 }
 
 export function createHostedProductionServerFromEnv(input: {

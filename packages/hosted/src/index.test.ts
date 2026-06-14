@@ -134,6 +134,17 @@ describe("hosted production runtime package", () => {
     expect(message).not.toContain("password");
   });
 
+  test("test_format_hosted_command_error_hides_secret_like_config_values", () => {
+    const message = formatHostedCommandError(
+      new Error("WATASU_POSTGRES_URL postgres://user:password@db.example.com/watasu failed"),
+      "Hosted retention command failed."
+    );
+
+    expect(message).toBe("Hosted retention command failed.");
+    expect(message).not.toContain("postgres://");
+    expect(message).not.toContain("password");
+  });
+
   test("test_signed_header_identity_provider_from_env_resolves_principal", () => {
     // Arrange
     const identityProvider = createSignedHeaderIdentityProviderFromEnv({
