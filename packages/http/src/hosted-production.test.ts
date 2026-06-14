@@ -21,6 +21,39 @@ function parseJson(body: string): unknown {
 }
 
 describe("hosted production HTTP app", () => {
+  test("test_health_route_returns_low_information_status", async () => {
+    // Arrange
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle health route");
+        }
+      },
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle health route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "GET",
+      path: "/health"
+    }));
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(parseJson(response.body)).toEqual({
+      ok: true,
+      service: "watasu-hosted"
+    });
+    expect(response.body).not.toContain("tenant");
+    expect(response.body).not.toContain("ledger");
+    expect(response.body).not.toContain("postgres");
+    expect(response.body).not.toContain("payload");
+  });
+
   test("test_post_publish_route_is_delegated_to_hosted_publish_app", async () => {
     // Arrange
     const handledPaths: string[] = [];

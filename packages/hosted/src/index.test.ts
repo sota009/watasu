@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  createHostedProductionServerFromEnv,
   createSignedHeaderIdentityProviderFromEnv,
   createHostedPostgresLedgerStoreFromEnv,
   createNodePostgresPoolConfig,
@@ -8,6 +9,26 @@ import {
 } from "./index.js";
 
 describe("hosted production runtime package", () => {
+  test("test_hosted_production_server_from_env_constructs_closed_server", () => {
+    // Arrange / Act
+    const runtime = createHostedProductionServerFromEnv({
+      env: {
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "test-deployment-identity-secret-with-enough-entropy",
+        PORT: "10000"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    // Assert
+    expect(runtime.config).toEqual({
+      host: "0.0.0.0",
+      port: 10000
+    });
+    expect(runtime.server.listening).toBe(false);
+    runtime.server.close();
+  });
+
   test("test_identity_provider_config_requires_signing_secret_for_signed_headers", () => {
     expect(() =>
       loadHostedIdentityProviderConfig({

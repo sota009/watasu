@@ -203,8 +203,10 @@ Currently implemented:
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
+- low-information hosted `/health` endpoint for deployment health checks
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
 - hosted production Node HTTP server factory and runtime env parser
+- hosted production binary through `@watasu/hosted`
 - hosted signed service identity header resolver for deployment identity provider boundaries
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
@@ -227,10 +229,12 @@ Currently implemented:
 - hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
 - hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
 - hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
+- Render Blueprint for the first health-checkable `api.watasu.ai` web service
+- hosted canary script for `/health`
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Repo-side Hosted Production MVP library/runtime building blocks are now present. Deployment-facing artifacts are still separate follow-up work: a production binary, hosting config, health endpoint, and canary flow are not complete yet. Cloud account setup, managed database creation, DNS, TLS, and secret manager configuration remain deployment operations outside this repository.
+Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for a health-checkable `api.watasu.ai` web service. Persistent hosted metadata ledger enablement, database wiring in Blueprint, retention cron wiring, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
 
 Not in scope for the MVP:
 

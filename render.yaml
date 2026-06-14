@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+services:
+  - type: web
+    name: watasu-hosted
+    runtime: node
+    plan: starter
+    region: singapore
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm typecheck
+    startCommand: pnpm --filter @watasu/hosted start
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    domains:
+      - api.watasu.ai
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: WATASU_IDENTITY_PROVIDER
+        value: signed_headers
+      - key: WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS
+        value: "60"
+      - key: WATASU_METADATA_LEDGER_STORE
+        value: disabled
+      - key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET
+        sync: false

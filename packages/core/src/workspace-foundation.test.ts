@@ -18,6 +18,7 @@ describe("workspace foundation", () => {
     };
 
     expect(packageJson.scripts).toMatchObject({
+      "canary:hosted": "node scripts/hosted-canary.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
       "pr:draft": "node scripts/create-draft-pr.mjs",
@@ -103,4 +104,17 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("base64url-ciphertext");
     expect(result.stdout).not.toContain("\"encrypted_payload\"");
   }, 60_000);
+
+  test("test_render_blueprint_uses_health_check_and_unsynced_secrets", () => {
+    const renderYaml = readFileSync(new URL("render.yaml", rootDir), "utf8");
+
+    expect(renderYaml).toContain("name: watasu-hosted");
+    expect(renderYaml).toContain("autoDeployTrigger: checksPass");
+    expect(renderYaml).toContain("healthCheckPath: /health");
+    expect(renderYaml).toContain("api.watasu.ai");
+    expect(renderYaml).toContain("value: 24.14.1");
+    expect(renderYaml).toContain("key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET");
+    expect(renderYaml).toContain("sync: false");
+    expect(renderYaml).not.toContain("WATASU_POSTGRES_URL: postgres://");
+  });
 });

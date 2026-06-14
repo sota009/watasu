@@ -31,10 +31,11 @@ export type HostedPostgresRuntimeConfig =
 
 export function loadHostedRuntimeConfig(env: Record<string, string | undefined>): HostedRuntimeConfig {
   const host = env["WATASU_HOSTED_HOST"] ?? "0.0.0.0";
-  const port = Number.parseInt(env["WATASU_HOSTED_PORT"] ?? "8787", 10);
+  const portSource = env["PORT"] ?? env["WATASU_HOSTED_PORT"] ?? "8787";
+  const port = Number.parseInt(portSource, 10);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error("WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
+    throw new Error("PORT or WATASU_HOSTED_PORT must be an integer between 1 and 65535.");
   }
 
   return {

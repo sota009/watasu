@@ -19,6 +19,18 @@ describe("hosted production server runtime", () => {
     });
   });
 
+  test("test_load_hosted_runtime_config_prefers_platform_port", () => {
+    const config = loadHostedRuntimeConfig({
+      PORT: "10000",
+      WATASU_HOSTED_PORT: "8787"
+    });
+
+    expect(config).toEqual({
+      host: "0.0.0.0",
+      port: 10000
+    });
+  });
+
   test("test_load_hosted_runtime_config_rejects_invalid_port", () => {
     expect(() =>
       loadHostedRuntimeConfig({

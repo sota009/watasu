@@ -64,7 +64,7 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. Deployment-facing artifacts are still separate follow-up work.
+Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for a health-checkable `api.watasu.ai` web service; persistent metadata ledger deployment remains follow-up work.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
@@ -88,7 +88,7 @@ pnpm loop:full
 pnpm demo:handoff
 ```
 
-Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A deployable production binary, hosting config, health endpoint, and canary flow are not complete yet; cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations outside this repository.
+Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, and hosted health canary are now present for the first web-service deploy. Blueprint-managed PostgreSQL, retention cron wiring, cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations or follow-up repository work.
 
 ### Deployment operations handoff
 
@@ -109,11 +109,20 @@ Do this before asking the product owner for account actions:
 4. Add `/health` or an equivalent low-risk health endpoint that does not expose tenant, ledger, payload, or dependency details.
 5. Run `pnpm loop:full`, `pnpm demo:handoff`, and a local smoke test of the production entrypoint.
 
+Current repo-side status:
+
+- Done: production Node entrypoint through `@watasu/hosted`.
+- Done: Render web-service Blueprint for `api.watasu.ai`.
+- Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
+- Done: low-information `/health` response.
+- Done: `pnpm canary:hosted` for deployed health checks.
+- Remaining: Blueprint-managed PostgreSQL database and retention cron wiring after persistent hosted metadata ledger deployment is intentionally enabled.
+
 Product owner actions:
 
 1. Create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
 2. Connect the GitHub repository to Render with least necessary repository access.
-3. Choose a dedicated API subdomain, for example `api.example.com`. Prefer a subdomain over the apex domain for the first private alpha.
+3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
 4. Create the managed PostgreSQL database in the same region as the web service.
 5. In Render, set environment variables or an environment group for the production service. Real secret values must be entered in Render only, never committed to git.
 6. Add the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.

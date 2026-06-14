@@ -1,16 +1,25 @@
 import {
+  buildOwnershipVerification,
+  createMetadataLedgerReader,
+  InMemoryOwnershipChallengeRegistry,
+  InMemoryRequestVersionRepository,
   createMigratedPostgresDeliveryLedgerStore,
   type PostgresQueryClient,
   type PostgresDeliveryLedgerStore
 } from "@watasu/core";
 import {
+  createHostedProductionBootstrapApp,
+  createHostedProductionServer,
+  loadHostedRuntimeConfig,
   loadHostedPostgresRuntimeConfig,
   createSignedServiceIdentityHeaders,
   createSignedServiceIdentityPrincipalResolver,
   type CreateSignedServiceIdentityHeadersInput,
+  type HostedRuntimeConfig,
   type HostedProductionRequest,
   type HostedPostgresRuntimeConfig
 } from "@watasu/http";
+import type { Server } from "node:http";
 import type {
   Pool,
   PoolConfig,
@@ -24,6 +33,12 @@ export interface PostgresPoolLike {
 
 export interface HostedPostgresLedgerRuntime {
   store: PostgresDeliveryLedgerStore;
+  close(): Promise<void>;
+}
+
+export interface HostedProductionServerRuntime {
+  config: HostedRuntimeConfig;
+  server: Server;
   close(): Promise<void>;
 }
 
@@ -81,6 +96,52 @@ export function createSignedHeaderIdentityProviderFromEnv(input: {
       return createSignedServiceIdentityHeaders({
         ...headerInput,
         signingSecret: config.signingSecret
+      });
+    }
+  };
+}
+
+export function createHostedProductionServerFromEnv(input: {
+  env: Record<string, string | undefined>;
+  now: () => Date;
+}): HostedProductionServerRuntime {
+  const config = loadHostedRuntimeConfig(input.env);
+  const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
+  const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
+    clock: input.now
+  });
+  const app = createHostedProductionBootstrapApp({
+    repository: new InMemoryRequestVersionRepository(),
+    ledgerReader: createMetadataLedgerReader({
+      rows: [],
+      requestTenants: {},
+      auditLog: {
+        write() {}
+      }
+    }),
+    resolvePrincipal: identityProvider.resolvePrincipal,
+    resolveOwnershipVerification({ principal }) {
+      return buildOwnershipVerification({
+        tenant_id: principal.tenant_id,
+        registry: ownershipRegistry
+      });
+    }
+  });
+  const server = createHostedProductionServer(app);
+
+  return {
+    config,
+    server,
+    async close() {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error === undefined) {
+            resolve();
+            return;
+          }
+
+          reject(error);
+        });
       });
     }
   };

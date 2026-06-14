@@ -24,6 +24,13 @@ export interface CreateHostedProductionAppInput {
 export function createHostedProductionApp(input: CreateHostedProductionAppInput): HostedProductionApp {
   return {
     async handle(request) {
+      if (request.method === "GET" && request.path === "/health") {
+        return jsonResponse(200, {
+          ok: true,
+          service: "watasu-hosted"
+        });
+      }
+
       if (request.method === "POST" && /^\/requests\/[^/]+\/publish$/.test(request.path)) {
         return input.publishApp.handle(request);
       }
