@@ -1,0 +1,350 @@
+import { parse as parseYaml } from "yaml";
+import { z } from "zod";
+
+const sensitivityLevels = ["low", "moderate", "high", "prohibited"] as const;
+const trustProfiles = [
+  "public_capability",
+  "verified_sender",
+  "private_invite",
+  "local_demo"
+] as const;
+
+export type Sensitivity = (typeof sensitivityLevels)[number];
+export type TrustProfile = (typeof trustProfiles)[number];
+
+export interface RequestDefinitionError {
+  code: string;
+  path: string;
+  message: string;
+}
+
+export interface RequestFieldDefinition {
+  id: string;
+  type: string;
+  required: boolean;
+  purpose: string;
+  sensitivity: Sensitivity;
+  label?: string | undefined;
+  format?: string | undefined;
+  examples?: unknown[] | undefined;
+}
+
+export interface RequestDefinition {
+  name: string;
+  schema_version: string;
+  description: string;
+  fields: RequestFieldDefinition[];
+  consent: {
+    text: string;
+  };
+  destination: {
+    type: "webhook";
+    url: string;
+  };
+  retention: {
+    destination_policy: string;
+  };
+  encryption: {
+    mode: "required";
+    algorithm: "JWE";
+    key_management: string;
+    content_encryption: string;
+    service_key_id: string;
+    public_key_jwk: Record<string, unknown>;
+  };
+  metadata_retention: {
+    days: number;
+  };
+  trust_profile: TrustProfile;
+  human_overrides?: HumanOverride[] | undefined;
+}
+
+interface HumanOverride {
+  field_id: string;
+  sensitivity: Sensitivity;
+  reason: string;
+}
+
+export type RequestDefinitionValidationResult =
+  | {
+      ok: true;
+      definition: RequestDefinition;
+      canonicalJson: string;
+      warnings: RequestDefinitionError[];
+    }
+  | {
+      ok: false;
+      errors: RequestDefinitionError[];
+      warnings: RequestDefinitionError[];
+    };
+
+const requestFieldSchema = z.object({
+  id: z.string().min(1),
+  type: z.string().min(1),
+  required: z.boolean(),
+  purpose: z.string().min(1),
+  sensitivity: z.enum(sensitivityLevels),
+  label: z.string().min(1).optional(),
+  format: z.string().min(1).optional(),
+  examples: z.array(z.unknown()).optional()
+});
+
+const requestDefinitionSchema = z.object({
+  name: z.string().min(1),
+  schema_version: z.string().min(1),
+  description: z.string().min(1),
+  fields: z.array(requestFieldSchema).min(1),
+  consent: z.object({
+    text: z.string().min(1)
+  }),
+  destination: z.object({
+    type: z.literal("webhook"),
+    url: z.url()
+  }),
+  retention: z.object({
+    destination_policy: z.string().min(1)
+  }),
+  encryption: z.object({
+    mode: z.literal("required"),
+    algorithm: z.literal("JWE"),
+    key_management: z.string().min(1),
+    content_encryption: z.string().min(1),
+    service_key_id: z.string().min(1),
+    public_key_jwk: z.record(z.string(), z.unknown())
+  }),
+  metadata_retention: z.object({
+    days: z.number().int().positive()
+  }),
+  trust_profile: z.enum(trustProfiles),
+  human_overrides: z
+    .array(
+      z.object({
+        field_id: z.string().min(1),
+        sensitivity: z.enum(sensitivityLevels),
+        reason: z.string().min(1)
+      })
+    )
+    .optional()
+});
+
+const sensitivityRank: Record<Sensitivity, number> = {
+  low: 0,
+  moderate: 1,
+  high: 2,
+  prohibited: 3
+};
+
+const inferenceRules: Array<{
+  code: string;
+  sensitivity: Sensitivity;
+  patterns: RegExp[];
+}> = [
+  {
+    code: "authentication_secret",
+    sensitivity: "prohibited",
+    patterns: [
+      /\b(api[_ -]?key|password|token|private[_ -]?key|recovery[_ -]?code|secret)\b/i
+    ]
+  },
+  {
+    code: "safety_sensitive_metadata",
+    sensitivity: "prohibited",
+    patterns: [/\b(political|religious|union|dv[_ -]?shelter|whistleblow|anonymous[_ -]?source)\b/i]
+  },
+  {
+    code: "government_identity",
+    sensitivity: "high",
+    patterns: [/\b(government[_ -]?id|passport|driver'?s?[_ -]?license|national[_ -]?id|kyc)\b/i]
+  },
+  {
+    code: "financial_tax",
+    sensitivity: "high",
+    patterns: [/\b(tax[_ -]?id|bank[_ -]?account|income|invoice|payment[_ -]?credential)\b/i]
+  },
+  {
+    code: "minor_guardian",
+    sensitivity: "high",
+    patterns: [/\b(minor[_ -]?age|under[_ -]?18|guardian|school|child)\b/i]
+  },
+  {
+    code: "health_safety",
+    sensitivity: "high",
+    patterns: [/\b(allerg(y|ies)|medication|symptom|disability|emergency[_ -]?contact)\b/i]
+  },
+  {
+    code: "location_address",
+    sensitivity: "high",
+    patterns: [/\b(address|postal[_ -]?code|precise[_ -]?location|workplace[_ -]?location)\b/i]
+  },
+  {
+    code: "contact",
+    sensitivity: "moderate",
+    patterns: [/\b(email|phone|full[_ -]?name|name|social[_ -]?handle)\b/i]
+  }
+];
+
+export function validateRequestDefinitionInput(input: string): RequestDefinitionValidationResult {
+  const parsed = parseRequestDefinitionInput(input);
+  if (!parsed.ok) {
+    return { ok: false, errors: [parsed.error], warnings: [] };
+  }
+
+  const structuralValidation = requestDefinitionSchema.safeParse(parsed.value);
+  if (!structuralValidation.success) {
+    return {
+      ok: false,
+      errors: structuralValidation.error.issues.map(toValidationError),
+      warnings: []
+    };
+  }
+
+  const normalizedDefinition = normalizeSensitivity(structuralValidation.data);
+  const policyErrors = validatePolicy(normalizedDefinition, structuralValidation.data);
+
+  if (policyErrors.length > 0) {
+    return { ok: false, errors: policyErrors, warnings: [] };
+  }
+
+  return {
+    ok: true,
+    definition: normalizedDefinition,
+    canonicalJson: canonicalizeJson(normalizedDefinition),
+    warnings: []
+  };
+}
+
+export function canonicalizeJson(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value));
+}
+
+function parseRequestDefinitionInput(
+  input: string
+): { ok: true; value: unknown } | { ok: false; error: RequestDefinitionError } {
+  try {
+    return { ok: true, value: JSON.parse(input) };
+  } catch {
+    try {
+      return { ok: true, value: parseYaml(input) };
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          code: "invalid_request_definition",
+          path: "$",
+          message: error instanceof Error ? error.message : "Request definition could not be parsed."
+        }
+      };
+    }
+  }
+}
+
+function normalizeSensitivity(definition: RequestDefinition): RequestDefinition {
+  return {
+    ...definition,
+    fields: definition.fields.map((field) => {
+      const inferredSensitivity = inferFieldSensitivity(field);
+      return {
+        ...field,
+        sensitivity: maxSensitivity(field.sensitivity, inferredSensitivity)
+      };
+    })
+  };
+}
+
+function validatePolicy(
+  normalizedDefinition: RequestDefinition,
+  originalDefinition: RequestDefinition
+): RequestDefinitionError[] {
+  const errors: RequestDefinitionError[] = [];
+
+  normalizedDefinition.fields.forEach((field, index) => {
+    if (field.sensitivity === "prohibited") {
+      errors.push({
+        code: "prohibited_field",
+        path: `fields[${index}]`,
+        message: `${field.id} is prohibited for the MVP request definition.`
+      });
+    }
+  });
+
+  if (
+    normalizedDefinition.trust_profile === "public_capability" &&
+    normalizedDefinition.fields.some((field) => field.sensitivity === "high")
+  ) {
+    errors.push({
+      code: "public_capability_high_sensitivity",
+      path: "trust_profile",
+      message: "public_capability cannot be used with high sensitivity fields."
+    });
+  }
+
+  const overrides = originalDefinition.human_overrides ?? [];
+  overrides.forEach((override, index) => {
+    const originalField = originalDefinition.fields.find((field) => field.id === override.field_id);
+    const normalizedField = normalizedDefinition.fields.find((field) => field.id === override.field_id);
+    if (
+      originalDefinition.trust_profile === "public_capability" &&
+      originalField !== undefined &&
+      normalizedField !== undefined &&
+      sensitivityRank[override.sensitivity] < sensitivityRank[normalizedField.sensitivity]
+    ) {
+      errors.push({
+        code: "human_override_cannot_downgrade_public_capability",
+        path: `human_overrides[${index}]`,
+        message: "Human override cannot downgrade inferred sensitivity for public_capability."
+      });
+    }
+  });
+
+  return errors;
+}
+
+function inferFieldSensitivity(field: RequestFieldDefinition): Sensitivity {
+  const haystack = [field.id, field.label, field.purpose, field.format, ...(field.examples ?? [])]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return inferenceRules.reduce<Sensitivity>((current, rule) => {
+    if (!rule.patterns.some((pattern) => pattern.test(haystack))) {
+      return current;
+    }
+
+    return maxSensitivity(current, rule.sensitivity);
+  }, "low");
+}
+
+function maxSensitivity(left: Sensitivity, right: Sensitivity): Sensitivity {
+  return sensitivityRank[left] >= sensitivityRank[right] ? left : right;
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonValue);
+  }
+
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, sortJsonValue(record[key])])
+    );
+  }
+
+  return value;
+}
+
+function toValidationError(issue: z.core.$ZodIssue): RequestDefinitionError {
+  const path = issue.path.map(String).join(".");
+  const code = path === "trust_profile" ? "invalid_trust_profile" : "invalid_request_definition";
+  const message =
+    issue.code === "invalid_type" && issue.input === undefined && path.length > 0
+      ? `${path} is required.`
+      : issue.message;
+
+  return {
+    code,
+    path,
+    message
+  };
+}
