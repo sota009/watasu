@@ -679,7 +679,7 @@ Delivery resilience defaults:
 
 MVP default は DB 永続化を必須にしない。watasu が default で保持してよいのは、replay protection、rate limits、sender-actionable response のための short-lived operational state である。
 
-Persistent metadata ledger は service owner が明示的に有効化した場合だけ使う optional feature とする。local / single-node 検証では metadata-only JSONL store を使える。multi-tenant hosted production では PostgreSQL-compatible DB と scheduled retention job を前提にし、node-postgres compatible `query(text, values)` client に対して parameterized INSERT だけを発行する metadata-only adapter を使う。PostgreSQL delivery ledger schema は `tenant_id` を primary key に含め、`tenant_id` は hosted service identity から注入し、request body / MCP tool arguments / Agent Card metadata 由来の値を信頼しない。schema artifact は plaintext payload、encrypted payload body、ciphertext、JWE protected header / iv / tag を保存する列を持たない。optional ledger を有効化する場合の最小 persistent entities:
+Persistent metadata ledger は service owner が明示的に有効化した場合だけ使う optional feature とする。local / single-node 検証では metadata-only JSONL store を使える。multi-tenant hosted production では PostgreSQL-compatible DB と scheduled retention job を前提にし、node-postgres compatible `query(text, values)` client に対して parameterized INSERT だけを発行する metadata-only adapter を使う。production runtime は `WATASU_METADATA_LEDGER_STORE=postgres` のときだけ database URL と pool settings を読む。database URL は secret 相当として logs / MCP output / error responses に出さない。PostgreSQL delivery ledger schema は `tenant_id` を primary key に含め、`tenant_id` は hosted service identity から注入し、request body / MCP tool arguments / Agent Card metadata 由来の値を信頼しない。schema artifact は plaintext payload、encrypted payload body、ciphertext、JWE protected header / iv / tag を保存する列を持たない。optional ledger を有効化する場合の最小 persistent entities:
 
 ### `requests`
 

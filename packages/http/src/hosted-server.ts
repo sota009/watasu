@@ -11,6 +11,18 @@ export interface HostedRuntimeConfig {
   port: number;
 }
 
+export type HostedPostgresRuntimeConfig =
+  | {
+      mode: "disabled";
+    }
+  | {
+      mode: "postgres";
+      databaseUrl: string;
+      poolMax: number;
+      ssl: "disable" | "require";
+      runMigrations: boolean;
+    };
+
 export function loadHostedRuntimeConfig(env: Record<string, string | undefined>): HostedRuntimeConfig {
   const host = env["WATASU_HOSTED_HOST"] ?? "0.0.0.0";
   const port = Number.parseInt(env["WATASU_HOSTED_PORT"] ?? "8787", 10);
@@ -22,6 +34,40 @@ export function loadHostedRuntimeConfig(env: Record<string, string | undefined>)
   return {
     host,
     port
+  };
+}
+
+export function loadHostedPostgresRuntimeConfig(
+  env: Record<string, string | undefined>
+): HostedPostgresRuntimeConfig {
+  const store = env["WATASU_METADATA_LEDGER_STORE"] ?? "disabled";
+  if (store === "disabled") {
+    return {
+      mode: "disabled"
+    };
+  }
+
+  if (store !== "postgres") {
+    throw new Error("WATASU_METADATA_LEDGER_STORE must be disabled or postgres.");
+  }
+
+  const databaseUrl = env["WATASU_POSTGRES_URL"]?.trim();
+  if (databaseUrl === undefined || databaseUrl.length === 0) {
+    throw new Error("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
+  }
+
+  return {
+    mode: "postgres",
+    databaseUrl,
+    poolMax: parsePositiveIntegerEnv(env["WATASU_POSTGRES_POOL_MAX"], {
+      defaultValue: 10,
+      name: "WATASU_POSTGRES_POOL_MAX"
+    }),
+    ssl: parsePostgresSsl(env["WATASU_POSTGRES_SSL"]),
+    runMigrations: parseBooleanEnv(env["WATASU_POSTGRES_RUN_MIGRATIONS"], {
+      defaultValue: true,
+      name: "WATASU_POSTGRES_RUN_MIGRATIONS"
+    })
   };
 }
 
@@ -37,6 +83,53 @@ export function createHostedProductionServer(app: HostedProductionApp): Server {
     response.writeHead(handled.status, handled.headers);
     response.end(handled.body);
   });
+}
+
+function parsePositiveIntegerEnv(value: string | undefined, input: {
+  defaultValue: number;
+  name: string;
+}): number {
+  if (value === undefined) {
+    return input.defaultValue;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${input.name} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function parseBooleanEnv(value: string | undefined, input: {
+  defaultValue: boolean;
+  name: string;
+}): boolean {
+  if (value === undefined) {
+    return input.defaultValue;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  throw new Error(`${input.name} must be true or false.`);
+}
+
+function parsePostgresSsl(value: string | undefined): "disable" | "require" {
+  if (value === undefined || value === "require") {
+    return "require";
+  }
+
+  if (value === "disable") {
+    return "disable";
+  }
+
+  throw new Error("WATASU_POSTGRES_SSL must be require or disable.");
 }
 
 export function buildHostedProductionRequest(input: {

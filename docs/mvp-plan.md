@@ -263,7 +263,7 @@ Done when:
 
 ### Phase 6: Retention and delivery hardening
 
-Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL and migration runner, hosted retention job runner, and local HTTP demo hook wiring.
+Status: done for the core/local hardening helpers, local JSONL metadata store, PostgreSQL-compatible metadata adapter, PostgreSQL metadata schema SQL and migration runner, hosted PostgreSQL runtime config, hosted retention job runner, and local HTTP demo hook wiring.
 
 Goal: hosted delivery does not pile up unsafe data or let slow destinations exhaust watasu workers.
 
@@ -274,6 +274,7 @@ Implementation:
 - Add PostgreSQL-compatible metadata adapter using parameterized queries.
 - Add PostgreSQL metadata ledger schema SQL with tenant-scoped primary key and no payload body columns.
 - Add PostgreSQL metadata ledger migration runner for injected hosted query clients.
+- Add hosted PostgreSQL runtime config and migrated store factory so production can inject a managed pool.
 - Add hosted retention job runner gated by auditor role.
 - Add request-level and tenant-level delivery concurrency caps.
 - Add short-lived circuit breaker for repeated webhook failures.
@@ -317,14 +318,14 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
-| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
-| QR or email private handoff | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
-| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
-| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, and bootstrap composition | Deployment identity provider, DB pool, and migration runner |
+| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
+| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
+| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
+| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
+| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, and runtime config | Selected deployment entrypoint and managed DB pool |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
 | Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
-| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, and hosted job runner | Hosted DB provisioning and pool wiring |
+| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, and hosted job runner | Hosted DB provisioning and selected pool implementation |
 
 ## Positioning boundaries
 
