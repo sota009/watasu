@@ -59,7 +59,7 @@ export async function runCli(argv: string[]): Promise<CliResult> {
 function parseArgs(
   argv: string[]
 ): { ok: true; value: ParsedArgs } | { ok: false; error: RequestDefinitionError } {
-  const [command, file, ...flags] = argv;
+  const [command, ...args] = argv;
 
   if (!isCommand(command)) {
     return {
@@ -72,13 +72,28 @@ function parseArgs(
     };
   }
 
-  if (file === undefined || file.startsWith("--")) {
+  const flags = args.filter((arg) => arg.startsWith("--"));
+  const files = args.filter((arg) => !arg.startsWith("--"));
+  const [file, extraFile] = files;
+
+  if (file === undefined) {
     return {
       ok: false,
       error: {
         code: "missing_file",
         path: "$.file",
         message: "Command requires a request definition file."
+      }
+    };
+  }
+
+  if (extraFile !== undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "too_many_files",
+        path: "$.file",
+        message: "Command accepts exactly one request definition file."
       }
     };
   }
