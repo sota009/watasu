@@ -135,7 +135,7 @@ Implementation:
 Manual checks:
 
 ```bash
-pnpm test -- --run packages/mcp
+pnpm exec vitest run packages/mcp/src/mcp.test.ts
 pnpm loop
 ```
 
@@ -166,7 +166,7 @@ Implementation:
 Manual checks:
 
 ```bash
-pnpm test -- --run packages/core/src/submission packages/core/src/publish
+pnpm exec vitest run packages/core/src/submission.test.ts packages/core/src/publish.test.ts
 pnpm demo:handoff
 pnpm loop
 ```
@@ -192,7 +192,7 @@ Implementation:
 Manual checks:
 
 ```bash
-pnpm test -- --run packages/core/src/publish packages/core/src/delivery
+pnpm exec vitest run packages/core/src/publish.test.ts packages/core/src/delivery.test.ts
 pnpm loop
 ```
 
@@ -227,8 +227,8 @@ Implementation:
 Manual checks:
 
 ```bash
-pnpm test -- --run packages/core/src/storage-policy
-pnpm test -- --run security
+pnpm exec vitest run packages/core/src/storage-policy.test.ts
+pnpm exec vitest run packages/core/src/security-regression.test.ts
 pnpm loop
 ```
 
@@ -262,8 +262,8 @@ Implementation:
 Manual checks:
 
 ```bash
-pnpm test -- --run packages/core/src/delivery packages/core/src/storage-policy
-pnpm test -- --run security
+pnpm exec vitest run packages/core/src/delivery.test.ts packages/core/src/storage-policy.test.ts
+pnpm exec vitest run packages/core/src/security-regression.test.ts
 pnpm loop:full
 ```
 

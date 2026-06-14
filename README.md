@@ -120,7 +120,7 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm review:self
-pnpm test -- --run security
+pnpm exec vitest run packages/core/src/security-regression.test.ts
 pnpm --filter @watasu/http test
 ```
 
