@@ -2,5 +2,6 @@ node_modules/
 dist/
 coverage/
 .watasu/
+cutover-evidence/
 .env
 .env.*

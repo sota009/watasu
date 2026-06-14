@@ -7,7 +7,8 @@ process.stdout.write(`${JSON.stringify({
   checked_at: new Date().toISOString(),
   target_origin: targetOrigin,
   before_render_commands: [
-    "git rev-parse HEAD > cutover-head.txt",
+    "mkdir -p cutover-evidence",
+    "git rev-parse HEAD > cutover-evidence/cutover-head.txt",
     "pnpm --silent deploy:preflight",
     "pnpm --silent smoke:hosted",
     "pnpm --silent secret:identity --plain"
@@ -21,12 +22,12 @@ process.stdout.write(`${JSON.stringify({
     "Share the deployed production URL back for canary evidence collection."
   ],
   after_deploy_commands: [
-    "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > ci.json",
+    "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > cutover-evidence/ci.json",
     `pnpm canary:hosted -- ${targetOrigin}`,
     "pnpm --filter @watasu/hosted retention -- --dry-run"
   ],
   required_evidence: [
-    "cutover-head.txt records the deployed commit SHA",
+    "cutover-evidence/cutover-head.txt records the deployed commit SHA",
     "deploy:preflight ok=true",
     "smoke:hosted checked_status=200",
     "GitHub Actions CI green on the cutover head",
@@ -38,7 +39,7 @@ process.stdout.write(`${JSON.stringify({
   stop_conditions: [
     "Do not proceed if deploy:preflight reports a repo-side mismatch.",
     "Do not proceed if smoke:hosted cannot verify the low-information health response.",
-    "Do not proceed if CI evidence does not match cutover-head.txt.",
+    "Do not proceed if CI evidence does not match cutover-evidence/cutover-head.txt.",
     "Do not proceed if the canary output omits checked_forbidden_fragments or go_no_go.",
     "Do not proceed if retention dry run prints payload bodies, database URLs, or secret values."
   ]

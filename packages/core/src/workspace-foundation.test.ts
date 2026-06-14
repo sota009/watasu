@@ -282,20 +282,21 @@ describe("workspace foundation", () => {
       ok: true,
       target_origin: "https://api.watasu.ai",
       before_render_commands: [
-        "git rev-parse HEAD > cutover-head.txt",
+        "mkdir -p cutover-evidence",
+        "git rev-parse HEAD > cutover-evidence/cutover-head.txt",
         "pnpm --silent deploy:preflight",
         "pnpm --silent smoke:hosted",
         "pnpm --silent secret:identity --plain"
       ],
       after_deploy_commands: [
-        "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > ci.json",
+        "gh run list --workflow ci --branch main --limit 1 --json workflowName,status,conclusion,headSha,url,createdAt > cutover-evidence/ci.json",
         "pnpm canary:hosted -- https://api.watasu.ai",
         "pnpm --filter @watasu/hosted retention -- --dry-run"
       ]
     });
     expect(report.external_actions).toContain("Verify api.watasu.ai DNS and TLS in Render.");
     expect(report.required_evidence).toEqual([
-      "cutover-head.txt records the deployed commit SHA",
+      "cutover-evidence/cutover-head.txt records the deployed commit SHA",
       "deploy:preflight ok=true",
       "smoke:hosted checked_status=200",
       "GitHub Actions CI green on the cutover head",
@@ -308,6 +309,12 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
+  test("test_cutover_evidence_directory_is_gitignored", () => {
+    const gitignore = readText(".gitignore");
+
+    expect(gitignore).toContain("cutover-evidence/");
+  });
+
   test("test_japanese_readme_includes_production_cutover_commands", () => {
     const japaneseReadme = readText("README.ja.md");
 
@@ -315,8 +322,9 @@ describe("workspace foundation", () => {
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
     expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
-    expect(japaneseReadme).toContain("pnpm --silent cutover:verify --head \"$(cat cutover-head.txt)\" --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json");
-    expect(japaneseReadme).toContain("ci.json");
+    expect(japaneseReadme).toContain("git rev-parse HEAD > cutover-evidence/cutover-head.txt");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:verify --head \"$(cat cutover-evidence/cutover-head.txt)\" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json");
+    expect(japaneseReadme).toContain("cutover-evidence/ci.json");
   });
 
   test("test_production_cutover_verify_accepts_required_secret_safe_evidence", () => {

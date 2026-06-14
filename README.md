@@ -197,13 +197,14 @@ The cutover plan prints the before-Render commands, external account actions, af
 Record the cutover commit before connecting it to production evidence:
 
 ```bash
-git rev-parse HEAD > cutover-head.txt
+mkdir -p cutover-evidence
+git rev-parse HEAD > cutover-evidence/cutover-head.txt
 ```
 
 Production cutover evidence verification after deploy:
 
 ```bash
-pnpm --silent cutover:verify --head "$(cat cutover-head.txt)" --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json
+pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json
 ```
 
 The verifier reads saved JSON outputs from `deploy:preflight`, `smoke:hosted`, `canary:hosted`, the retention dry run, and the latest successful `ci` GitHub Actions run. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary.
