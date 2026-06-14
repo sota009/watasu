@@ -391,6 +391,9 @@ export async function runHostedPostgresRetentionJobFromEnv(input: {
   if (postgresConfig.mode !== "postgres") {
     throw new Error("WATASU_METADATA_LEDGER_STORE must be postgres for hosted retention runtime.");
   }
+  if (input.env["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"]?.trim()) {
+    throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must not be set for hosted retention runtime.");
+  }
 
   const runtime = await createHostedPostgresLedgerStoreFromEnv({
     env: input.env,

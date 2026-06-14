@@ -543,6 +543,26 @@ describe("hosted production runtime package", () => {
     })).rejects.toThrow("WATASU_METADATA_LEDGER_STORE must be postgres for hosted retention runtime.");
   });
 
+  test("test_hosted_postgres_retention_job_from_env_rejects_web_identity_secret", async () => {
+    let createPoolCalled = false;
+
+    await expect(runHostedPostgresRetentionJobFromEnv({
+      env: {
+        WATASU_METADATA_LEDGER_STORE: "postgres",
+        WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+        WATASU_RETENTION_TENANT_ID: "tenant-a",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z"),
+      createPool() {
+        createPoolCalled = true;
+        throw new Error("pool must not be created");
+      }
+    })).rejects.toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must not be set for hosted retention runtime.");
+
+    expect(createPoolCalled).toBe(false);
+  });
+
   test("test_hosted_postgres_retention_job_from_env_dry_run_does_not_delete_rows", async () => {
     // Arrange
     const queries: Array<{
