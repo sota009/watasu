@@ -1,5 +1,5 @@
 import { createPublicKey, randomBytes, verify, type JsonWebKey } from "node:crypto";
-import { lookup } from "node:dns/promises";
+import { lookup, resolveTxt } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { PublishOwnershipVerification } from "./publish.js";
 
@@ -66,6 +66,10 @@ export type WebhookOwnershipChallengeFetch = (
 export type WebhookOwnershipChallengeHostResolver = (
   hostname: string
 ) => Promise<string[]>;
+
+export type WebhookOwnershipChallengeTxtResolver = (
+  name: string
+) => Promise<string[][]>;
 
 export class InMemoryOwnershipChallengeRegistry {
   readonly #challengesById = new Map<string, OwnershipChallenge>();
@@ -263,6 +267,45 @@ export class InMemoryOwnershipChallengeRegistry {
     }
   }
 
+  async verifyWebhookOriginChallengeFromDnsTxt(input: {
+    challenge_id: string;
+    resolveTxt?: WebhookOwnershipChallengeTxtResolver | undefined;
+  }): Promise<OwnershipChallengeVerificationResult> {
+    const challenge = this.#challengesById.get(input.challenge_id);
+    if (challenge?.kind !== "webhook_origin") {
+      return verificationError("challenge_not_found", "Ownership challenge was not found.");
+    }
+
+    if (isExpired(challenge.expires_at, this.#clock())) {
+      this.#challengesById.set(challenge.challenge_id, {
+        ...challenge,
+        status: "expired"
+      });
+      return verificationError("challenge_expired", "Ownership challenge has expired.");
+    }
+
+    const txtName = `_watasu-challenge.${new URL(challenge.origin).hostname}`;
+    const resolveTxtImplementation = input.resolveTxt ?? defaultWebhookOwnershipChallengeTxtResolve;
+
+    try {
+      const records = await resolveTxtImplementation(txtName);
+      const observedTokens = records.map((chunks) => chunks.join("").trim());
+      if (!observedTokens.includes(challenge.expected_token)) {
+        return verificationError("challenge_token_mismatch", "Webhook origin challenge token did not match.");
+      }
+
+      return this.verifyWebhookOriginChallenge({
+        challenge_id: challenge.challenge_id,
+        observed_token: challenge.expected_token
+      });
+    } catch {
+      return verificationError(
+        "challenge_dns_txt_fetch_failed",
+        "Webhook ownership challenge DNS TXT record could not be fetched."
+      );
+    }
+  }
+
   listVerifiedServiceKeyIds(tenantId: string): string[] {
     return [...this.#challengesById.values()]
       .filter((challenge): challenge is ServiceKeyOwnershipChallenge =>
@@ -332,6 +375,10 @@ async function defaultWebhookOwnershipChallengeFetch(
   text(): Promise<string>;
 }> {
   return fetch(input, init);
+}
+
+async function defaultWebhookOwnershipChallengeTxtResolve(name: string): Promise<string[][]> {
+  return resolveTxt(name);
 }
 
 function isPrivateOrMetadataAddress(address: string): boolean {

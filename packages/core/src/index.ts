@@ -145,6 +145,7 @@ export type {
   ServiceKeyOwnershipChallenge,
   WebhookOwnershipChallengeFetch,
   WebhookOwnershipChallengeHostResolver,
+  WebhookOwnershipChallengeTxtResolver,
   WebhookOriginOwnershipChallenge
 } from "./ownership.js";
 export type {
