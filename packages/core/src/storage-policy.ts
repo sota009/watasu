@@ -132,17 +132,21 @@ export class JsonlDeliveryLedgerStore implements PersistentDeliveryLedgerStore, 
 
 export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStore {
   readonly #queryClient: PostgresQueryClient;
+  readonly #tenantId: string;
 
   constructor(input: {
     queryClient: PostgresQueryClient;
+    tenantId: string;
   }) {
     this.#queryClient = input.queryClient;
+    this.#tenantId = input.tenantId;
   }
 
   async writeDeliveryAttempt(row: DeliveryLedgerRow): Promise<void> {
     const metadata = sanitizeDeliveryLedgerRow(row);
     await this.#queryClient.query(
       `insert into watasu_delivery_ledger (
+        tenant_id,
         request_id,
         request_version,
         idempotency_key,
@@ -153,8 +157,9 @@ export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStor
         encrypted_payload_hash,
         webhook_status,
         error_code
-      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
+        this.#tenantId,
         metadata.request_id,
         metadata.request_version,
         metadata.idempotency_key,
@@ -168,6 +173,30 @@ export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStor
       ]
     );
   }
+}
+
+export function createPostgresDeliveryLedgerSchemaSql(): string {
+  return `create table if not exists watasu_delivery_ledger (
+  tenant_id text not null,
+  request_id text not null,
+  request_version text not null,
+  idempotency_key text not null,
+  submitted_at timestamptz not null,
+  delivered_at timestamptz not null,
+  delivery_status text not null,
+  destination_url_hash text not null,
+  encrypted_payload_hash text not null,
+  webhook_status integer,
+  error_code text,
+  created_at timestamptz not null default now(),
+  primary key (tenant_id, request_id, request_version, idempotency_key)
+);
+
+create index if not exists watasu_delivery_ledger_request_idx
+  on watasu_delivery_ledger (tenant_id, request_id, request_version);
+
+create index if not exists watasu_delivery_ledger_delivered_at_idx
+  on watasu_delivery_ledger (tenant_id, delivered_at);`;
 }
 
 export function createPolicyControlledDeliveryLedger(input: {

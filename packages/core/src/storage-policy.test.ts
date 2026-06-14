@@ -6,6 +6,7 @@ import { sha256Hash } from "./hash.js";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import {
   createMetadataLedgerReader,
+  createPostgresDeliveryLedgerSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresDeliveryLedgerStore,
@@ -418,6 +419,7 @@ describe("storage policy controlled delivery ledger", () => {
       values: readonly unknown[];
     }> = [];
     const store = new PostgresDeliveryLedgerStore({
+      tenantId: "tenant-a",
       queryClient: {
         async query(text, values) {
           queries.push({
@@ -445,6 +447,7 @@ describe("storage policy controlled delivery ledger", () => {
     expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
     expect(JSON.stringify(queries)).not.toContain("base64url-ciphertext");
     expect(queries[0]?.values).toEqual([
+      "tenant-a",
       "event-attendee-intake",
       "v1",
       "submit-001",
@@ -456,6 +459,23 @@ describe("storage policy controlled delivery ledger", () => {
       204,
       null
     ]);
+  });
+
+  test("test_postgres_delivery_ledger_schema_is_metadata_only", () => {
+    const schemaSql = createPostgresDeliveryLedgerSchemaSql();
+
+    expect(schemaSql).toContain("create table if not exists watasu_delivery_ledger");
+    expect(schemaSql).toContain("tenant_id text not null");
+    expect(schemaSql).toContain("request_id text not null");
+    expect(schemaSql).toContain("request_version text not null");
+    expect(schemaSql).toContain("idempotency_key text not null");
+    expect(schemaSql).toContain("encrypted_payload_hash text not null");
+    expect(schemaSql).toContain("primary key (tenant_id, request_id, request_version, idempotency_key)");
+    expect(schemaSql).toContain("create index if not exists watasu_delivery_ledger_request_idx");
+    expect(schemaSql).toContain("create index if not exists watasu_delivery_ledger_delivered_at_idx");
+    expect(schemaSql).not.toContain("encrypted_payload ");
+    expect(schemaSql).not.toContain("ciphertext");
+    expect(schemaSql).not.toContain("payload_body");
   });
 
   test("test_policy_controlled_ledger_awaits_async_persistent_store", async () => {
