@@ -120,7 +120,7 @@ Current repo-side status:
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
-- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, and HTTPS production URL checks. Local loopback HTTP remains allowed for smoke tests.
+- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, and URL-credential rejection checks. Local loopback HTTP remains allowed for smoke tests.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:

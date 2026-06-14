@@ -13,6 +13,15 @@ describe("hosted canary helpers", () => {
     );
   });
 
+  test("test_parse_hosted_canary_base_url_rejects_url_credentials", () => {
+    expect(() => parseHostedCanaryBaseUrl("https://token@api.watasu.ai")).toThrow(
+      "WATASU_CANARY_BASE_URL must not include username or password credentials."
+    );
+    expect(() => parseHostedCanaryBaseUrl("https://user:password@api.watasu.ai")).toThrow(
+      "WATASU_CANARY_BASE_URL must not include username or password credentials."
+    );
+  });
+
   test("test_parse_hosted_canary_base_url_allows_https_targets", () => {
     const url = parseHostedCanaryBaseUrl("https://api.watasu.ai");
 

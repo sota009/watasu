@@ -17,6 +17,10 @@ export function parseHostedCanaryBaseUrl(rawBaseUrl) {
     throw new Error("WATASU_CANARY_BASE_URL must be a valid absolute URL.");
   }
 
+  if (url.username !== "" || url.password !== "") {
+    throw new Error("WATASU_CANARY_BASE_URL must not include username or password credentials.");
+  }
+
   if (url.protocol === "https:") {
     return url;
   }
