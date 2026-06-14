@@ -111,6 +111,7 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm review:self
+pnpm test -- --run security
 pnpm --filter @watasu/http test
 ```
 
