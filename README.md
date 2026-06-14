@@ -29,6 +29,7 @@ packages/
   cli/                        File-based watasu CLI wrapper
   fixtures/                   Sample request definitions
   http/                       Local HTTP demo server
+  mcp/                        MCP server package
 scripts/                      Loop, review, PR, and secret-scan helpers
 ```
 
@@ -139,6 +140,7 @@ Currently implemented:
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
+- MCP server package with a read-only request definition validation tool
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
@@ -148,7 +150,7 @@ Not yet in the MVP:
 - user-side agent, personal vault, or consumer AI companion
 - hosted production service
 - production DB migrations and hosted retention jobs
-- MCP server package
+- production MCP tool surface beyond request definition validation
 - service-owned key management beyond the local JWE wrapper
 - production retry queue for payload bodies
 
