@@ -42,3 +42,5 @@ export function withHostedCanaryTimeout(
 ): RequestInit;
 
 export function formatHostedCanaryRequestError(label: string, error: unknown): string;
+
+export function formatHostedCanaryResponseReadError(label: string, error: unknown): string;

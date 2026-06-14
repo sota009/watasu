@@ -3,6 +3,7 @@ import {
   buildHostedCanaryCheckUrls,
   buildHostedCanarySuccessReport,
   formatHostedCanaryRequestError,
+  formatHostedCanaryResponseReadError,
   hostedCanaryRequiredHeaders,
   resolveHostedCanaryBaseUrl,
   resolveHostedCanaryTimeoutMs,
@@ -29,7 +30,7 @@ const response = await fetchHostedCanary("Health check", urls.health, {
   },
   redirect: "manual"
 });
-const body = await response.text();
+const body = await readHostedCanaryResponseBody("Health check", response);
 
 if (response.status !== 200) {
   console.error(`Health check failed with status ${response.status}.`);
@@ -164,6 +165,15 @@ async function fetchHostedCanary(label, url, init) {
   }
 }
 
+async function readHostedCanaryResponseBody(label, responseToRead) {
+  try {
+    return await responseToRead.text();
+  } catch (error) {
+    console.error(formatHostedCanaryResponseReadError(label, error));
+    process.exit(1);
+  }
+}
+
 async function assertMcpProtectedResourceMetadata(input) {
   const checkedResponse = await fetchHostedCanary(input.label, input.url, {
     method: "GET",
@@ -172,7 +182,7 @@ async function assertMcpProtectedResourceMetadata(input) {
     },
     redirect: "manual"
   });
-  const checkedBody = await checkedResponse.text();
+  const checkedBody = await readHostedCanaryResponseBody(input.label, checkedResponse);
 
   if (checkedResponse.status !== 200) {
     console.error(`${input.label} expected status 200 but got ${checkedResponse.status}.`);
@@ -217,7 +227,7 @@ async function assertMcpEndpoint(input) {
     },
     redirect: "manual"
   });
-  const checkedBody = await checkedResponse.text();
+  const checkedBody = await readHostedCanaryResponseBody(input.label, checkedResponse);
 
   if (checkedResponse.status !== 401) {
     console.error(`${input.label} expected unauthenticated status 401 but got ${checkedResponse.status}.`);
@@ -263,7 +273,7 @@ function mcpForbiddenFragments() {
 
 async function assertUnpublishedRoute(input) {
   const checkedResponse = await fetchHostedCanary(input.label, input.url, input.init);
-  const checkedBody = await checkedResponse.text();
+  const checkedBody = await readHostedCanaryResponseBody(input.label, checkedResponse);
 
   if (checkedResponse.status !== 404) {
     console.error(`${input.label} expected unpublished request status 404 but got ${checkedResponse.status}.`);
@@ -293,7 +303,7 @@ async function assertUnpublishedRoute(input) {
 
 async function assertNotFoundRoute(input) {
   const checkedResponse = await fetchHostedCanary(input.label, input.url, input.init);
-  const checkedBody = await checkedResponse.text();
+  const checkedBody = await readHostedCanaryResponseBody(input.label, checkedResponse);
 
   if (checkedResponse.status !== 404) {
     console.error(`${input.label} expected not found status 404 but got ${checkedResponse.status}.`);

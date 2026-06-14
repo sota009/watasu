@@ -5,6 +5,7 @@ import {
   buildHostedCanarySuccessReport,
   defaultHostedCanaryTimeoutMs,
   formatHostedCanaryRequestError,
+  formatHostedCanaryResponseReadError,
   maxHostedCanaryTimeoutMs,
   hostedCanaryUnpublishedRequestId,
   parseHostedCanaryBaseUrl,
@@ -144,6 +145,15 @@ describe("hosted canary helpers", () => {
     const error = new DOMException("The operation was aborted", "TimeoutError");
 
     expect(formatHostedCanaryRequestError("MCP endpoint", error)).toBe("MCP endpoint request timed out.");
+  });
+
+  test("test_format_hosted_canary_response_read_error_hides_secret_like_details", () => {
+    const message = formatHostedCanaryResponseReadError(
+      "Health check",
+      new Error("body read failed for https://user:password@api.watasu.ai?token=secret")
+    );
+
+    expect(message).toBe("Health check response body could not be read.");
   });
 
   test("test_build_hosted_canary_check_urls_includes_health_and_public_routes", () => {

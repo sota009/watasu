@@ -143,6 +143,10 @@ export function formatHostedCanaryRequestError(label, error) {
   return `${label} request failed.`;
 }
 
+export function formatHostedCanaryResponseReadError(label, _error) {
+  return `${label} response body could not be read.`;
+}
+
 function isLoopbackHostname(hostname) {
   return hostname === "localhost" ||
     hostname === "127.0.0.1" ||
