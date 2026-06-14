@@ -1,7 +1,9 @@
-import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
+import type { Readable } from "node:stream";
 import type {
   HostedProductionApp,
-  HostedProductionRequest
+  HostedProductionRequest,
+  HostedProductionResponse
 } from "./hosted-production.js";
 
 export type { HostedProductionRequest } from "./hosted-production.js";
@@ -9,6 +11,10 @@ export type { HostedProductionRequest } from "./hosted-production.js";
 export interface HostedRuntimeConfig {
   host: string;
   port: number;
+}
+
+export interface HostedProductionServerOptions {
+  maxRequestBodyBytes?: number | undefined;
 }
 
 export type HostedPostgresRuntimeConfig =
@@ -71,13 +77,52 @@ export function loadHostedPostgresRuntimeConfig(
   };
 }
 
-export function createHostedProductionServer(app: HostedProductionApp): Server {
+const defaultMaxRequestBodyBytes = 256 * 1024;
+
+export class HostedRequestBodyTooLargeError extends Error {
+  readonly code = "request_body_too_large";
+
+  constructor() {
+    super("Request body exceeds the hosted production limit.");
+  }
+}
+
+export function createHostedProductionServer(
+  app: HostedProductionApp,
+  options: HostedProductionServerOptions = {}
+): Server {
+  const maxRequestBodyBytes = options.maxRequestBodyBytes ?? defaultMaxRequestBodyBytes;
+
   return createServer(async (request, response) => {
+    if (isContentLengthOverLimit(request.headers, maxRequestBodyBytes)) {
+      request.resume();
+      const handled = requestBodyTooLargeResponse();
+      response.writeHead(handled.status, handled.headers);
+      response.end(handled.body);
+      return;
+    }
+
+    let body: string;
+    try {
+      body = await readHostedRequestBody(request, {
+        maxBytes: maxRequestBodyBytes
+      });
+    } catch (error) {
+      if (isHostedRequestBodyTooLargeError(error)) {
+        const handled = requestBodyTooLargeResponse();
+        response.writeHead(handled.status, handled.headers);
+        response.end(handled.body);
+        return;
+      }
+
+      throw error;
+    }
+
     const handled = await app.handle(buildHostedProductionRequest({
       method: request.method ?? "GET",
       url: request.url,
       headers: normalizeHeaders(request.headers),
-      body: await readRequestBody(request)
+      body
     }));
 
     response.writeHead(handled.status, handled.headers);
@@ -155,11 +200,60 @@ function normalizeHeaders(headers: IncomingHttpHeaders): HostedProductionRequest
   );
 }
 
-async function readRequestBody(request: IncomingMessage): Promise<string> {
+export async function readHostedRequestBody(input: Readable, options: {
+  maxBytes?: number | undefined;
+} = {}): Promise<string> {
+  const maxBytes = options.maxBytes ?? defaultMaxRequestBodyBytes;
   const chunks: Buffer[] = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  let totalBytes = 0;
+
+  for await (const chunk of input) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > maxBytes) {
+      throw new HostedRequestBodyTooLargeError();
+    }
+
+    chunks.push(buffer);
   }
 
   return Buffer.concat(chunks).toString("utf8");
+}
+
+function isContentLengthOverLimit(
+  headers: IncomingHttpHeaders,
+  maxRequestBodyBytes: number
+): boolean {
+  const rawContentLength = headers["content-length"];
+  if (rawContentLength === undefined || Array.isArray(rawContentLength)) {
+    return false;
+  }
+
+  const contentLength = Number.parseInt(rawContentLength, 10);
+  return Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes;
+}
+
+function isHostedRequestBodyTooLargeError(error: unknown): error is HostedRequestBodyTooLargeError {
+  return error instanceof HostedRequestBodyTooLargeError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: unknown }).code === "request_body_too_large");
+}
+
+function requestBodyTooLargeResponse(): HostedProductionResponse {
+  return {
+    status: 413,
+    headers: {
+      "content-type": "application/json; charset=utf-8"
+    },
+    body: `${JSON.stringify({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "request_body_too_large",
+        message: "Request body exceeds the hosted production limit."
+      }
+    })}\n`
+  };
 }

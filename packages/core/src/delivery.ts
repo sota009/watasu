@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
 import { canonicalizeJson } from "./request-definition.js";
@@ -19,11 +20,14 @@ export interface DeliveryRequest {
 
 export interface DeliveryResponse {
   status: number;
+  headers?: Record<string, string | undefined> | undefined;
 }
 
 export interface DeliveryClient {
   post(request: DeliveryRequest): Promise<DeliveryResponse>;
 }
+
+export type DeliveryHostResolver = (hostname: string) => Promise<string[]>;
 
 export type FetchDeliveryClientFetch = (
   input: string,
@@ -36,6 +40,9 @@ export type FetchDeliveryClientFetch = (
   }
 ) => Promise<{
   status: number;
+  headers?: {
+    get(name: string): string | null;
+  } | undefined;
 }>;
 
 export interface DeliveryLedger {
@@ -249,8 +256,16 @@ export function createFetchDeliveryClient(input: {
           signal: abortController.signal
         });
 
+        const location = response.headers?.get("location") ?? undefined;
         return {
-          status: response.status
+          status: response.status,
+          ...(location === undefined
+            ? {}
+            : {
+                headers: {
+                  location
+                }
+              })
         };
       } finally {
         clearTimeout(timeout);
@@ -269,12 +284,17 @@ export async function deliverAcceptedSubmission(input: {
   logger?: DeliveryLogger | undefined;
   circuitBreaker?: DeliveryCircuitBreaker | undefined;
   concurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
+  resolveDeliveryHost?: DeliveryHostResolver | undefined;
   tenantId?: string | undefined;
   clock: () => Date;
   signingSecret: string;
 }): Promise<DeliveryResult> {
   const destinationUrl = new URL(input.published.definition.destination.url);
-  const urlError = validateDeliveryUrl(destinationUrl, input.mode);
+  const urlError = await validateDeliveryUrl({
+    destinationUrl,
+    mode: input.mode,
+    resolveDeliveryHost: input.resolveDeliveryHost
+  });
   if (urlError !== undefined) {
     return {
       ok: false,
@@ -329,11 +349,33 @@ export async function deliverAcceptedSubmission(input: {
   });
 
   try {
-    const response = await input.client.post({
+    let response = await input.client.post({
       url: destinationUrl.toString(),
       headers,
       body
     });
+
+    const redirectResult = await resolveDeliveryRedirect({
+      mode: input.mode,
+      originalUrl: destinationUrl,
+      response,
+      resolveDeliveryHost: input.resolveDeliveryHost
+    });
+    if (!redirectResult.ok) {
+      concurrencyClaim?.release();
+      return {
+        ok: false,
+        status: "rejected",
+        error: redirectResult.error
+      };
+    }
+    if (redirectResult.redirectUrl !== undefined) {
+      response = await input.client.post({
+        url: redirectResult.redirectUrl.toString(),
+        headers,
+        body
+      });
+    }
 
     if (response.status >= 200 && response.status < 300) {
       const ledgerRow = createLedgerRow(input, deliveredAt, "delivered", response.status);
@@ -380,6 +422,72 @@ export async function deliverAcceptedSubmission(input: {
     concurrencyClaim?.release();
     return resubmitLater(errorCode, message, ledgerRow);
   }
+}
+
+type DeliveryRedirectResolution =
+  | {
+      ok: true;
+      redirectUrl?: URL | undefined;
+    }
+  | {
+      ok: false;
+      error: {
+        code: string;
+        message: string;
+      };
+    };
+
+async function resolveDeliveryRedirect(input: {
+  mode: PublishMode;
+  originalUrl: URL;
+  response: DeliveryResponse;
+  resolveDeliveryHost: DeliveryHostResolver | undefined;
+}): Promise<DeliveryRedirectResolution> {
+  if (input.mode !== "hosted" || input.response.status < 300 || input.response.status >= 400) {
+    return {
+      ok: true
+    };
+  }
+
+  const location = input.response.headers?.location;
+  if (location === undefined || location.trim().length === 0) {
+    return {
+      ok: true
+    };
+  }
+
+  let redirectUrl: URL;
+  try {
+    redirectUrl = new URL(location, input.originalUrl);
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: "unsafe_delivery_redirect",
+        message: "Hosted delivery redirect target was invalid."
+      }
+    };
+  }
+
+  const redirectUrlError = await validateDeliveryUrl({
+    destinationUrl: redirectUrl,
+    mode: input.mode,
+    resolveDeliveryHost: input.resolveDeliveryHost
+  });
+  if (redirectUrlError !== undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "unsafe_delivery_redirect",
+        message: "Hosted delivery redirect target failed SSRF safety checks."
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    redirectUrl
+  };
 }
 
 function buildDeliveryBody(envelope: SubmissionEnvelope): string {
@@ -442,10 +550,12 @@ function createLedgerRow(
   };
 }
 
-function validateDeliveryUrl(
-  destinationUrl: URL,
-  mode: PublishMode
-): { code: string; message: string } | undefined {
+async function validateDeliveryUrl(input: {
+  destinationUrl: URL;
+  mode: PublishMode;
+  resolveDeliveryHost: DeliveryHostResolver | undefined;
+}): Promise<{ code: string; message: string } | undefined> {
+  const { destinationUrl, mode } = input;
   if (mode === "hosted" && destinationUrl.protocol !== "https:") {
     return {
       code: "unsafe_delivery_url",
@@ -460,7 +570,34 @@ function validateDeliveryUrl(
     };
   }
 
+  if (mode === "hosted") {
+    const resolveDeliveryHost = input.resolveDeliveryHost ?? resolvePublicDeliveryHost;
+    let addresses: string[];
+    try {
+      addresses = await resolveDeliveryHost(destinationUrl.hostname);
+    } catch {
+      return {
+        code: "delivery_host_resolution_failed",
+        message: "Hosted delivery destination could not be resolved."
+      };
+    }
+
+    if (addresses.length === 0 || addresses.some(isPrivateOrMetadataHost)) {
+      return {
+        code: "unsafe_delivery_host",
+        message: "Hosted delivery destination resolved to a private network or metadata service address."
+      };
+    }
+  }
+
   return undefined;
+}
+
+async function resolvePublicDeliveryHost(hostname: string): Promise<string[]> {
+  const records = await lookup(hostname, {
+    all: true
+  });
+  return records.map((record) => record.address);
 }
 
 function isPrivateOrMetadataHost(hostname: string): boolean {
@@ -475,7 +612,10 @@ function isPrivateOrMetadataHost(hostname: string): boolean {
   }
 
   if (ipVersion === 6) {
-    return normalizedHost === "::1" || normalizedHost.startsWith("fc") || normalizedHost.startsWith("fd");
+    return normalizedHost === "::1" ||
+      normalizedHost.startsWith("fc") ||
+      normalizedHost.startsWith("fd") ||
+      normalizedHost.startsWith("fe80:");
   }
 
   const [first = 0, second = 0] = normalizedHost.split(".").map((part) => Number(part));
@@ -484,7 +624,8 @@ function isPrivateOrMetadataHost(hostname: string): boolean {
     first === 127 ||
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
+    (first === 192 && second === 168) ||
+    first === 0
   );
 }
 

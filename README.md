@@ -146,6 +146,7 @@ Currently implemented:
 - in-memory service key and webhook origin ownership challenge lifecycle
 - live HTTPS webhook ownership challenge fetching with DNS unsafe-address preflight
 - DNS TXT webhook ownership challenge fetching
+- hosted production request body size limiting before app delegation
 - hosted publish HTTP adapter using server-side identity and ownership resolution
 - plaintext payload schema and encrypted envelope schema generation
 - A2A-compatible Agent Card generation
@@ -153,14 +154,16 @@ Currently implemented:
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - request definition validation rejects private JWK material so service key custody stays outside watasu
 - ES256 and Ed25519 EdDSA detached JWS sender signature verification for registered sender keys
+- `verified_sender` and `private_invite` reject missing signatures, unresolved sender public keys, and invite-binding mismatches before delivery
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
+- hosted webhook delivery re-checks DNS resolution before posting to reduce DNS rebinding / SSRF risk
 - delivery timeout classification that returns `resubmit_later` without retaining payload bodies
 - in-memory delivery circuit breaker for fail-fast `resubmit_later` after repeated webhook failures
 - in-memory delivery concurrency limiter for request and tenant caps
 - sender-actionable `resubmit_later` guidance with `Retry-After` and no payload retry queue
 - local HTTP demo wiring for injected delivery circuit breaker and concurrency limiter hooks
-- fetch delivery adapter disables automatic redirects for SSRF-safe delivery handling
+- fetch delivery adapter disables automatic redirects; hosted delivery manually follows at most one SSRF-checked safe redirect
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
@@ -174,7 +177,7 @@ Currently implemented:
 - in-memory verified service public key registration, revocation, and rotation lifecycle
 - JSONL delivery metadata ledger store for opt-in local persistence
 - PostgreSQL-compatible delivery metadata ledger store for hosted persistence
-- PostgreSQL delivery metadata ledger schema SQL for hosted migration bootstrap
+- PostgreSQL delivery metadata ledger schema SQL for hosted migration bootstrap, including same-idempotency retry attempt rows
 - PostgreSQL delivery metadata ledger migration runner for injected hosted query clients
 - PostgreSQL metadata ledger provisioning SQL artifact for hosted infrastructure setup
 - hosted PostgreSQL runtime config parser and migrated ledger store factory for injected pool clients

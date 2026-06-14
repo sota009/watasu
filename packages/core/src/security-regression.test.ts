@@ -150,7 +150,8 @@ async function deliverToFuturePersistentStore(): Promise<DeliveryLedgerRow[]> {
     client: createDeliveryClient(204),
     ledger,
     clock: () => new Date("2026-06-14T12:00:01.000Z"),
-    signingSecret: "test-signing-secret"
+    signingSecret: "test-signing-secret",
+    resolveDeliveryHost: async () => ["203.0.113.10"]
   });
 
   return persistentRows;
