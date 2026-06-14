@@ -186,6 +186,14 @@ pnpm --silent deploy:preflight
 
 The preflight checks the repo-side Render Blueprint, domain, runtime commands, secret-generation command, and remaining external actions without printing secret values or database URLs.
 
+Hosted runtime smoke before deploy:
+
+```bash
+pnpm --silent smoke:hosted
+```
+
+The smoke check loads the compiled hosted runtime, sends a closed-server `/health` request, and reports the expected runtime command without binding a network port.
+
 Generate a production service identity signing secret for Render:
 
 ```bash

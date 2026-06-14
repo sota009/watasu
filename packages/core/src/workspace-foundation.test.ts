@@ -77,6 +77,7 @@ describe("workspace foundation", () => {
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
       "secret:identity": "node scripts/generate-identity-secret.mjs",
+      "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
       test: "pnpm typecheck && vitest run",
       typecheck: "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
     });
@@ -220,6 +221,37 @@ describe("workspace foundation", () => {
       "post-deploy hosted canary passed"
     ]);
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_hosted_start_smoke_runs_compiled_entrypoint_and_health_check", () => {
+    const result = spawnSync("pnpm", ["--silent", "smoke:hosted"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      timeout: 20_000
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      checked_command: string;
+      checked_mode: string;
+      checked_url: string;
+      checked_status: number;
+      checked_body: unknown;
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_mode: "closed_server_health_request",
+      checked_status: 200,
+      checked_body: {
+        ok: true,
+        service: "watasu-hosted"
+      }
+    });
+    expect(report.checked_url).toBe("http://127.0.0.1:1/health");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
   });
 
