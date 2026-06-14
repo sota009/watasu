@@ -180,6 +180,7 @@ Currently implemented:
 - MCP publish tool plus read tools and resources for Agent Card, plaintext schema, envelope schema, and metadata-only ledger rows
 - hosted MCP publish and ledger tools that delegate to the hosted production app
 - hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
+- hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
@@ -187,7 +188,7 @@ Still remaining for Hosted Production MVP:
 
 - production hosted runtime entrypoint for a selected deployment identity provider and database pool implementation
 - PostgreSQL infrastructure provisioning for hosted metadata stores
-- production MCP deployment wiring
+- production MCP HTTP transport entrypoint on the selected deployment platform
 - KMS/HSM-backed service private key custody beyond verified public-key registry
 
 Not in scope for the MVP:

@@ -16,6 +16,15 @@ import {
 import { z } from "zod";
 
 export const mcpPackageName = "@watasu/mcp";
+export {
+  buildMcpProtectedResourceMetadata,
+  buildMcpUnauthorizedChallenge
+} from "./deployment.js";
+export type {
+  BuildMcpProtectedResourceMetadataInput,
+  BuildMcpUnauthorizedChallengeInput,
+  McpProtectedResourceMetadata
+} from "./deployment.js";
 
 export interface HostedMcpRequest {
   method: string;

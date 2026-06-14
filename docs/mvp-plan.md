@@ -122,7 +122,7 @@ Done when:
 
 ### Phase 2: MCP publish and resources
 
-Status: done for the local in-memory MCP workspace, hosted production app delegation, and hosted MCP transport service-header authentication boundary.
+Status: done for the local in-memory MCP workspace, hosted production app delegation, hosted MCP transport service-header authentication boundary, and OAuth protected-resource metadata helpers.
 
 Goal: service-side agents can finish the local workflow through MCP, not only CLI.
 
@@ -132,6 +132,7 @@ Implementation:
 - Add MCP resources or read tools for Agent Card, plaintext schema, envelope schema, and metadata-only ledger.
 - Add hosted MCP tools that delegate publish and ledger reads to the hosted production app instead of local in-memory state.
 - Resolve hosted MCP service headers from authenticated transport context and reject unauthenticated hosted tool calls before hosted app delegation.
+- Add OAuth protected-resource metadata and `WWW-Authenticate` challenge helpers for hosted MCP HTTP deployment.
 - Require explicit confirmation for publish.
 - Keep MCP outputs machine-readable.
 - Never expose payload values through MCP.
@@ -155,6 +156,7 @@ Done when:
 - MCP can return Agent Card and schemas for the published local request.
 - MCP ledger output is metadata-only.
 - hosted MCP tools do not call the hosted production app without authenticated transport service headers.
+- hosted MCP deployment metadata exposes authorization servers and scope hints without query-string tokens.
 - tests prove MCP tool descriptions and request text are treated as data, not instructions.
 
 ### Phase 3: Capability revoke and rotate
