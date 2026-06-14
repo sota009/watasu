@@ -195,6 +195,32 @@ trust_profile: public_capability
     });
   });
 
+  test("test_special_category_metadata_fields_are_prohibited", () => {
+    const request = validRequest({
+      fields: ["political_affiliation", "anonymous_source"].map((id) => ({
+        id,
+        type: "string",
+        required: true,
+        purpose: `Collect ${id}.`,
+        sensitivity: "low"
+      }))
+    });
+
+    const result = validateRequestDefinitionInput(JSON.stringify(request));
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.errors).toEqual([
+      expect.objectContaining({
+        code: "prohibited_field",
+        path: "fields[0]"
+      }),
+      expect.objectContaining({
+        code: "prohibited_field",
+        path: "fields[1]"
+      })
+    ]);
+  });
+
   test("test_sensitivity_inference_upgrades_allergies_address_tax_id_minor_age", () => {
     const request = validRequest({
       fields: ["allergies", "address", "tax_id", "minor_age"].map((id) => ({
