@@ -181,7 +181,7 @@ Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `
 Generate a production service identity signing secret for Render:
 
 ```bash
-pnpm secret:identity
+pnpm --silent secret:identity
 ```
 
 The command prints a 32 byte base64url value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`. Enter the generated value only in the Render web service secret prompt.

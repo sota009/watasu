@@ -43,6 +43,24 @@ function envVarsByKey(service: Record<string, unknown>): Map<string, Record<stri
   );
 }
 
+function expectIdentitySecretOutput(result: ReturnType<typeof spawnSync>): void {
+  expect(result.status).toBe(0);
+  expect(result.stderr).toBe("");
+  const output = JSON.parse(result.stdout as string) as {
+    bytes: number;
+    format: string;
+    value: string;
+    env: string;
+  };
+  expect(output).toMatchObject({
+    bytes: 32,
+    format: "base64url",
+    env: "WATASU_SERVICE_IDENTITY_SIGNING_SECRET"
+  });
+  expect(output.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  expect(Buffer.from(output.value, "base64url")).toHaveLength(32);
+}
+
 describe("workspace foundation", () => {
   test("test_workspace_scripts_run_typecheck_and_tests", async () => {
     const packageJson = readJson("package.json") as {
@@ -125,26 +143,17 @@ describe("workspace foundation", () => {
   });
 
   test("test_identity_secret_generator_outputs_32_byte_base64url_secret", () => {
-    const result = spawnSync(process.execPath, ["scripts/generate-identity-secret.mjs"], {
+    const direct = spawnSync(process.execPath, ["scripts/generate-identity-secret.mjs"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+    const viaPnpm = spawnSync("pnpm", ["--silent", "secret:identity"], {
       cwd: rootDir,
       encoding: "utf8"
     });
 
-    expect(result.status).toBe(0);
-    expect(result.stderr).toBe("");
-    const output = JSON.parse(result.stdout) as {
-      bytes: number;
-      format: string;
-      value: string;
-      env: string;
-    };
-    expect(output).toMatchObject({
-      bytes: 32,
-      format: "base64url",
-      env: "WATASU_SERVICE_IDENTITY_SIGNING_SECRET"
-    });
-    expect(output.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(Buffer.from(output.value, "base64url")).toHaveLength(32);
+    expectIdentitySecretOutput(direct);
+    expectIdentitySecretOutput(viaPnpm);
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {
