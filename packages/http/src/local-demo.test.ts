@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   canonicalizeJson,
+  InMemoryDeliveryCircuitBreaker,
   sha256Hash,
   watasuEncryptedIntakeExtensionUri,
   type DeliveryClient,
+  type DeliveryConcurrencyLimiter,
   type DeliveryRequest
 } from "@watasu/core";
 import {
@@ -57,6 +59,23 @@ function createDeliveryClient(status: number): DeliveryClient & { requests: Deli
       requests.push(request);
       return {
         status
+      };
+    }
+  };
+}
+
+function createOneShotConcurrencyLimiter(): DeliveryConcurrencyLimiter {
+  let hasRejected = false;
+
+  return {
+    tryAcquire() {
+      if (!hasRejected) {
+        hasRejected = true;
+        return undefined;
+      }
+
+      return {
+        release() {}
       };
     }
   };
@@ -350,6 +369,107 @@ describe("local HTTP demo app", () => {
       ok: true,
       status: "delivered"
     });
+  });
+
+  test("test_post_submit_open_circuit_fails_fast_without_payload_body", async () => {
+    // Arrange
+    const client = createDeliveryClient(503);
+    const clock = () => new Date("2026-06-14T12:00:00.000Z");
+    const app = createLocalDemoApp({
+      baseUrl: "http://127.0.0.1:8787",
+      deliveryClient: client,
+      deliveryCircuitBreaker: new InMemoryDeliveryCircuitBreaker({
+        failureThreshold: 2,
+        cooldownMs: 60_000,
+        clock
+      }),
+      clock
+    });
+    const createRequest = (idempotencyKey: string) => ({
+      method: "POST",
+      path: localDemoSubmitPath,
+      headers: {
+        "content-type": "application/a2a+json",
+        "a2a-version": "1.0",
+        "a2a-extensions": watasuEncryptedIntakeExtensionUri
+      },
+      body: createA2aSubmitBody({
+        ...createValidEnvelope(app),
+        idempotency_key: idempotencyKey
+      })
+    });
+
+    // Act
+    await app.handle(createRequest("submit-001"));
+    await app.handle(createRequest("submit-002"));
+    const response = await app.handle(createRequest("submit-003"));
+    const ledgerResponse = await app.handle({
+      method: "GET",
+      path: "/ledger",
+      headers: {},
+      body: ""
+    });
+    const retainedJson = canonicalizeJson({
+      response: parseJson(response.body),
+      ledger: parseJson(ledgerResponse.body)
+    });
+
+    // Assert
+    expect(client.requests).toHaveLength(2);
+    expect(response.status).toBe(503);
+    expect(parseJson(response.body)).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "webhook_circuit_open"
+      }
+    });
+    expect(retainedJson).not.toContain("base64url-ciphertext");
+    expect(retainedJson).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_post_submit_concurrency_limit_releases_idempotency_for_retry", async () => {
+    // Arrange
+    const client = createDeliveryClient(204);
+    const app = createLocalDemoApp({
+      baseUrl: "http://127.0.0.1:8787",
+      deliveryClient: client,
+      deliveryConcurrencyLimiter: createOneShotConcurrencyLimiter(),
+      tenantId: "tenant-a",
+      clock: () => new Date("2026-06-14T12:00:00.000Z")
+    });
+    const request = {
+      method: "POST",
+      path: localDemoSubmitPath,
+      headers: {
+        "content-type": "application/a2a+json",
+        "a2a-version": "1.0",
+        "a2a-extensions": watasuEncryptedIntakeExtensionUri
+      },
+      body: createA2aSubmitBody(createValidEnvelope(app))
+    };
+
+    // Act
+    const firstResponse = await app.handle(request);
+    const secondResponse = await app.handle(request);
+
+    // Assert
+    expect(client.requests).toHaveLength(1);
+    expect(firstResponse.status).toBe(503);
+    expect(secondResponse.status).toBe(202);
+    expect(parseJson(firstResponse.body)).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "delivery_concurrency_limited"
+      }
+    });
+    expect(parseJson(secondResponse.body)).toMatchObject({
+      ok: true,
+      status: "delivered"
+    });
+    expect(secondResponse.body).not.toContain("base64url-ciphertext");
+    expect(secondResponse.body).not.toContain("\"encrypted_payload\"");
   });
 
   test("test_get_ledger_returns_metadata_without_payload_body", async () => {

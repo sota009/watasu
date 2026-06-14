@@ -12,6 +12,8 @@ import {
   validateSubmissionEnvelope,
   watasuA2aHttpJsonContentType,
   type DeliveryClient,
+  type DeliveryCircuitBreaker,
+  type DeliveryConcurrencyLimiter,
   type DeliveryLedger,
   type DeliveryLedgerRow,
   type PersistentDeliveryLedgerStore,
@@ -49,6 +51,9 @@ export interface CreateLocalDemoAppInput {
   signingSecret?: string | undefined;
   storagePolicy?: StoragePolicy | undefined;
   persistentLedgerStore?: PersistentDeliveryLedgerStore | undefined;
+  deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
+  deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
+  tenantId?: string | undefined;
 }
 
 export function createLocalDemoApp(input: CreateLocalDemoAppInput): LocalDemoApp {
@@ -112,7 +117,10 @@ export function createLocalDemoApp(input: CreateLocalDemoAppInput): LocalDemoApp
           idempotencyStore,
           rateLimiter,
           clock,
-          signingSecret: input.signingSecret ?? "local-demo-signing-secret"
+          signingSecret: input.signingSecret ?? "local-demo-signing-secret",
+          deliveryCircuitBreaker: input.deliveryCircuitBreaker,
+          deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
+          tenantId: input.tenantId
         });
       }
 
@@ -152,6 +160,9 @@ async function handleSubmit(
     rateLimiter: InMemorySubmissionRateLimiter;
     clock: () => Date;
     signingSecret: string;
+    deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
+    deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
+    tenantId?: string | undefined;
   }
 ): Promise<LocalDemoResponse> {
   const headerGateResult = gateA2aSubmissionProtocol({
@@ -222,7 +233,10 @@ async function handleSubmit(
     client: context.deliveryClient,
     ledger: context.ledger,
     clock: context.clock,
-    signingSecret: context.signingSecret
+    signingSecret: context.signingSecret,
+    circuitBreaker: context.deliveryCircuitBreaker,
+    concurrencyLimiter: context.deliveryConcurrencyLimiter,
+    tenantId: context.tenantId
   });
 
   if (!deliveryResult.ok) {

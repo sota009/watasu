@@ -149,6 +149,7 @@ Currently implemented:
 - delivery timeout classification that returns `resubmit_later` without retaining payload bodies
 - in-memory delivery circuit breaker for fail-fast `resubmit_later` after repeated webhook failures
 - in-memory delivery concurrency limiter for request and tenant caps
+- local HTTP demo wiring for injected delivery circuit breaker and concurrency limiter hooks
 - fetch delivery adapter disables automatic redirects for SSRF-safe delivery handling
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
