@@ -158,6 +158,7 @@ Currently implemented:
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - trusted service identity resolver for mapping authenticated server context into hosted roles
 - hosted sender trust resolver for registered sender keys and private invite bindings
+- in-memory sender key registration, revocation, and rotation lifecycle
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
@@ -174,7 +175,7 @@ Still remaining for Hosted Production MVP:
 - MCP hosted production surface beyond local in-memory publish and read tools
 - service-owned key management beyond the local JWE wrapper
 - service public key and webhook ownership challenge lifecycle beyond injected verification state
-- EdDSA sender signatures and sender key registration lifecycle
+- EdDSA sender signatures
 - production sender resubmission/backoff guidance that keeps the no payload retry queue rule
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.

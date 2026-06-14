@@ -16,7 +16,9 @@ export interface HostedSenderKeyRecord {
   status: HostedSenderTrustRecordStatus;
   not_before: string;
   expires_at: string;
+  created_at?: string | undefined;
   revoked_at?: string | undefined;
+  rotated_from_sender_key_id?: string | undefined;
 }
 
 export interface HostedPrivateInviteRecord {
@@ -55,6 +57,98 @@ export interface CreateHostedSenderTrustResolverInput {
 export type HostedSenderTrustResolver = (
   input: HostedSenderTrustInput
 ) => HostedSenderTrustResult;
+
+export class InMemoryHostedSenderKeyRegistry {
+  readonly #recordsByTenantAndKey = new Map<string, HostedSenderKeyRecord>();
+
+  registerSenderKey(input: {
+    tenant_id: string;
+    request_id: string;
+    request_version: string;
+    sender_key_id: string;
+    alg: "ES256";
+    public_jwk: TrustedSenderPublicKey["public_jwk"];
+    not_before: string;
+    expires_at: string;
+    created_at: string;
+    rotated_from_sender_key_id?: string | undefined;
+  }): HostedSenderKeyRecord {
+    const record: HostedSenderKeyRecord = {
+      tenant_id: input.tenant_id,
+      request_id: input.request_id,
+      request_version: input.request_version,
+      sender_key_id: input.sender_key_id,
+      alg: input.alg,
+      public_jwk: input.public_jwk,
+      status: "active",
+      not_before: input.not_before,
+      expires_at: input.expires_at,
+      created_at: input.created_at,
+      rotated_from_sender_key_id: input.rotated_from_sender_key_id
+    };
+    this.#recordsByTenantAndKey.set(recordKey(input.tenant_id, input.sender_key_id), record);
+
+    return structuredClone(record);
+  }
+
+  revokeSenderKey(input: {
+    tenant_id: string;
+    sender_key_id: string;
+    revoked_at: string;
+  }): void {
+    const key = recordKey(input.tenant_id, input.sender_key_id);
+    const existing = this.#recordsByTenantAndKey.get(key);
+    if (existing === undefined) {
+      return;
+    }
+
+    this.#recordsByTenantAndKey.set(key, {
+      ...existing,
+      status: "revoked",
+      revoked_at: input.revoked_at
+    });
+  }
+
+  rotateSenderKey(input: {
+    tenant_id: string;
+    previous_sender_key_id: string;
+    next_sender_key_id: string;
+    alg: "ES256";
+    public_jwk: TrustedSenderPublicKey["public_jwk"];
+    not_before: string;
+    expires_at: string;
+    rotated_at: string;
+  }): HostedSenderKeyRecord | undefined {
+    const previousKey = recordKey(input.tenant_id, input.previous_sender_key_id);
+    const previous = this.#recordsByTenantAndKey.get(previousKey);
+    if (previous === undefined) {
+      return undefined;
+    }
+
+    this.#recordsByTenantAndKey.set(previousKey, {
+      ...previous,
+      status: "rotated",
+      revoked_at: input.rotated_at
+    });
+
+    return this.registerSenderKey({
+      tenant_id: previous.tenant_id,
+      request_id: previous.request_id,
+      request_version: previous.request_version,
+      sender_key_id: input.next_sender_key_id,
+      alg: input.alg,
+      public_jwk: input.public_jwk,
+      not_before: input.not_before,
+      expires_at: input.expires_at,
+      created_at: input.rotated_at,
+      rotated_from_sender_key_id: previous.sender_key_id
+    });
+  }
+
+  listSenderKeys(): HostedSenderKeyRecord[] {
+    return [...this.#recordsByTenantAndKey.values()].map((record) => structuredClone(record));
+  }
+}
 
 export function createHostedSenderTrustResolver(
   input: CreateHostedSenderTrustResolverInput
@@ -122,4 +216,8 @@ function isTrustedInvite(
 function isWithinValidityWindow(notBefore: string, expiresAt: string, now: Date): boolean {
   const nowMs = now.getTime();
   return new Date(notBefore).getTime() <= nowMs && nowMs < new Date(expiresAt).getTime();
+}
+
+function recordKey(tenantId: string, senderKeyId: string): string {
+  return `${tenantId}:${senderKeyId}`;
 }
