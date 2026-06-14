@@ -90,6 +90,68 @@ pnpm demo:handoff
 
 Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. Cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations outside this repository.
 
+### Deployment operations handoff
+
+Default private-alpha target: Render.
+
+Why this target:
+
+- It keeps the first hosted deployment boring: one managed platform for a Node web service, managed PostgreSQL, cron jobs, custom domains, TLS, health checks, and Git-backed deploys.
+- Its Blueprint model can later move deployment intent into `render.yaml`, so production setup is reviewable in PRs instead of hidden in a dashboard.
+- Its paid PostgreSQL plans provide point-in-time recovery and logical exports, which fits watasu's metadata-only ledger better than a free or local database.
+- It supports custom domains with automatic TLS, so the first public Agent Card URL can be a stable HTTPS subdomain.
+
+Do this before asking the product owner for account actions:
+
+1. Add a production entrypoint that composes the hosted HTTP app, hosted identity resolver, and optional PostgreSQL ledger runtime.
+2. Add a hosting config, preferably `render.yaml`, with a web service, PostgreSQL database, and retention cron job.
+3. Make the production server read the platform port safely. Render provides a platform port, while the current runtime config reads `WATASU_HOSTED_PORT`.
+4. Add `/health` or an equivalent low-risk health endpoint that does not expose tenant, ledger, payload, or dependency details.
+5. Run `pnpm loop:full`, `pnpm demo:handoff`, and a local smoke test of the production entrypoint.
+
+Product owner actions:
+
+1. Create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
+2. Connect the GitHub repository to Render with least necessary repository access.
+3. Choose a dedicated API subdomain, for example `api.example.com`. Prefer a subdomain over the apex domain for the first private alpha.
+4. Create the managed PostgreSQL database in the same region as the web service.
+5. In Render, set environment variables or an environment group for the production service. Real secret values must be entered in Render only, never committed to git.
+6. Add the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
+7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, and no-payload-custody checks pass on the deployed URL.
+
+Recommended production environment variables:
+
+| Variable | Owner action | Notes |
+| --- | --- | --- |
+| `WATASU_IDENTITY_PROVIDER=signed_headers` | Codex can put the non-secret default in config. | Current hosted identity provider. |
+| `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a high-entropy value. Rotate if exposed. |
+| `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived. |
+| `WATASU_METADATA_LEDGER_STORE=postgres` | Codex can put the non-secret default in config. | Use only when the hosted metadata ledger is intentionally enabled. |
+| `WATASU_POSTGRES_URL` | Product owner wires from Render Postgres in Render. | Secret. Never print in logs or PR text. |
+| `WATASU_POSTGRES_SSL=require` | Codex can put the non-secret default in config. | Hosted database connections should require TLS. |
+| `WATASU_POSTGRES_POOL_MAX=5` | Codex can put the non-secret default in config. | Start small for private alpha; raise only with load evidence. |
+| `WATASU_POSTGRES_RUN_MIGRATIONS=true` | Codex can put the non-secret default in config. | Keep true for the first deploy unless migrations move to a dedicated job. |
+
+Owner checklist for the first production cutover:
+
+```text
+[ ] Render workspace selected and billing enabled.
+[ ] GitHub repository connected to Render.
+[ ] Paid Render Postgres database created in the same region as the web service.
+[ ] Secrets entered in Render, not committed to git.
+[ ] Dedicated API subdomain chosen.
+[ ] DNS record configured and Render domain verification passed.
+[ ] Production URL shared back with Codex for canary checks.
+[ ] Go/no-go decision made after canary and no-payload-custody checks.
+```
+
+Do not put in the owner's manual checklist:
+
+- running database migrations by hand when the deployment config can run them
+- copying SQL into the dashboard if `render.yaml` and the runtime migration runner can own it
+- editing generated Agent Card JSON manually
+- placing private keys, database URLs, or service identity signing secrets in README, PR text, shell history, or issue comments
+
 ## Execution phases
 
 Each phase should be implemented TDD-style when it changes behavior:
@@ -398,4 +460,4 @@ Ask for human review at these points:
 - Identity proof, KYC, or delegated authority.
 - Production retry queue that stores encrypted payload bodies inside watasu.
 - Custom crypto or HPKE-first design.
-- Full hosted deployment pipeline.
+- Production deployment automation until the production entrypoint, hosting config, health check, and canary flow are added in a follow-up PR.

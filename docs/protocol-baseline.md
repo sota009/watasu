@@ -21,6 +21,18 @@ This file records the latest-info gate before adding implementation dependencies
 | PostgreSQL pool wiring | https://node-postgres.com/features/pooling on 2026-06-15 | node-postgres documents using a single bounded `Pool`, returning checked-out clients, and using `pool.query` for single queries to avoid client leaks. | Keep watasu core on the generic `query(text, values)` interface. A production runtime may inject a single managed pool or adapter with the same interface, then run the metadata migration before serving traffic. |
 | Test runner | https://vitest.dev/guide/ | Vitest is the Vite-native test framework and supports TypeScript-oriented unit/contract/snapshot tests. | Use Vitest for unit, contract, security regression, and workspace tests. |
 
+## Hosted operations baseline
+
+Checked at: 2026-06-15
+
+| Area | Checked source | Current result | Deployment decision |
+| --- | --- | --- | --- |
+| Default hosting platform | https://render.com/docs/web-services, https://render.com/docs/blueprint-spec, https://render.com/docs/postgresql-creating-connecting, and https://render.com/docs/cronjobs | Render supports Node web services, Blueprint-managed services/databases/env groups, managed PostgreSQL, cron jobs, health checks, and Git-backed deploys in one operational surface. | Use Render as the default private-alpha deployment target. Prefer Blueprint-managed web service + managed Postgres + cron job after a production entrypoint is added to this repo. |
+| Deploy trigger | https://render.com/docs/blueprint-spec | Blueprint `autoDeployTrigger` supports `commit`, `checksPass`, and `off`; `checksPass` deploys only after CI checks pass. | Use `checksPass` for production once CI is configured. Avoid dashboard-only mutable deploy settings where a repo-tracked Blueprint can express them. |
+| Secrets and environment variables | https://render.com/docs/configure-environment-variables | Render environment variables protect credentials from being committed and environment groups can share variables across services. | Put real values only in Render environment variables or environment groups. Never commit `WATASU_POSTGRES_URL`, service identity signing secrets, API tokens, or private keys. |
+| Database and backups | https://render.com/docs/postgresql-creating-connecting | Render Postgres is fully managed; paid databases provide point-in-time recovery and logical exports. | Use a paid Render Postgres database for any hosted metadata ledger. Keep web service and database in the same region. |
+| Custom domain and TLS | https://render.com/docs/custom-domains | Render custom domains require adding the domain, configuring DNS, and verifying it; Render automatically creates and renews TLS certificates and redirects HTTP to HTTPS. | Use a dedicated API subdomain such as `api.example.com`, verify DNS in Render, and rely on managed TLS. Do not use the apex domain for the first private alpha unless product routing requires it. |
+
 ## Package vetting
 
 | Package | Latest stable checked | Release date | Import path | Maintenance / officiality | Vulnerability check | Typosquatting check | Install script risk | Decision |
