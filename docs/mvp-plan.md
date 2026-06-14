@@ -310,13 +310,13 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial core checks only | Hosted service identity integration |
-| Contractor or B2B onboarding | Partial core checks only | Hosted service identity integration |
-| QR or email private handoff | Partial core checks only | Hosted service identity integration |
-| Leaked capability URL recovery | Partial core checks only | Hosted service identity integration |
-| Verified sender or private invite intake | Partial core checks only | Hosted service identity integration |
-| Hosted high-sensitivity intake | No | Phases 4-6 |
-| Tenant-scoped ledger inspection | No | Phase 5 |
+| Recruiting intake | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
+| Contractor or B2B onboarding | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
+| QR or email private handoff | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
+| Leaked capability URL recovery | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
+| Verified sender or private invite intake | Partial hosted HTTP surface | Deployable hosted runtime and persistent stores |
+| Hosted high-sensitivity intake | Partial hosted HTTP surface | KMS/HSM-backed key custody and production operations |
+| Tenant-scoped ledger inspection | Partial hosted HTTP surface | Hosted PostgreSQL-compatible store and scheduler |
 | Retention-backed hosted metadata ledger | Partial core/local JSONL | Hosted PostgreSQL-compatible store and scheduler |
 
 ## Positioning boundaries
