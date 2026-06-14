@@ -156,6 +156,35 @@ describe("workspace foundation", () => {
     expectIdentitySecretOutput(viaPnpm);
   });
 
+  test("test_identity_secret_generator_plain_output_is_secret_value_only", () => {
+    const direct = spawnSync(process.execPath, ["scripts/generate-identity-secret.mjs", "--plain"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+    const viaPnpm = spawnSync("pnpm", ["--silent", "secret:identity", "--plain"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    for (const result of [direct, viaPnpm]) {
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toMatch(/^[A-Za-z0-9_-]{43}\n$/);
+      expect(Buffer.from(result.stdout.trim(), "base64url")).toHaveLength(32);
+    }
+  });
+
+  test("test_identity_secret_generator_rejects_unknown_arguments", () => {
+    const result = spawnSync(process.execPath, ["scripts/generate-identity-secret.mjs", "--bad"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Usage: pnpm --silent secret:identity [--plain]");
+  });
+
   test("test_handoff_demo_outputs_metadata_only_summary", () => {
     const result = spawnSync(process.execPath, ["scripts/local-handoff-demo.mjs"], {
       cwd: rootDir,

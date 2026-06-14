@@ -181,10 +181,10 @@ Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `
 Generate a production service identity signing secret for Render:
 
 ```bash
-pnpm --silent secret:identity
+pnpm --silent secret:identity --plain
 ```
 
-The command prints a 32 byte base64url value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`. Enter the generated value only in the Render web service secret prompt.
+The command prints only a 32 byte base64url value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`. Enter the generated value only in the Render web service secret prompt. Omit `--plain` when you want JSON metadata for scriptable checks.
 
 `pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
 
