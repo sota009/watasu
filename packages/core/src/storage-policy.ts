@@ -10,7 +10,16 @@ export interface StoragePolicy {
 }
 
 export interface PersistentDeliveryLedgerStore {
-  writeDeliveryAttempt(row: DeliveryLedgerRow): void;
+  writeDeliveryAttempt(row: DeliveryLedgerRow): void | Promise<void>;
+}
+
+export interface PostgresQueryClient {
+  query(
+    text: string,
+    values: readonly unknown[]
+  ): Promise<{
+    rows: unknown[];
+  }>;
 }
 
 export interface RetentionDeliveryLedgerStore {
@@ -121,6 +130,46 @@ export class JsonlDeliveryLedgerStore implements PersistentDeliveryLedgerStore, 
   }
 }
 
+export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStore {
+  readonly #queryClient: PostgresQueryClient;
+
+  constructor(input: {
+    queryClient: PostgresQueryClient;
+  }) {
+    this.#queryClient = input.queryClient;
+  }
+
+  async writeDeliveryAttempt(row: DeliveryLedgerRow): Promise<void> {
+    const metadata = sanitizeDeliveryLedgerRow(row);
+    await this.#queryClient.query(
+      `insert into watasu_delivery_ledger (
+        request_id,
+        request_version,
+        idempotency_key,
+        submitted_at,
+        delivered_at,
+        delivery_status,
+        destination_url_hash,
+        encrypted_payload_hash,
+        webhook_status,
+        error_code
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        metadata.request_id,
+        metadata.request_version,
+        metadata.idempotency_key,
+        metadata.submitted_at,
+        metadata.delivered_at,
+        metadata.delivery_status,
+        metadata.destination_url_hash,
+        metadata.encrypted_payload_hash,
+        metadata.webhook_status ?? null,
+        metadata.error_code ?? null
+      ]
+    );
+  }
+}
+
 export function createPolicyControlledDeliveryLedger(input: {
   policy: StoragePolicy;
   operationalLedger: DeliveryLedger;
@@ -131,11 +180,11 @@ export function createPolicyControlledDeliveryLedger(input: {
   }
 
   return {
-    writeDeliveryAttempt(row) {
-      input.operationalLedger.writeDeliveryAttempt(row);
+    async writeDeliveryAttempt(row) {
+      await input.operationalLedger.writeDeliveryAttempt(row);
 
       if (input.policy.mode === "metadata_ledger_enabled") {
-        input.persistentStore?.writeDeliveryAttempt(row);
+        await input.persistentStore?.writeDeliveryAttempt(row);
       }
     }
   };

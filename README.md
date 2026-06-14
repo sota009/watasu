@@ -166,6 +166,7 @@ Currently implemented:
 - in-memory sender key registration, revocation, and rotation lifecycle
 - in-memory verified service public key registration, revocation, and rotation lifecycle
 - JSONL delivery metadata ledger store for opt-in local persistence
+- PostgreSQL-compatible delivery metadata ledger store for hosted persistence
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
@@ -178,7 +179,7 @@ Currently implemented:
 Still remaining for Hosted Production MVP:
 
 - deployable hosted server runtime and environment wiring
-- PostgreSQL-compatible hosted metadata store
+- PostgreSQL schema migration/provisioning for hosted metadata stores
 - production MCP transport authentication and deployment wiring
 - KMS/HSM-backed service private key custody beyond verified public-key registry
 
