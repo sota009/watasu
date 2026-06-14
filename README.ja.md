@@ -168,7 +168,7 @@ pnpm --filter @watasu/http test
 
 推奨される次の作業と手動確認は [docs/mvp-plan.md](docs/mvp-plan.md) を見てください。
 
-Local Protocol MVP は実装済みで、手元で manual test できます。Repo-side Hosted Production MVP artifacts も存在します。cloud account setup、managed database creation、DNS、TLS、secret manager configuration は repository 外の deployment operation です。
+Local Protocol MVP は実装済みで、手元で manual test できます。Repo-side Hosted Production MVP の library/runtime building blocks も存在します。一方で、production binary、hosting config、health endpoint、canary flow などの deployment-facing artifacts はまだ follow-up work です。cloud account setup、managed database creation、DNS、TLS、secret manager configuration は repository 外の deployment operation です。
 
 MVP で作らないもの:
 

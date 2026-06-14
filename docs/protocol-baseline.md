@@ -8,7 +8,7 @@ This file records the latest-info gate before adding implementation dependencies
 
 | Area | Checked source | Current result | Implementation decision |
 | --- | --- | --- | --- |
-| Node.js | https://nodejs.org/en/about/previous-releases | Node.js 24 is LTS; Node.js 26 is Current; production applications should use Active LTS or Maintenance LTS. | Target Node.js 24 LTS. Local development may run on Node.js 22 LTS when tooling supports it, because the current workspace runtime is v22.22.0. |
+| Node.js | https://nodejs.org/en/about/previous-releases | Node.js 24 is LTS; Node.js 26 is Current; production applications should use Active LTS or Maintenance LTS. | Target Node.js 24 LTS for hosted production. Local development may run on Node.js 22 LTS when tooling supports it, because the current workspace runtime is v22.22.0; the package engine is therefore a compatibility floor, not the production target. |
 | MCP | https://modelcontextprotocol.io/specification/latest | Redirects to `2025-11-25`, marked latest. The spec uses JSON-RPC 2.0 and calls out consent, privacy, tool safety, and untrusted tool descriptions. | Pin generated MCP metadata and tests to `2025-11-25`. Treat MCP text, prompts, resources, and tool descriptions as untrusted input. |
 | A2A | https://a2a-protocol.org/latest/specification/ | Latest specification includes Send Message, Agent Card, `Part`, idempotency, error handling, capability validation, and versioning sections. | Pin watasu contract tests to the selected A2A v1.0 HTTP+JSON subset before implementing the submission gate. |
 | JWS sender signatures | https://www.rfc-editor.org/rfc/rfc7515, https://www.rfc-editor.org/rfc/rfc7518, https://www.rfc-editor.org/rfc/rfc8037, and https://nodejs.org/api/crypto.html | JWS signing input is `BASE64URL(protected) + \".\" + BASE64URL(payload)`. ES256 uses ECDSA P-256 SHA-256 with fixed-width `R || S`. RFC 8037 defines `EdDSA` for JOSE with OKP keys and Ed25519 / Ed448 subtypes. Node.js crypto supports public JWK import and Ed25519 verification through `crypto.verify`. | Use detached compact JWS for sender signatures. Allow `ES256` and `EdDSA` with Ed25519 keys. Verify ES256 with Node.js `crypto.verify` and `dsaEncoding: \"ieee-p1363\"`; verify EdDSA with `crypto.verify(null, ...)` and require the protected `alg` to match the registered sender key algorithm. |
@@ -20,6 +20,7 @@ This file records the latest-info gate before adding implementation dependencies
 | PostgreSQL query client | `pnpm view pg` and `pnpm view @types/pg` on 2026-06-15 | `pg` latest is `8.21.0`, repository is `brianc/node-postgres`, package metadata has a test script but no install/postinstall script. `@types/pg` latest is `8.20.0`, repository is DefinitelyTyped, and package metadata has no scripts. | Keep core storage against a node-postgres compatible `query(text, values)` interface. Add `pg` and `@types/pg` only to `@watasu/hosted`, where the production runtime owns bounded pool creation and shutdown. |
 | PostgreSQL pool wiring | https://node-postgres.com/features/pooling on 2026-06-15 | node-postgres documents using a single bounded `Pool`, returning checked-out clients, and using `pool.query` for single queries to avoid client leaks. | Keep watasu core on the generic `query(text, values)` interface. A production runtime may inject a single managed pool or adapter with the same interface, then run the metadata migration before serving traffic. |
 | Test runner | https://vitest.dev/guide/ | Vitest is the Vite-native test framework and supports TypeScript-oriented unit/contract/snapshot tests. | Use Vitest for unit, contract, security regression, and workspace tests. |
+| Package manager | `pnpm view pnpm` on 2026-06-15 | `pnpm` latest is `11.6.0`; this repo is pinned to `pnpm@10.31.0`. | Keep `pnpm@10.31.0` for the current workspace to avoid mixing package-manager migration with protocol/security work. Revisit pnpm 11 in a separate migration after the Node.js 24 production baseline is locked in CI/deploy config. |
 
 ## Hosted operations baseline
 
@@ -54,6 +55,8 @@ Checked at: 2026-06-15
 - `pnpm --version`: `10.31.0`
 
 The repo targets Node.js 24 LTS, but workspace scripts are kept compatible with the local Node.js 22 LTS runtime so tests can run before the developer environment is upgraded.
+
+`package.json` intentionally records the local/runtime compatibility floor. Deployment configuration, CI matrices, and release notes should treat Node.js 24 LTS as the hosted production target.
 
 ## Local workflow helpers
 
