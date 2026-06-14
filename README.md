@@ -39,6 +39,7 @@ pnpm install
 pnpm typecheck
 pnpm test
 pnpm loop
+pnpm demo:handoff
 ```
 
 CLI examples:
@@ -78,6 +79,14 @@ curl http://127.0.0.1:8787/schemas/envelope.json
 ```
 
 For `POST /submit`, the local demo validates the A2A HTTP+JSON protocol gate, checks the encrypted envelope against the published fixture, delivers to a receiver fixture, and records metadata-only ledger rows. Use `Content-Type: application/a2a+json`, `A2A-Version: 1.0`, and `A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1`.
+
+For a no-server end-to-end handoff check, run:
+
+```bash
+pnpm demo:handoff
+```
+
+The handoff demo connects the local Agent Card, sender fixture, HTTP demo handler, receiver fixture, and metadata-only ledger in one process. Its JSON output should show `ok: true`, `ledger_contains_payload_body: false`, and `response_contains_plaintext_payload: false`.
 
 ## Verification Loop
 
@@ -121,6 +130,7 @@ Currently implemented:
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
 - webhook delivery helper with signed headers and metadata-only ledger rows
+- sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
 Not yet in the MVP:

@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -17,6 +18,7 @@ describe("workspace foundation", () => {
     };
 
     expect(packageJson.scripts).toMatchObject({
+      "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
@@ -76,5 +78,21 @@ describe("workspace foundation", () => {
         reason: "secret-like assignment detected"
       }
     ]);
+  });
+
+  test("test_handoff_demo_outputs_metadata_only_summary", () => {
+    const result = spawnSync("pnpm", ["demo:handoff"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("\"ok\": true");
+    expect(result.stdout).toContain("\"ledger_contains_payload_body\": false");
+    expect(result.stdout).toContain("\"response_contains_plaintext_payload\": false");
+    expect(result.stdout).not.toContain("Alice Example");
+    expect(result.stdout).not.toContain("alice@example.com");
+    expect(result.stdout).not.toContain("base64url-ciphertext");
+    expect(result.stdout).not.toContain("\"encrypted_payload\"");
   });
 });
