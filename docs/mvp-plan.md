@@ -138,7 +138,7 @@ Recommended production environment variables:
 | Variable | Owner action | Notes |
 | --- | --- | --- |
 | `WATASU_IDENTITY_PROVIDER=signed_headers` | Codex can put the non-secret default in config. | Current hosted identity provider. |
-| `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a high-entropy value. Rotate if exposed. |
+| `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a random value of at least 32 bytes outside the repo, enter it only in Render, and rotate if exposed. |
 | `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived. |
 | `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. |
 | `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |

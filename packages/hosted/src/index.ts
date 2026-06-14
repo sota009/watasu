@@ -65,6 +65,7 @@ export interface HostedSignedHeaderIdentityProvider {
 export function loadHostedIdentityProviderConfig(
   env: Record<string, string | undefined>
 ): HostedIdentityProviderConfig {
+  const minimumHostedSigningSecretBytes = 32;
   const provider = env["WATASU_IDENTITY_PROVIDER"] ?? "signed_headers";
   if (provider !== "signed_headers") {
     throw new Error("WATASU_IDENTITY_PROVIDER must be signed_headers.");
@@ -73,6 +74,9 @@ export function loadHostedIdentityProviderConfig(
   const signingSecret = env["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"]?.trim();
   if (signingSecret === undefined || signingSecret.length === 0) {
     throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
+  }
+  if (Buffer.byteLength(signingSecret, "utf8") < minimumHostedSigningSecretBytes) {
+    throw new Error("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
   }
 
   return {

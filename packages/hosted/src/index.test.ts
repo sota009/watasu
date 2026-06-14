@@ -39,6 +39,15 @@ describe("hosted production runtime package", () => {
     ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
   });
 
+  test("test_identity_provider_config_rejects_short_signing_secret", () => {
+    expect(() =>
+      loadHostedIdentityProviderConfig({
+        WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_SERVICE_IDENTITY_SIGNING_SECRET: "short-secret"
+      })
+    ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET must be at least 32 bytes.");
+  });
+
   test("test_retention_job_config_reads_tenant_and_days", () => {
     const config = loadHostedRetentionJobConfig({
       WATASU_RETENTION_TENANT_ID: "tenant-a",
