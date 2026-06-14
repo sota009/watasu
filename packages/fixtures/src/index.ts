@@ -6,6 +6,7 @@ export {
 export { verifyReceiverFixtureDelivery } from "./receiver-fixture.js";
 export type {
   ReceiverFixtureDecryptionInput,
+  ReceiverFixtureIdempotencyStore,
   ReceiverFixtureVerificationInput,
   ReceiverFixtureVerificationResult
 } from "./receiver-fixture.js";

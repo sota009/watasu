@@ -12,12 +12,17 @@ export interface ReceiverFixtureDecryptionInput {
   encryptedPayload: Record<string, unknown>;
 }
 
+export interface ReceiverFixtureIdempotencyStore {
+  claim(key: string): boolean;
+}
+
 export interface ReceiverFixtureVerificationInput {
   request: DeliveryRequest;
   signingSecret: string;
   plaintextSchema: JsonSchemaObject;
   now: Date;
   maxDeliveryAgeMs?: number | undefined;
+  idempotencyStore?: ReceiverFixtureIdempotencyStore | undefined;
   decryptPayload: (input: ReceiverFixtureDecryptionInput) => Record<string, unknown>;
 }
 
@@ -94,6 +99,13 @@ export function verifyReceiverFixtureDelivery(
   const envelopeResult = parseDeliveryEnvelope(input.request.body);
   if (!envelopeResult.ok) {
     return envelopeResult;
+  }
+
+  if (input.idempotencyStore?.claim(idempotencyKey) === false) {
+    return rejected(
+      "idempotency_key_replayed",
+      "Delivery idempotency key has already been processed."
+    );
   }
 
   const payload = input.decryptPayload({

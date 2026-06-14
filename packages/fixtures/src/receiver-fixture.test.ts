@@ -285,4 +285,47 @@ describe("A2A receiver fixture", () => {
       }
     });
   });
+
+  test("test_receiver_fixture_rejects_replayed_idempotency_key", async () => {
+    // Arrange
+    const request = await createSignedDeliveryRequest();
+    const processedKeys = new Set<string>();
+    let decryptCalls = 0;
+
+    const verify = () =>
+      verifyReceiverFixtureDelivery({
+        request,
+        signingSecret: "receiver-fixture-secret",
+        plaintextSchema: generatePlaintextPayloadSchema(requestDefinition),
+        now: new Date("2026-06-14T12:00:30.000Z"),
+        idempotencyStore: {
+          claim(key) {
+            if (processedKeys.has(key)) {
+              return false;
+            }
+
+            processedKeys.add(key);
+            return true;
+          }
+        },
+        decryptPayload() {
+          decryptCalls += 1;
+          return plaintextPayload;
+        }
+      });
+
+    // Act
+    verify();
+    const result = verify();
+
+    // Assert
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "idempotency_key_replayed",
+        message: "Delivery idempotency key has already been processed."
+      }
+    });
+    expect(decryptCalls).toBe(1);
+  });
 });
