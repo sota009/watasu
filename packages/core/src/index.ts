@@ -20,6 +20,7 @@ export {
 } from "./agent-card.js";
 export {
   gateA2aSubmissionProtocol,
+  watasuA2aHttpJsonContentType,
   watasuA2aProtocolVersion
 } from "./a2a.js";
 export { publishRequestVersion } from "./publish.js";

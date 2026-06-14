@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   gateA2aSubmissionProtocol,
+  watasuA2aHttpJsonContentType,
   watasuA2aProtocolVersion
 } from "./a2a.js";
 import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
@@ -39,7 +40,7 @@ function validRequest(overrides?: {
 }) {
   return {
     headers: {
-      "content-type": "application/json",
+      "content-type": watasuA2aHttpJsonContentType,
       "a2a-version": watasuA2aProtocolVersion,
       "a2a-extensions": watasuEncryptedIntakeExtensionUri,
       ...overrides?.headers
@@ -74,7 +75,7 @@ describe("A2A submission protocol gate", () => {
       error: {
         code: "missing_content_type",
         status: 415,
-        message: "A2A submissions require Content-Type: application/json.",
+        message: "A2A submissions require Content-Type: application/a2a+json.",
         path: "headers.content-type"
       }
     });
@@ -110,6 +111,46 @@ describe("A2A submission protocol gate", () => {
       }
     });
     expect(envelopeValidationCalls).toBe(0);
+  });
+
+  test("test_default_rejects_bare_application_json_content_type", () => {
+    // Arrange
+    const request = validRequest({
+      headers: {
+        "content-type": "application/json"
+      }
+    });
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request);
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "unsupported_content_type",
+        status: 415,
+        message: "A2A submissions only support Content-Type: application/a2a+json.",
+        path: "headers.content-type"
+      }
+    });
+  });
+
+  test("test_explicit_allowed_content_types_can_accept_local_demo_application_json", () => {
+    // Arrange
+    const request = validRequest({
+      headers: {
+        "content-type": "application/json"
+      }
+    });
+
+    // Act
+    const result = gateA2aSubmissionProtocol(request, {
+      allowedContentTypes: [watasuA2aHttpJsonContentType, "application/json"]
+    });
+
+    // Assert
+    expect(result.ok).toBe(true);
   });
 
   test("test_missing_a2a_version_is_rejected", () => {

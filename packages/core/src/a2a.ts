@@ -1,7 +1,8 @@
 import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
 
 export const watasuA2aProtocolVersion = "1.0";
-const jsonContentType = "application/json";
+export const watasuA2aHttpJsonContentType = "application/a2a+json";
+const jsonPartMediaType = "application/json";
 const sendMessageMethod = "message/send";
 
 export interface A2aSubmissionRequest {
@@ -10,6 +11,7 @@ export interface A2aSubmissionRequest {
 }
 
 export interface A2aProtocolGateOptions {
+  allowedContentTypes?: readonly string[] | undefined;
   onEnvelopeValidationReady?: (() => void) | undefined;
 }
 
@@ -34,21 +36,24 @@ export function gateA2aSubmissionProtocol(
   request: A2aSubmissionRequest,
   options: A2aProtocolGateOptions = {}
 ): A2aProtocolGateResult {
+  const allowedContentTypes = options.allowedContentTypes ?? [watasuA2aHttpJsonContentType];
   const contentType = getHeader(request.headers, "content-type");
   if (contentType === undefined) {
     return reject(
       "missing_content_type",
       415,
-      "A2A submissions require Content-Type: application/json.",
+      `A2A submissions require Content-Type: ${formatAllowedContentTypes(allowedContentTypes)}.`,
       "headers.content-type"
     );
   }
 
-  if (!isJsonContentType(contentType)) {
+  if (!isAllowedContentType(contentType, allowedContentTypes)) {
     return reject(
       "unsupported_content_type",
       415,
-      "A2A submissions only support Content-Type: application/json.",
+      `A2A submissions only support Content-Type: ${formatAllowedContentTypes(
+        allowedContentTypes
+      )}.`,
       "headers.content-type"
     );
   }
@@ -199,7 +204,7 @@ function findFirstDataPart(
       continue;
     }
 
-    if (part.mediaType !== jsonContentType) {
+    if (part.mediaType !== jsonPartMediaType) {
       return reject(
         "unsupported_part_media_type",
         415,
@@ -250,9 +255,15 @@ function getHeader(headers: Record<string, string | undefined>, name: string): s
   return undefined;
 }
 
-function isJsonContentType(contentType: string): boolean {
+function isAllowedContentType(contentType: string, allowedContentTypes: readonly string[]): boolean {
   const mediaType = contentType.split(";", 1)[0] ?? "";
-  return mediaType.trim().toLowerCase() === jsonContentType;
+  return allowedContentTypes.some(
+    (allowedContentType) => mediaType.trim().toLowerCase() === allowedContentType.toLowerCase()
+  );
+}
+
+function formatAllowedContentTypes(allowedContentTypes: readonly string[]): string {
+  return allowedContentTypes.join(", ");
 }
 
 function headerListContains(value: string | undefined, expectedValue: string): boolean {
