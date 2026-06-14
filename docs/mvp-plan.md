@@ -64,11 +64,11 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: repo-side artifacts complete as of 2026-06-15.
+Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. Deployment-facing artifacts are still separate follow-up work.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
-Hosted production now has repo-side artifacts for these trust boundaries:
+Hosted production now has repo-side library and runtime artifacts for these trust boundaries:
 
 - MCP publish and read resources, not just validation
 - capability URL revoke and rotate
@@ -88,7 +88,7 @@ pnpm loop:full
 pnpm demo:handoff
 ```
 
-Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. Cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations outside this repository.
+Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A deployable production binary, hosting config, health endpoint, and canary flow are not complete yet; cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations outside this repository.
 
 ### Deployment operations handoff
 

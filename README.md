@@ -230,7 +230,7 @@ Currently implemented:
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Repo-side Hosted Production MVP artifacts are now present. Cloud account setup, managed database creation, DNS, TLS, and secret manager configuration remain deployment operations outside this repository.
+Repo-side Hosted Production MVP library/runtime building blocks are now present. Deployment-facing artifacts are still separate follow-up work: a production binary, hosting config, health endpoint, and canary flow are not complete yet. Cloud account setup, managed database creation, DNS, TLS, and secret manager configuration remain deployment operations outside this repository.
 
 Not in scope for the MVP:
 

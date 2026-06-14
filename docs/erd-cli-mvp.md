@@ -60,26 +60,26 @@ MVP は「CLI / MCP で完結」「dashboard UI なし」「user-side agent 本�
 
 | 項目 | 採用 | 理由 |
 | --- | --- | --- |
-| ランタイム | Node.js 24 LTS | 2026-06-14 時点で Node.js 24 は LTS。production application には Active LTS または Maintenance LTS を使うという Node.js の方針に合う。 |
-| 言語 | TypeScript 5.x | MCP SDK、JWE/JWK、JSON Schema、CLI、HTTP endpoint を同じ型システムで扱える。エージェントに公開する schema と実装のズレを減らせる。 |
+| ランタイム | Node.js 24 LTS | 2026-06-15 時点で Node.js 24 は LTS。production application には Active LTS または Maintenance LTS を使うという Node.js の方針に合う。repo scripts は local development のため Node.js 22 LTS 互換も保つが、hosted production target は Node.js 24 LTS とする。 |
+| 言語 | TypeScript 6.x | MCP SDK、JWE/JWK、JSON Schema、CLI、HTTP endpoint を同じ型システムで扱える。エージェントに公開する schema と実装のズレを減らせる。 |
 | module形式 | ESM | 現行の Node / TypeScript エコシステムと相性がよく、MCP SDK や jose と合わせやすい。 |
-| package manager | pnpm workspace | CLI、MCP server、core library、contract fixtures を package 分割しやすい。 |
+| package manager | pnpm 10 workspace | CLI、MCP server、core library、contract fixtures を package 分割しやすい。2026-06-15 時点で pnpm 11 が latest だが、package manager major migration は Node.js 24 hosted baseline 確定後の別PRで検証する。 |
 
 ### 3.2 主要パッケージ
 
 | 項目 | 採用 | 理由 |
 | --- | --- | --- |
-| MCP SDK | `@modelcontextprotocol/server` v1.x | 公式 TypeScript SDK。2026-06-14 時点で v2 は pre-alpha / 2026年Q3安定化予定なので、MVP の production 用途では v1.x を使う。 |
-| HTTP endpoint | Node.js HTTP + thin router または Hono | A2A submission endpoint と Agent Card 配信に使う。MCP SDK には Node/Hono middleware があるため、薄いHTTP層に留める。 |
+| MCP SDK | `@modelcontextprotocol/sdk` v1.x | 公式 TypeScript SDK。2026-06-15 時点で upstream は v2 を pre-alpha とし、v1.x を production 推奨としているため、MVP の production 用途では v1.x と `@modelcontextprotocol/sdk/server/mcp.js` import path を使う。 |
+| HTTP endpoint | Node.js HTTP built-ins + thin adapter | A2A submission endpoint、Agent Card 配信、hosted production server に使う。現在の route 数では Hono を追加せず、MCP SDK が必要とする transport boundary だけ薄く接続する。route complexity が増えた場合だけ maintained thin router を再検討する。 |
 | JSON Schema validation | Ajv 2020-12 | JSON Schema draft 2020-12 をサポートし、公開済み schema と envelope schema の contract tests に使える。 |
 | Runtime validation | Zod v4 | MCP tool input/output の実装側 validation に使う。MCP SDK の Standard Schema 方針と合わせやすい。 |
 | JWE / JWK | `jose` | JWE、JWK、JWK thumbprint、Web Crypto runtime を扱える。暗号処理を自前実装しない。 |
 | DB access | Optional | MVP default は persistent metadata store を必須にしない。必要になった場合だけ storage interface の背後に追加する。 |
 | Local DB | Optional SQLite / Node SQLite | local demo や contract tests で metadata-only persistence を証明する場合だけ使う。default path は in-memory / short-lived state。 |
 | Hosted DB | Optional PostgreSQL-compatible DB | hosted で persistent metadata ledger を明示的に有効化する場合だけ使う。大量利用や multi-tenant production では SQLite ではなく PostgreSQL-compatible DB を前提にする。 |
-| CLI | Node.js CLI + commander系の軽量 parser | CLI command surface を薄く保ち、core library を MCP tools と共有する。 |
+| CLI | Node.js built-ins + small local parser | CLI command surface を薄く保ち、core library を MCP tools と共有する。commander 等は command complexity が増えた場合だけ追加する。 |
 | test runner | Vitest | TypeScript の unit / contract / snapshot tests をまとめやすい。 |
-| Logging | pino などの structured JSON logger | payload redaction、request_id、submission_id、delivery status を構造化して残せる。 |
+| Logging | structured redaction boundary | payload redaction、request_id、submission_id、delivery status を構造化して残す。現時点では dependency を増やさず、hosted runtime の log sink 要件が固まった段階で pino 等を再検討する。 |
 
 ### 3.3 採用しないもの
 
