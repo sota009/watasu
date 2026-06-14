@@ -199,6 +199,12 @@ create index if not exists watasu_delivery_ledger_delivered_at_idx
   on watasu_delivery_ledger (tenant_id, delivered_at);`;
 }
 
+export async function runPostgresDeliveryLedgerMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresDeliveryLedgerSchemaSql(), []);
+}
+
 export function createPolicyControlledDeliveryLedger(input: {
   policy: StoragePolicy;
   operationalLedger: DeliveryLedger;

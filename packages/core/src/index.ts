@@ -49,6 +49,7 @@ export {
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresDeliveryLedgerStore,
+  runPostgresDeliveryLedgerMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
