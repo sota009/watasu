@@ -133,7 +133,7 @@ Current repo-side status:
 - Done: `pnpm --silent cutover:ci` records a completed successful GitHub Actions `ci` run that matches `cutover-evidence/cutover-head.txt`.
 - Done: `pnpm --silent cutover:canary` records the deployed hosted canary result under `cutover-evidence/canary.json` without saving payload or secret-like output.
 - Done: `pnpm --silent cutover:retention` records the hosted retention dry-run result under `cutover-evidence/retention.json` without saving payload or secret-like output.
-- Done: `pnpm --silent cutover:status` reports present evidence, missing evidence, next repo-side commands, and remaining external actions without printing payload or secret-like output.
+- Done: `pnpm --silent cutover:status` reports present evidence, stale cutover-head evidence, missing evidence, next repo-side commands, and remaining external actions without printing payload or secret-like output.
 - Done: `pnpm --silent cutover:plan` reports before-Render commands, cutover evidence preparation, account-side actions, post-deploy checks, required evidence, and stop conditions as secret-safe JSON.
 - Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, retention, and CI-green JSON evidence from `cutover-evidence/` for the recorded cutover head before a private-alpha go decision.
 - Done: `pnpm --silent smoke:hosted` loads the compiled hosted runtime and verifies the low-information `/health` response without binding a network port.

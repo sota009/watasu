@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const targetOrigin = "https://api.watasu.ai";
-const usage = "Usage: pnpm --silent cutover:status [--dir <evidence-dir>]";
+const usage = "Usage: pnpm --silent cutover:status [--dir <evidence-dir>] [--head <40-char-sha>]";
 const evidenceFiles = [
   ["cutover-head", "cutover-head.txt"],
   ["preflight", "preflight.json"],
@@ -26,52 +27,85 @@ const externalActionsByEvidence = new Map([
   ["retention", "Confirm the deployed metadata database environment is ready."]
 ]);
 
-let evidenceDir;
+let inputs;
 try {
-  evidenceDir = resolve(parseArgs(process.argv.slice(2)));
+  inputs = parseArgs(process.argv.slice(2));
 } catch (error) {
   process.stderr.write(`${error instanceof Error ? error.message : "Invalid cutover status arguments."}\n`);
   process.exit(1);
 }
 
+const evidenceDir = resolve(inputs.dir);
+const currentHeadSha = inputs.head ?? readCurrentHeadSha();
 const presentEvidence = [];
 const missingEvidence = [];
+let checkedHeadSha;
 
 for (const [name, filename] of evidenceFiles) {
   const path = resolve(evidenceDir, filename);
   if (existsSync(path)) {
     assertSecretSafeEvidence(path, name);
+    if (name === "cutover-head") {
+      checkedHeadSha = readFileSync(path, "utf8").trim();
+    }
     presentEvidence.push(name);
   } else {
     missingEvidence.push(name);
   }
 }
 
-const nextCommands = nextCommandsForMissingEvidence(missingEvidence);
+const headMatchesCurrent = checkedHeadSha === undefined ? false : checkedHeadSha.toLowerCase() === currentHeadSha.toLowerCase();
+const staleEvidence = checkedHeadSha !== undefined && !headMatchesCurrent ? presentEvidence : [];
+const nextCommands = staleEvidence.length > 0
+  ? ["pnpm --silent cutover:prepare"]
+  : nextCommandsForMissingEvidence(missingEvidence);
 const remainingExternalActions = missingEvidence
   .map((name) => externalActionsByEvidence.get(name))
   .filter((action) => action !== undefined);
+const readyForVerify = missingEvidence.length === 0 && staleEvidence.length === 0;
 
 process.stdout.write(`${JSON.stringify({
   ok: true,
   checked_at: new Date().toISOString(),
   target_origin: targetOrigin,
   evidence_dir: evidenceDir,
-  ready_for_verify: missingEvidence.length === 0,
+  checked_head_sha: checkedHeadSha,
+  current_head_sha: currentHeadSha,
+  head_matches_current: headMatchesCurrent,
+  ready_for_verify: readyForVerify,
   present_evidence: presentEvidence,
   missing_evidence: missingEvidence,
-  next_commands: missingEvidence.length === 0 ? ["pnpm --silent cutover:verify"] : nextCommands,
+  stale_evidence: staleEvidence,
+  next_commands: readyForVerify ? ["pnpm --silent cutover:verify"] : nextCommands,
   remaining_external_actions: remainingExternalActions
 })}\n`);
 
 function parseArgs(args) {
-  if (args.length === 0) {
-    return "cutover-evidence";
+  const parsed = {
+    dir: "cutover-evidence",
+    head: undefined
+  };
+  for (let index = 0; index < args.length; index += 2) {
+    const name = args[index];
+    const value = args[index + 1];
+    if (name === undefined) {
+      return parsed;
+    }
+    if (value === undefined || value.length === 0) {
+      throw new Error(usage);
+    }
+    if (name === "--dir") {
+      parsed.dir = value;
+    } else if (name === "--head") {
+      if (!/^[0-9a-f]{40}$/i.test(value)) {
+        throw new Error(usage);
+      }
+      parsed.head = value;
+    } else {
+      throw new Error(usage);
+    }
   }
-  if (args.length === 2 && args[0] === "--dir" && args[1].length > 0) {
-    return args[1];
-  }
-  throw new Error(usage);
+  return parsed;
 }
 
 function nextCommandsForMissingEvidence(missingEvidence) {
@@ -101,4 +135,14 @@ function assertSecretSafeEvidence(path, name) {
   if (raw.includes("\"encrypted_payload\"") || raw.includes("\"payload_body\"") || raw.includes("\"plaintext_payload\"")) {
     throw new Error(`${name} evidence contains payload body evidence.`);
   }
+}
+
+function readCurrentHeadSha() {
+  const result = spawnSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8"
+  });
+  if (result.status !== 0) {
+    throw new Error("git rev-parse HEAD failed.");
+  }
+  return result.stdout.trim();
 }

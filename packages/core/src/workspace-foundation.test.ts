@@ -624,7 +624,9 @@ describe("workspace foundation", () => {
       "--silent",
       "cutover:status",
       "--dir",
-      evidenceDir
+      evidenceDir,
+      "--head",
+      expectedCutoverHeadSha
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -662,7 +664,9 @@ describe("workspace foundation", () => {
       "--silent",
       "cutover:status",
       "--dir",
-      evidenceDir
+      evidenceDir,
+      "--head",
+      expectedCutoverHeadSha
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -689,7 +693,9 @@ describe("workspace foundation", () => {
       "--silent",
       "cutover:status",
       "--dir",
-      evidenceDir
+      evidenceDir,
+      "--head",
+      expectedCutoverHeadSha
     ], {
       cwd: rootDir,
       encoding: "utf8"
@@ -700,9 +706,42 @@ describe("workspace foundation", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       ok: true,
       ready_for_verify: true,
+      head_matches_current: true,
       missing_evidence: [],
       next_commands: ["pnpm --silent cutover:verify"],
       remaining_external_actions: []
+    });
+  });
+
+  test("test_production_cutover_status_reports_stale_head_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-status-"));
+    const staleHeadSha = "fedcba9876543210fedcba9876543210fedcba98";
+    for (const name of ["cutover-head.txt", "preflight.json", "smoke.json", "ci.json", "canary.json", "retention.json"]) {
+      writeFileSync(join(evidenceDir, name), name === "cutover-head.txt" ? `${staleHeadSha}\n` : "{\"ok\":true}\n");
+    }
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:status",
+      "--dir",
+      evidenceDir,
+      "--head",
+      expectedCutoverHeadSha
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      ready_for_verify: false,
+      checked_head_sha: staleHeadSha,
+      current_head_sha: expectedCutoverHeadSha,
+      head_matches_current: false,
+      stale_evidence: ["cutover-head", "preflight", "smoke", "ci", "canary", "retention"],
+      next_commands: ["pnpm --silent cutover:prepare"]
     });
   });
 

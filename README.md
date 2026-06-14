@@ -222,7 +222,7 @@ pnpm --silent cutover:prepare
 
 The prepare command writes `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, and `cutover-evidence/smoke.json` without persisting secret-like assignment output.
 
-To see which cutover evidence is present, what is missing, and the next repo-side commands:
+To see which cutover evidence is present, whether the recorded cutover head matches the current commit, what is missing, and the next repo-side commands:
 
 ```bash
 pnpm --silent cutover:status
