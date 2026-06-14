@@ -25,6 +25,8 @@ docs/
   protocol-baseline.md        Latest-info and dependency vetting record
   mvp-plan.md                 MVP stages, manual checks, execution phases
   loop-engineering.md         Codex loop template and verification rules
+infra/
+  postgres/                   Hosted PostgreSQL provisioning SQL artifacts
 packages/
   core/                       Request validation, hashes, publish, schemas, A2A, delivery
   cli/                        File-based watasu CLI wrapper
@@ -174,6 +176,7 @@ Currently implemented:
 - PostgreSQL-compatible delivery metadata ledger store for hosted persistence
 - PostgreSQL delivery metadata ledger schema SQL for hosted migration bootstrap
 - PostgreSQL delivery metadata ledger migration runner for injected hosted query clients
+- PostgreSQL metadata ledger provisioning SQL artifact for hosted infrastructure setup
 - hosted PostgreSQL runtime config parser and migrated ledger store factory for injected pool clients
 - hosted Node/PostgreSQL runtime package with bounded pool config and query adapter
 - hosted signed-header identity provider runtime config for production entrypoints
@@ -189,9 +192,7 @@ Currently implemented:
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Still remaining for Hosted Production MVP:
-
-- PostgreSQL infrastructure provisioning for hosted metadata stores
+Repo-side Hosted Production MVP artifacts are now present. Cloud account setup, managed database creation, DNS, TLS, and secret manager configuration remain deployment operations outside this repository.
 
 Not in scope for the MVP:
 
