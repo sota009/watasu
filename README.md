@@ -127,6 +127,8 @@ pnpm --filter @watasu/http test
 
 ## Current MVP Status
 
+See `docs/mvp-action-plan.md` for the recommended next actions, including manual checks you can run locally.
+
 Currently implemented:
 
 - pnpm workspace foundation for `@watasu/core`, `@watasu/cli`, `@watasu/fixtures`, and `@watasu/http`
