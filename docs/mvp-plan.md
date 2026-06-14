@@ -180,7 +180,7 @@ Owner checklist for the first production cutover:
 [x] Repo-side hosted runtime smoke command exists: `pnpm --silent smoke:hosted`.
 [ ] `cutover-evidence/cutover-head.txt` records the exact deployed commit SHA.
 [ ] GitHub Actions CI is green on the deployed commit.
-[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, `checked_forbidden_fragments`, `checked_timeout_ms`, and `go_no_go`.
+[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_headers`, `checked_forbidden_fragments`, `checked_timeout_ms`, and `go_no_go`.
 [ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
 [ ] `pnpm --silent cutover:verify --head "$(cat cutover-evidence/cutover-head.txt)" --preflight cutover-evidence/preflight.json --smoke cutover-evidence/smoke.json --canary cutover-evidence/canary.json --retention cutover-evidence/retention.json --ci cutover-evidence/ci.json` reports `decision=go`.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.

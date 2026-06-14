@@ -11,6 +11,12 @@ const requiredForbiddenFragments = [
   "secret",
   "WATASU_POSTGRES_URL"
 ];
+const requiredCanaryHeaders = [
+  "cache-control",
+  "content-security-policy",
+  "referrer-policy",
+  "x-content-type-options"
+];
 
 let inputs;
 try {
@@ -147,6 +153,27 @@ function validateCanary(value) {
     if (!Array.isArray(value?.checked_forbidden_fragments) || !value.checked_forbidden_fragments.includes(fragment)) {
       failures.push(`hosted canary must record forbidden fragment ${fragment}.`);
     }
+  }
+  if (!Array.isArray(value?.checked_not_found_routes) || value.checked_not_found_routes.length === 0) {
+    failures.push("hosted canary must record low-information not-found route evidence.");
+  }
+  const methodBoundaries = Array.isArray(value?.checked_method_boundaries) ? value.checked_method_boundaries : [];
+  const protectedResourceBoundary = methodBoundaries.find((boundary) =>
+    Array.isArray(boundary?.allowed_methods) &&
+    boundary.allowed_methods.includes("GET") &&
+    Array.isArray(boundary?.rejected_methods) &&
+    boundary.rejected_methods.includes("POST")
+  );
+  if (protectedResourceBoundary === undefined) {
+    failures.push("hosted canary must record protected-resource method boundary evidence.");
+  }
+  for (const header of requiredCanaryHeaders) {
+    if (!Array.isArray(value?.checked_headers) || !value.checked_headers.includes(header)) {
+      failures.push(`hosted canary must record security header ${header}.`);
+    }
+  }
+  if (!Number.isInteger(value?.checked_timeout_ms) || value.checked_timeout_ms <= 0 || value.checked_timeout_ms > 60_000) {
+    failures.push("hosted canary must record checked_timeout_ms between 1 and 60000.");
   }
   if (value?.go_no_go?.decision !== "go") {
     failures.push("hosted canary go_no_go decision must be go.");

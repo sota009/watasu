@@ -29,7 +29,11 @@ process.stdout.write(`${JSON.stringify({
     "smoke:hosted checked_status=200",
     "GitHub Actions CI green on the cutover head",
     `canary checked_origin=${targetOrigin}`,
+    "canary checked_not_found_routes present",
+    "canary checked_method_boundaries present",
+    "canary checked_headers present",
     "canary checked_forbidden_fragments present",
+    "canary checked_timeout_ms present",
     "retention dry_run=true",
     "no payload body retained or printed"
   ],

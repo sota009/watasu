@@ -168,6 +168,8 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
+成功時の output は `checked_at`、`checked_origin`、`checked_timeout_ms`、`checked_not_found_routes`、`checked_method_boundaries`、`checked_headers`、`checked_forbidden_fragments`、`go_no_go` を含みます。
+
 Hosted metadata retention dry run:
 
 ```bash

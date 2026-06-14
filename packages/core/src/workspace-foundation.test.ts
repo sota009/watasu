@@ -66,6 +66,36 @@ function expectIdentitySecretOutput(result: ReturnType<typeof spawnSync>): void 
   expect(Buffer.from(output.value, "base64url")).toHaveLength(32);
 }
 
+function buildCutoverCanaryEvidence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ok: true,
+    checked_origin: "https://api.watasu.ai",
+    checked_not_found_routes: [
+      "https://api.watasu.ai/",
+      "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
+    ],
+    checked_method_boundaries: [
+      {
+        url: "https://api.watasu.ai/.well-known/oauth-protected-resource",
+        allowed_methods: ["GET"],
+        rejected_methods: ["POST"]
+      }
+    ],
+    checked_headers: [
+      "cache-control",
+      "content-security-policy",
+      "referrer-policy",
+      "x-content-type-options"
+    ],
+    checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+    checked_timeout_ms: 10_000,
+    go_no_go: {
+      decision: "go"
+    },
+    ...overrides
+  };
+}
+
 describe("workspace foundation", () => {
   test("test_workspace_scripts_run_typecheck_and_tests", async () => {
     const packageJson = readJson("package.json") as {
@@ -339,7 +369,11 @@ describe("workspace foundation", () => {
       "smoke:hosted checked_status=200",
       "GitHub Actions CI green on the cutover head",
       "canary checked_origin=https://api.watasu.ai",
+      "canary checked_not_found_routes present",
+      "canary checked_method_boundaries present",
+      "canary checked_headers present",
       "canary checked_forbidden_fragments present",
+      "canary checked_timeout_ms present",
       "retention dry_run=true",
       "no payload body retained or printed"
     ]);
@@ -385,14 +419,7 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
-      go_no_go: {
-        decision: "go"
-      }
-    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: true,
@@ -457,17 +484,11 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence({
       leaked_example: {
         encrypted_payload: "must-not-appear"
-      },
-      go_no_go: {
-        decision: "go"
       }
-    }));
+    })));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: true,
@@ -525,14 +546,9 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "WATASU_POSTGRES_URL"],
-      go_no_go: {
-        decision: "go"
-      }
-    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence({
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "WATASU_POSTGRES_URL"]
+    })));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: true,
@@ -572,6 +588,65 @@ describe("workspace foundation", () => {
     expect(result.stderr).toContain("hosted canary must record forbidden fragment secret");
   });
 
+  test("test_production_cutover_verify_rejects_incomplete_canary_method_boundary_evidence", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    const canaryEvidence = buildCutoverCanaryEvidence();
+    delete canaryEvidence["checked_method_boundaries"];
+    writeFileSync(canaryPath, JSON.stringify(canaryEvidence));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: true,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      would_delete: 0
+    }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: expectedCutoverHeadSha
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath,
+      "--ci",
+      ciPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("hosted canary must record protected-resource method boundary evidence");
+  });
+
   test("test_production_cutover_verify_rejects_non_dry_run_retention_evidence", () => {
     const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
     const preflightPath = join(evidenceDir, "preflight.json");
@@ -589,14 +664,7 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
-      go_no_go: {
-        decision: "go"
-      }
-    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: false,
@@ -654,14 +722,7 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
-      go_no_go: {
-        decision: "go"
-      }
-    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: true,
@@ -718,14 +779,7 @@ describe("workspace foundation", () => {
       checked_command: "pnpm --filter @watasu/hosted start",
       checked_status: 200
     }));
-    writeFileSync(canaryPath, JSON.stringify({
-      ok: true,
-      checked_origin: "https://api.watasu.ai",
-      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
-      go_no_go: {
-        decision: "go"
-      }
-    }));
+    writeFileSync(canaryPath, JSON.stringify(buildCutoverCanaryEvidence()));
     writeFileSync(retentionPath, JSON.stringify({
       ok: true,
       dry_run: true,
