@@ -26,6 +26,17 @@ export interface SubmissionCapability {
   revoked: boolean;
 }
 
+export type CapabilityStatus = "active" | "revoked";
+
+export interface CapabilityRecord {
+  request_id: string;
+  request_version: string;
+  capability_hash: Sha256Hash;
+  status: CapabilityStatus;
+  issued_at: string;
+  revoked_at?: string | undefined;
+}
+
 export interface TrustedInviteBinding {
   invite_id: string;
   sender_key_id: string;
@@ -139,6 +150,74 @@ export class InMemorySubmissionRateLimiter implements SubmissionRateLimiter {
 
     this.#hitsByKey.set(key, [...activeHits, nowMs]);
     return true;
+  }
+}
+
+export class InMemoryCapabilityRegistry {
+  readonly #recordsByHash = new Map<Sha256Hash, CapabilityRecord>();
+
+  issueCapability(input: {
+    published: PublishedRequestVersion;
+    url: string;
+    issuedAt?: string | undefined;
+  }): SubmissionCapability {
+    const capabilityHash = sha256Hash(input.url);
+    this.#recordsByHash.set(capabilityHash, {
+      request_id: input.published.request_id,
+      request_version: input.published.request_version,
+      capability_hash: capabilityHash,
+      status: "active",
+      issued_at: input.issuedAt ?? new Date().toISOString()
+    });
+
+    return {
+      url: input.url,
+      revoked: false
+    };
+  }
+
+  revokeCapability(
+    capability: Pick<SubmissionCapability, "url">,
+    revokedAt: string = new Date().toISOString()
+  ): void {
+    const capabilityHash = sha256Hash(capability.url);
+    const existing = this.#recordsByHash.get(capabilityHash);
+    if (existing === undefined) {
+      return;
+    }
+
+    this.#recordsByHash.set(capabilityHash, {
+      ...existing,
+      status: "revoked",
+      revoked_at: revokedAt
+    });
+  }
+
+  rotateCapability(input: {
+    published: PublishedRequestVersion;
+    previous: Pick<SubmissionCapability, "url">;
+    url: string;
+    rotatedAt?: string | undefined;
+  }): SubmissionCapability {
+    this.revokeCapability(input.previous, input.rotatedAt);
+    return this.issueCapability({
+      published: input.published,
+      url: input.url,
+      issuedAt: input.rotatedAt
+    });
+  }
+
+  resolveCapability(url: string): SubmissionCapability {
+    const record = this.#recordsByHash.get(sha256Hash(url));
+
+    return {
+      url,
+      revoked: record === undefined || record.status === "revoked"
+    };
+  }
+
+  listRecords(): CapabilityRecord[] {
+    return [...this.#recordsByHash.values()].map((record) => structuredClone(record));
   }
 }
 

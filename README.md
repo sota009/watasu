@@ -143,6 +143,7 @@ Currently implemented:
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
+- in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist

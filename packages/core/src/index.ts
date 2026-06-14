@@ -26,6 +26,7 @@ export {
 } from "./a2a.js";
 export { publishRequestVersion } from "./publish.js";
 export {
+  InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
   createIdempotencyClaimKey,
@@ -73,6 +74,8 @@ export type {
 } from "./a2a.js";
 export type {
   AcceptedSubmission,
+  CapabilityRecord,
+  CapabilityStatus,
   IdempotencyValidationClaim,
   IdempotencyStore,
   SubmissionCapability,

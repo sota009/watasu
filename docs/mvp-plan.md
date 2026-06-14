@@ -156,6 +156,8 @@ Done when:
 
 ### Phase 3: Capability revoke and rotate
 
+Status: done for the in-memory core capability registry.
+
 Goal: leaked capability URLs can be stopped without mutating the request version.
 
 Implementation:
@@ -299,7 +301,7 @@ Done when:
 | Recruiting intake | Partial core checks only | Phases 4-5 |
 | Contractor or B2B onboarding | Partial core checks only | Phases 4-5 |
 | QR or email private handoff | Partial core checks only | Phases 3-5 |
-| Leaked capability URL recovery | No | Phase 3 |
+| Leaked capability URL recovery | Partial core checks only | Phases 4-5 |
 | Verified sender or private invite intake | Partial core checks only | Phases 4-5 |
 | Hosted high-sensitivity intake | No | Phases 4-6 |
 | Tenant-scoped ledger inspection | No | Phase 5 |
