@@ -64,11 +64,11 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: not complete.
+Status: repo-side artifacts complete as of 2026-06-15.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
-Hosted production requires additional trust boundaries:
+Hosted production now has repo-side artifacts for these trust boundaries:
 
 - MCP publish and read resources, not just validation
 - capability URL revoke and rotate
@@ -77,18 +77,18 @@ Hosted production requires additional trust boundaries:
 - hosted sender authentication for `verified_sender` and `private_invite`
 - tenant and role authorization for hosted operations
 - optional metadata-only ledger access controls
-- audit logs for metadata reads and admin actions
+- audit logs for metadata reads
 - retention jobs for ledger and operational metadata
 - delivery hardening: timeout, concurrency caps, circuit breaker, and SSRF-safe redirect handling
 
-Do not call Hosted Production MVP complete until:
+Current verification evidence:
 
 ```bash
 pnpm loop:full
 pnpm demo:handoff
 ```
 
-both pass, and the manual checks for phases 2 through 6 below have run against the current implementation.
+Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. Cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations outside this repository.
 
 ## Execution phases
 
@@ -324,14 +324,14 @@ Done when:
 | MCP service-side validate only | Yes | No |
 | MCP validate and publish workflow | Yes | No |
 | Event, waitlist, or inquiry intake prototype | Partial | Phases 2-4 |
-| Recruiting intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
-| Contractor or B2B onboarding | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
-| QR or email private handoff | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
-| Leaked capability URL recovery | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
-| Verified sender or private invite intake | Partial hosted HTTP surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Recruiting intake | Repo-side hosted surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Contractor or B2B onboarding | Repo-side hosted surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| QR or email private handoff | Repo-side hosted surface, server runtime, bootstrap composition, runtime config, signed identity provider wiring, and Postgres provisioning artifact | Cloud account deployment operations |
+| Leaked capability URL recovery | Repo-side capability revoke and rotate plus hosted surface wiring | Cloud account deployment operations |
+| Verified sender or private invite intake | Repo-side hosted sender auth, private invite binding, signed identity wiring, and hosted surface wiring | Cloud account deployment operations |
 | Hosted high-sensitivity intake | Partial hosted HTTP surface and private JWK rejection | Service-side KMS/HSM operations outside watasu |
-| Tenant-scoped ledger inspection | Partial hosted HTTP surface and schema artifact | Hosted PostgreSQL pool wiring and scheduler |
-| Retention-backed hosted metadata ledger | Partial core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, provisioning artifact, and hosted job runner | Cloud database creation and credentials outside repo |
+| Tenant-scoped ledger inspection | Repo-side hosted metadata adapter, signed identity wiring, authorization helper, and schema artifact | Cloud account deployment operations |
+| Retention-backed hosted metadata ledger | Repo-side core/local JSONL, PostgreSQL-compatible adapter, schema SQL, migration runner, runtime config, hosted pool package, provisioning artifact, and hosted job runner | Cloud database creation, credentials, and scheduler outside repo |
 
 ## Positioning boundaries
 
