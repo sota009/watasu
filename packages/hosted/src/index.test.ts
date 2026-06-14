@@ -494,6 +494,16 @@ describe("hosted production runtime package", () => {
     expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
   });
 
+  test("test_hosted_postgres_retention_job_from_env_requires_postgres_store", async () => {
+    await expect(runHostedPostgresRetentionJobFromEnv({
+      env: {
+        WATASU_METADATA_LEDGER_STORE: "disabled",
+        WATASU_RETENTION_TENANT_ID: "tenant-a"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z")
+    })).rejects.toThrow("WATASU_METADATA_LEDGER_STORE must be postgres for hosted retention runtime.");
+  });
+
   test("test_hosted_postgres_retention_job_from_env_dry_run_does_not_delete_rows", async () => {
     // Arrange
     const queries: Array<{

@@ -369,6 +369,11 @@ export async function runHostedPostgresRetentionJobFromEnv(input: {
   createPool?: ((config: PoolConfig) => PostgresPoolLike) | undefined;
 }) {
   const config = loadHostedRetentionJobConfig(input.env);
+  const postgresConfig = loadHostedPostgresRuntimeConfig(input.env);
+  if (postgresConfig.mode !== "postgres") {
+    throw new Error("WATASU_METADATA_LEDGER_STORE must be postgres for hosted retention runtime.");
+  }
+
   const runtime = await createHostedPostgresLedgerStoreFromEnv({
     env: input.env,
     tenantId: config.tenantId,

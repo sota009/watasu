@@ -114,7 +114,7 @@ Current repo-side status:
 - Done: production Node entrypoint through `@watasu/hosted`.
 - Done: Render web-service Blueprint for `api.watasu.ai`.
 - Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
-- Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`.
+- Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`, with explicit rejection unless `WATASU_METADATA_LEDGER_STORE=postgres`.
 - Done: retention dry-run mode using `pnpm --filter @watasu/hosted retention -- --dry-run` for pre-cutover checks without deleting rows.
 - Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` and rejects accidental `postgres` mode until hosted read/write wiring intentionally needs DB access.
 - Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
