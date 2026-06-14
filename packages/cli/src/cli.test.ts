@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +9,8 @@ const fixtureFile = new URL(
   "../../fixtures/requests/event-attendee.yaml",
   import.meta.url
 ).pathname;
+const cliPackageDirectory = new URL("../", import.meta.url).pathname;
+const workspaceDirectory = new URL("../../../", import.meta.url).pathname;
 
 function parseJsonLine(output: string): unknown {
   return JSON.parse(output.trim());
@@ -31,6 +34,30 @@ describe("watasu cli first slice", () => {
       request: {
         name: "event-attendee-intake",
         field_count: 2
+      }
+    });
+  });
+
+  test("test_cli_dist_bin_executes_from_package_directory_with_workspace_relative_file", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["dist/bin.js", "validate", "packages/fixtures/requests/event-attendee.yaml"],
+      {
+        cwd: cliPackageDirectory,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          INIT_CWD: workspaceDirectory
+        }
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(parseJsonLine(result.stdout)).toMatchObject({
+      ok: true,
+      command: "validate",
+      request: {
+        name: "event-attendee-intake"
       }
     });
   });

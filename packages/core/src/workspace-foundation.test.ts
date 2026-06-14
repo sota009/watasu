@@ -20,7 +20,7 @@ describe("workspace foundation", () => {
       lint: "node scripts/secret-scan.mjs --repo",
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
-      test: "vitest run",
+      test: "pnpm typecheck && vitest run",
       typecheck: "tsc -b packages/core packages/cli packages/fixtures"
     });
   });
@@ -40,8 +40,11 @@ describe("workspace foundation", () => {
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
-    expect(cliPackageJson.bin).toEqual({ watasu: "./src/bin.ts" });
-    expect(cliPackageJson.scripts).toHaveProperty("watasu", "node src/bin.ts");
+    expect(cliPackageJson.bin).toEqual({ watasu: "./dist/bin.js" });
+    expect(cliPackageJson.scripts).toHaveProperty(
+      "watasu",
+      "pnpm --dir ../.. typecheck && node dist/bin.js"
+    );
     expect(fixturesPackageJson.exports).toHaveProperty(".");
   });
 
