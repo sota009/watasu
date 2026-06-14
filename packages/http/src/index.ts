@@ -43,6 +43,13 @@ export type {
   HostedSenderTrustResolver,
   HostedSenderTrustResult
 } from "./hosted-sender-auth.js";
+export { createHostedSubmitApp } from "./hosted-submit.js";
+export type {
+  CreateHostedSubmitAppInput,
+  HostedSubmitApp,
+  HostedSubmitRequest,
+  HostedSubmitResponse
+} from "./hosted-submit.js";
 export { createHostedProductionApp } from "./hosted-production.js";
 export type {
   HostedProductionApp,

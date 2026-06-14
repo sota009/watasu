@@ -100,6 +100,7 @@ describe("hosted production bootstrap app", () => {
     const app = createHostedProductionBootstrapApp({
       repository,
       publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
       ledgerReader: createMetadataLedgerReader({
         rows: createRows(),
         requestTenants: {
@@ -177,6 +178,7 @@ describe("hosted production bootstrap app", () => {
     const app = createHostedProductionBootstrapApp({
       repository: new InMemoryRequestVersionRepository(),
       publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
       ledgerReader: createMetadataLedgerReader({
         rows: createRows(),
         requestTenants: {

@@ -67,6 +67,14 @@ function parseJson(body: string): unknown {
   return JSON.parse(body) as unknown;
 }
 
+function createUnexpectedSubmitApp(routeName: string) {
+  return {
+    async handle() {
+      throw new Error(`submit app must not handle ${routeName} route`);
+    }
+  };
+}
+
 describe("hosted production HTTP app", () => {
   test("test_health_route_returns_low_information_status", async () => {
     // Arrange
@@ -76,6 +84,7 @@ describe("hosted production HTTP app", () => {
           throw new Error("publish app must not handle health route");
         }
       },
+      submitApp: createUnexpectedSubmitApp("health"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions: new InMemoryRequestVersionRepository(),
       metadataApp: {
@@ -113,6 +122,7 @@ describe("hosted production HTTP app", () => {
           throw new Error("publish app must not handle agent card route");
         }
       },
+      submitApp: createUnexpectedSubmitApp("agent card"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions,
       metadataApp: {
@@ -163,6 +173,7 @@ describe("hosted production HTTP app", () => {
           throw new Error("publish app must not handle unpublished agent card route");
         }
       },
+      submitApp: createUnexpectedSubmitApp("unpublished agent card"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions: new InMemoryRequestVersionRepository(),
       metadataApp: {
@@ -205,6 +216,7 @@ describe("hosted production HTTP app", () => {
           };
         }
       },
+      submitApp: createUnexpectedSubmitApp("publish"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions: new InMemoryRequestVersionRepository(),
       metadataApp: {
@@ -229,6 +241,51 @@ describe("hosted production HTTP app", () => {
     expect(handledPaths).toEqual(["/requests/event-attendee-intake/publish"]);
   });
 
+  test("test_post_submit_route_is_delegated_to_hosted_submit_app", async () => {
+    // Arrange
+    const handledPaths: string[] = [];
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle submit route");
+        }
+      },
+      submitApp: {
+        async handle(request) {
+          handledPaths.push(request.path);
+          return {
+            status: 202,
+            headers: {
+              "content-type": "application/json; charset=utf-8"
+            },
+            body: "{\"ok\":true,\"surface\":\"submit\"}\n"
+          };
+        }
+      },
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: new InMemoryRequestVersionRepository(),
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle submit route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/submit"
+    }));
+
+    // Assert
+    expect(response.status).toBe(202);
+    expect(parseJson(response.body)).toEqual({
+      ok: true,
+      surface: "submit"
+    });
+    expect(handledPaths).toEqual(["/requests/event-attendee-intake/submit"]);
+  });
+
   test("test_get_ledger_route_is_delegated_to_hosted_metadata_app", async () => {
     // Arrange
     const handledPaths: string[] = [];
@@ -238,6 +295,7 @@ describe("hosted production HTTP app", () => {
           throw new Error("publish app must not handle metadata route");
         }
       },
+      submitApp: createUnexpectedSubmitApp("metadata"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions: new InMemoryRequestVersionRepository(),
       metadataApp: {
@@ -277,6 +335,7 @@ describe("hosted production HTTP app", () => {
           throw new Error("publish app must not handle unknown route");
         }
       },
+      submitApp: createUnexpectedSubmitApp("unknown"),
       publicBaseUrl: "https://api.watasu.ai",
       requestVersions: new InMemoryRequestVersionRepository(),
       metadataApp: {

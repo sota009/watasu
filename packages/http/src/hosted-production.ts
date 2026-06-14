@@ -12,9 +12,14 @@ import type {
   HostedPublishRequest,
   HostedPublishResponse
 } from "./hosted-publish.js";
+import type {
+  HostedSubmitApp,
+  HostedSubmitRequest,
+  HostedSubmitResponse
+} from "./hosted-submit.js";
 
-export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest;
-export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse;
+export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest & HostedSubmitRequest;
+export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse & HostedSubmitResponse;
 
 export interface HostedProductionApp {
   handle(request: HostedProductionRequest): Promise<HostedProductionResponse>;
@@ -23,6 +28,7 @@ export interface HostedProductionApp {
 export interface CreateHostedProductionAppInput {
   publishApp: HostedPublishApp;
   metadataApp: HostedMetadataApp;
+  submitApp: HostedSubmitApp;
   publicBaseUrl: string;
   requestVersions: {
     list(requestId: string): PublishedRequestVersion[];
@@ -41,6 +47,10 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 
       if (request.method === "POST" && /^\/requests\/[^/]+\/publish$/.test(request.path)) {
         return input.publishApp.handle(request);
+      }
+
+      if (request.method === "POST" && /^\/requests\/[^/]+\/submit$/.test(request.path)) {
+        return input.submitApp.handle(request);
       }
 
       const agentCardRequestId = matchAgentCardPath(request);

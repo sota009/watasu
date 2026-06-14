@@ -136,6 +136,7 @@ export function createHostedProductionServerFromEnv(input: {
     ...loadHostedRuntimeConfig(input.env),
     ...loadHostedPublicBaseUrlConfig(input.env)
   };
+  const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
     clock: input.now
@@ -143,6 +144,7 @@ export function createHostedProductionServerFromEnv(input: {
   const app = createHostedProductionBootstrapApp({
     repository: new InMemoryRequestVersionRepository(),
     publicBaseUrl: config.publicBaseUrl,
+    deliverySigningSecret: identityProviderConfig.signingSecret,
     ledgerReader: createMetadataLedgerReader({
       rows: [],
       requestTenants: {},

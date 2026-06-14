@@ -158,6 +158,7 @@ describe("hosted signed service identity resolver", () => {
     const app = createHostedProductionBootstrapApp({
       repository,
       publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
       ledgerReader: createMetadataLedgerReader({
         rows: [],
         requestTenants: {},
