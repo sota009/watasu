@@ -1,20 +1,20 @@
 # watasu
 
-watasu は、サービス側エージェントが個人データの要求定義を作り、外部のユーザー側エージェントが読める暗号化 intake endpoint を公開するための agent-native intake MVP です。
+watasu is an agent-native intake MVP for service-side agents to define requests for personal data and publish encrypted intake endpoints that external user-side agents can read.
 
-人間向けフォームを作るのではなく、「何を、なぜ、どこへ渡すか」を request definition / schema / Agent Card として機械可読にし、ユーザー同意にもとづく encrypted submission をサービス側 webhook へ配送する土台を作ります。
+Instead of building human-facing forms, watasu makes "what is being sent, why it is needed, and where it goes" machine-readable as a request definition, schema, and Agent Card. It provides the foundation for delivering encrypted submissions, based on user consent, to a service-side webhook.
 
 ## Security Promise
 
-watasu の境界は **no payload custody** です。
+watasu's boundary is **no payload custody**.
 
-- watasu は plaintext payload を受け取らない、復号しない、保存しない、ログに出さない。
-- watasu は service private key を持たない。
-- watasu は encrypted payload body を delivery attempt 後に保持しない。
-- webhook delivery に失敗しても payload retry queue は持たず、sender に `resubmit_later` を返す設計にする。
-- 保存対象は request version、hash、delivery status、consent receipt metadata など、payload 値を含まない metadata に限定する。
+- watasu does not receive, decrypt, store, or log plaintext payloads.
+- watasu does not hold the service private key.
+- watasu does not retain encrypted payload bodies after a delivery attempt.
+- If webhook delivery fails, watasu is designed to avoid keeping a payload retry queue and instead return `resubmit_later` to the sender.
+- Stored data is limited to metadata that does not contain payload values, such as request version, hashes, delivery status, and consent receipt metadata.
 
-metadata も個人関連情報になり得るため、tenant / role / retention / audit の対象として扱います。watasu は legal consent、本人確認、代理権限、規制対応、DSAR を保証しません。それらは service 側または別プロダクトの責務です。
+Because metadata can still be personal-related information, it is treated as subject to tenant, role, retention, and audit controls. watasu does not guarantee legal consent, identity verification, delegated authority, regulatory compliance, or DSAR handling. Those remain the responsibility of the service side or another product.
 
 ## Workspace Layout
 
@@ -81,7 +81,7 @@ For `POST /submit`, the local demo validates the A2A HTTP+JSON protocol gate, ch
 
 ## Verification Loop
 
-通常ループ:
+Standard loop:
 
 ```bash
 pnpm loop
@@ -109,7 +109,7 @@ pnpm --filter @watasu/http test
 
 ## Current MVP Status
 
-Implemented now:
+Currently implemented:
 
 - pnpm workspace foundation for `@watasu/core`, `@watasu/cli`, `@watasu/fixtures`, and `@watasu/http`
 - request definition parsing and validation
@@ -123,7 +123,7 @@ Implemented now:
 - webhook delivery helper with signed headers and metadata-only ledger rows
 - file-based CLI wrappers and a local HTTP demo
 
-Not in MVP yet:
+Not yet in the MVP:
 
 - dashboard UI or human form builder
 - user-side agent, personal vault, or consumer AI companion

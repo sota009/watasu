@@ -9,5 +9,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@watasu/core": "workspace:*"
   }
 }

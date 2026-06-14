@@ -71,6 +71,8 @@ export type {
 } from "./submission.js";
 export type {
   DeliveryClient,
+  DeliveryLogEvent,
+  DeliveryLogger,
   DeliveryLedger,
   DeliveryLedgerRow,
   DeliveryRequest,

@@ -7,6 +7,7 @@ import {
   deliverAcceptedSubmission,
   type AcceptedSubmission,
   type DeliveryClient,
+  type DeliveryLogEvent,
   type DeliveryLedger,
   type DeliveryRequest,
   type SubmissionEnvelope
@@ -371,5 +372,80 @@ describe("webhook delivery and metadata-only ledger", () => {
     expect(ledgerJson).not.toContain("base64url-ciphertext");
     expect(ledgerJson).not.toContain("\"encrypted_payload\"");
     expect(ledgerJson).not.toContain("full_name");
+  });
+
+  test("test_debug_logs_do_not_include_payload_bodies", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const logs: DeliveryLogEvent[] = [];
+    const logger = {
+      write(event: DeliveryLogEvent) {
+        logs.push(event);
+      }
+    };
+
+    await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client: createClient(204),
+      ledger: createLedger(),
+      logger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client: createClient(503),
+      ledger: createLedger(),
+      logger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client: {
+        async post() {
+          throw new Error("timeout");
+        }
+      },
+      ledger: createLedger(),
+      logger,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+
+    const logsJson = canonicalizeJson(logs);
+    expect(logs).toMatchObject([
+      {
+        event: "watasu.delivery_attempt",
+        delivery_status: "delivered",
+        webhook_status: 204,
+        encrypted_payload_hash: envelope.encrypted_payload_hash
+      },
+      {
+        event: "watasu.delivery_attempt",
+        delivery_status: "resubmit_later",
+        webhook_status: 503,
+        error_code: "webhook_delivery_failed"
+      },
+      {
+        event: "watasu.delivery_attempt",
+        delivery_status: "resubmit_later",
+        error_code: "webhook_delivery_failed"
+      }
+    ]);
+    expect(logsJson).not.toContain("base64url-ciphertext");
+    expect(logsJson).not.toContain("\"encrypted_payload\"");
+    expect(logsJson).not.toContain("\"protected\"");
+    expect(logsJson).not.toContain("\"tag\"");
+    expect(logsJson).not.toContain("receiver.example.com");
   });
 });
