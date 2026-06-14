@@ -25,6 +25,19 @@ export interface MetadataLedgerRetentionResult {
   retained: number;
 }
 
+export type HostedMetadataLedgerRetentionJobResult =
+  | (MetadataLedgerRetentionResult & {
+      tenant_id: string;
+    })
+  | {
+      ok: false;
+      status: "forbidden";
+      error: {
+        code: "retention_auditor_role_required";
+        message: string;
+      };
+    };
+
 export type HostedServiceRole =
   | "publisher"
   | "request_admin"
@@ -215,5 +228,32 @@ export function runMetadataLedgerRetention(input: {
     scanned: rows.length,
     deleted: expiredRows.length,
     retained: rows.length - expiredRows.length
+  };
+}
+
+export function runHostedMetadataLedgerRetentionJob(input: {
+  serviceIdentity: HostedServiceIdentity;
+  now: Date;
+  retentionDays: number;
+  store: RetentionDeliveryLedgerStore;
+}): HostedMetadataLedgerRetentionJobResult {
+  if (!input.serviceIdentity.roles.includes("auditor")) {
+    return {
+      ok: false,
+      status: "forbidden",
+      error: {
+        code: "retention_auditor_role_required",
+        message: "Hosted metadata retention jobs require the auditor role."
+      }
+    };
+  }
+
+  return {
+    tenant_id: input.serviceIdentity.tenant_id,
+    ...runMetadataLedgerRetention({
+      now: input.now,
+      retentionDays: input.retentionDays,
+      store: input.store
+    })
   };
 }

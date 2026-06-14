@@ -167,6 +167,7 @@ Currently implemented:
 - in-memory verified service public key registration, revocation, and rotation lifecycle
 - JSONL delivery metadata ledger store for opt-in local persistence
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
+- hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
 - MCP server package with a read-only request definition validation tool
 - MCP publish tool plus read tools and resources for Agent Card, plaintext schema, envelope schema, and metadata-only ledger rows
@@ -176,7 +177,7 @@ Currently implemented:
 Still remaining for Hosted Production MVP:
 
 - deployable hosted server runtime and environment wiring
-- PostgreSQL-compatible hosted metadata store and scheduled hosted retention jobs
+- PostgreSQL-compatible hosted metadata store
 - MCP hosted production surface beyond local in-memory publish and read tools
 - KMS/HSM-backed service private key custody beyond verified public-key registry
 

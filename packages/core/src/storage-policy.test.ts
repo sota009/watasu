@@ -8,6 +8,7 @@ import {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
 } from "./storage-policy.js";
@@ -329,6 +330,79 @@ describe("storage policy controlled delivery ledger", () => {
         retained: 1
       });
       expect(store.listDeliveryRows()).toEqual([active]);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  test("test_hosted_retention_job_requires_auditor_role", () => {
+    const store = new JsonlDeliveryLedgerStore({
+      filePath: join(mkdtempSync(join(tmpdir(), "watasu-ledger-")), "delivery-ledger.jsonl")
+    });
+
+    const result = runHostedMetadataLedgerRetentionJob({
+      serviceIdentity: {
+        tenant_id: "tenant-a",
+        roles: ["publisher"]
+      },
+      now: new Date("2026-06-14T12:00:00.000Z"),
+      retentionDays: 7,
+      store
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "forbidden",
+      error: {
+        code: "retention_auditor_role_required"
+      }
+    });
+  });
+
+  test("test_hosted_retention_job_deletes_expired_metadata_without_payload_body", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "watasu-ledger-"));
+    const store = new JsonlDeliveryLedgerStore({
+      filePath: join(tempDir, "delivery-ledger.jsonl")
+    });
+    store.writeDeliveryAttempt(createLedgerRow({
+      idempotency_key: "expired-submit",
+      encrypted_payload_hash: sha256Hash("base64url-ciphertext"),
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    }));
+    store.writeDeliveryAttempt(createLedgerRow({
+      idempotency_key: "active-submit",
+      delivered_at: "2026-06-13T12:00:00.000Z"
+    }));
+
+    try {
+      const result = runHostedMetadataLedgerRetentionJob({
+        serviceIdentity: {
+          tenant_id: "tenant-a",
+          roles: ["auditor"]
+        },
+        now: new Date("2026-06-14T12:00:00.000Z"),
+        retentionDays: 7,
+        store
+      });
+      const resultJson = JSON.stringify(result);
+
+      expect(result).toEqual({
+        ok: true,
+        tenant_id: "tenant-a",
+        scanned: 2,
+        deleted: 1,
+        retained: 1
+      });
+      expect(resultJson).not.toContain("base64url-ciphertext");
+      expect(resultJson).not.toContain("\"encrypted_payload\"");
+      expect(store.listDeliveryRows()).toMatchObject([
+        {
+          idempotency_key: "active-submit"
+        }
+      ]);
     } finally {
       rmSync(tempDir, {
         recursive: true,

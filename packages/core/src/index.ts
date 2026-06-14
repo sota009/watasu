@@ -47,6 +47,7 @@ export {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
 export {
@@ -128,6 +129,7 @@ export type {
 export type {
   HostedServiceIdentity,
   HostedServiceRole,
+  HostedMetadataLedgerRetentionJobResult,
   MetadataLedgerAuditEvent,
   MetadataLedgerAuditLog,
   MetadataLedgerReader,

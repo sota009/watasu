@@ -924,7 +924,7 @@ Hosted ledger access control:
 - `list_ledger` and `inspect_delivery` enforce tenant and role checks server-side.
 - role は `service_identities` と `service_identity_roles` から解決し、request body、MCP tool arguments、Agent Card metadata に含まれる tenant / role は信頼しない。
 - read access to consent receipt metadata is logged in `access_audit_logs`.
-- retention job は tenant_id と request_version scope を保ったまま ledger、consent receipt、rate limit events、raw network abuse logs を期限通り削除または anonymize する。
+- retention job は auditor role を持つ hosted service identity からだけ実行できる。tenant_id と request_version scope を保ったまま ledger、consent receipt、rate limit events、raw network abuse logs を期限通り削除または anonymize し、job result には payload body や encrypted payload body を含めない。
 - cross-tenant request_id、submission_id、consent_receipt_hash、idempotency_key_hash を指定した inspection は `not_found` または authorization error になり、存在有無を漏らさない。
 
 Payload persistence controls:
