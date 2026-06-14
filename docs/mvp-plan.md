@@ -122,6 +122,7 @@ Current repo-side status:
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
 - Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, and URL-credential rejection checks. Local loopback HTTP remains allowed for smoke tests.
 - Done: hosted runtime validates `WATASU_PUBLIC_BASE_URL` at startup and the Render Blueprint pins it to `https://api.watasu.ai`.
+- Done: hosted production exposes request-specific Agent Card JSON for published request versions at `/requests/{request_id}/agent-card.json`.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
@@ -159,7 +160,7 @@ Owner checklist for the first production cutover:
 [ ] Secrets entered in Render, not committed to git.
 [ ] Dedicated API subdomain chosen.
 [ ] DNS record configured and Render domain verification passed.
-[ ] Production URL shared back with Codex for canary checks.
+[ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
 [ ] `pnpm canary:hosted -- https://api.watasu.ai` passes.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
