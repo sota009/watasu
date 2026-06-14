@@ -482,6 +482,8 @@ describe("hosted production runtime package", () => {
     // Assert
     expect(result).toEqual({
       ok: true,
+      checked_at: "2026-06-15T00:00:00.000Z",
+      retention_days: 7,
       tenant_id: "tenant-a",
       scanned: 1,
       deleted: 1,
@@ -558,6 +560,8 @@ describe("hosted production runtime package", () => {
     expect(result).toEqual({
       ok: true,
       dry_run: true,
+      checked_at: "2026-06-15T00:00:00.000Z",
+      retention_days: 7,
       tenant_id: "tenant-a",
       scanned: 1,
       deleted: 0,

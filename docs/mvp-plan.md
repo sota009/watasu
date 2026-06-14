@@ -115,7 +115,7 @@ Current repo-side status:
 - Done: Render web-service Blueprint for `api.watasu.ai`.
 - Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
 - Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`, with explicit rejection unless `WATASU_METADATA_LEDGER_STORE=postgres`.
-- Done: retention dry-run mode using `pnpm --filter @watasu/hosted retention -- --dry-run` for pre-cutover checks without deleting rows.
+- Done: retention dry-run mode using `pnpm --filter @watasu/hosted retention -- --dry-run` for pre-cutover checks without deleting rows; output records `checked_at`, `retention_days`, `tenant_id`, row counts, and `would_delete`.
 - Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` and rejects accidental `postgres` mode until hosted read/write wiring intentionally needs DB access.
 - Done: GitHub Actions CI gate for Render `checksPass`, with read-only permissions and pinned official actions.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
@@ -167,7 +167,7 @@ Owner checklist for the first production cutover:
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
 [ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at` and `checked_timeout_ms`.
-[ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment.
+[ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
 [ ] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 

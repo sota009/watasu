@@ -381,16 +381,23 @@ export async function runHostedPostgresRetentionJobFromEnv(input: {
   });
 
   try {
-    return await runHostedMetadataLedgerRetentionJob({
+    const now = input.now();
+    const result = await runHostedMetadataLedgerRetentionJob({
       dryRun: input.dryRun,
       serviceIdentity: {
         tenant_id: config.tenantId,
         roles: ["auditor"]
       },
-      now: input.now(),
+      now,
       retentionDays: config.retentionDays,
       store: runtime.store
     });
+
+    return {
+      ...result,
+      checked_at: now.toISOString(),
+      retention_days: config.retentionDays
+    };
   } finally {
     await runtime.close();
   }
