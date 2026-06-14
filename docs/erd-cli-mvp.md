@@ -637,7 +637,7 @@ Webhook destination verification:
 - hosted production では publish 前に domain ownership verification を必須にする。
 - verification は HTTPS challenge `/.well-known/watasu-webhook-challenge/{challenge_id}` または DNS TXT `_watasu-challenge.{domain}` のどちらかで行う。
 - HTTPS challenge fetch は `https:` origin のみ許可し、fetch 前に hostname の解決結果を検査して localhost、private IP、link-local、metadata service address を拒否する。redirect は自動追跡しない。
-- DNS TXT challenge fetch は Hosted Production MVP の残タスクとし、HTTPS challenge と同じ domain ownership state に統合する。
+- DNS TXT challenge fetch は `_watasu-challenge.{domain}` の TXT record を解決し、複数chunk / 複数recordを正規化して expected token と照合する。HTTPS challenge と同じ domain ownership state に統合する。
 - localhost、private IP、link-local、metadata service address、non-HTTPS URL は hosted production で拒否する。local demo mode だけ localhost を許可する。
 - delivery 前には DNS rebinding と SSRF を避けるため、resolve 後 IP range を検証し、redirect 先も同じ制約で検証する。
 

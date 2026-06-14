@@ -142,6 +142,7 @@ Currently implemented:
 - hosted publish ownership checks for service keys, webhook origins, HTTPS, and unsafe destination hosts
 - in-memory service key and webhook origin ownership challenge lifecycle
 - live HTTPS webhook ownership challenge fetching with DNS unsafe-address preflight
+- DNS TXT webhook ownership challenge fetching
 - hosted publish HTTP adapter using server-side identity and ownership resolution
 - plaintext payload schema and encrypted envelope schema generation
 - A2A-compatible Agent Card generation
@@ -179,6 +180,5 @@ Still remaining for Hosted Production MVP:
 - PostgreSQL-compatible hosted metadata store and scheduled hosted retention jobs
 - MCP hosted production surface beyond local in-memory publish and read tools
 - KMS/HSM-backed service private key custody beyond verified public-key registry
-- DNS TXT ownership challenge fetching beyond HTTPS challenge verification
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.

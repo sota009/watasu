@@ -301,6 +301,101 @@ describe("ownership challenge lifecycle", () => {
     expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([]);
   });
 
+  test("test_webhook_origin_challenge_verifies_dns_txt_token", async () => {
+    // Arrange
+    const resolvedNames: string[] = [];
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromDnsTxt({
+      challenge_id: "challenge-webhook-001",
+      resolveTxt: async (name) => {
+        resolvedNames.push(name);
+        return [["secret-webhook-", "001"]];
+      }
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: true,
+      origin: "https://receiver.example.com"
+    });
+    expect(resolvedNames).toEqual([
+      "_watasu-challenge.receiver.example.com"
+    ]);
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([
+      "https://receiver.example.com"
+    ]);
+  });
+
+  test("test_webhook_origin_challenge_dns_txt_rejects_token_mismatch", async () => {
+    // Arrange
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromDnsTxt({
+      challenge_id: "challenge-webhook-001",
+      resolveTxt: async () => [["wrong-token"]]
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "challenge_token_mismatch"
+      }
+    });
+    expect(registry.listVerifiedWebhookOrigins("tenant-a")).toEqual([]);
+  });
+
+  test("test_webhook_origin_challenge_dns_txt_returns_fetch_error_when_lookup_fails", async () => {
+    // Arrange
+    const registry = new InMemoryOwnershipChallengeRegistry({
+      clock: () => now,
+      generateChallengeId: () => "challenge-webhook-001",
+      generateChallengeSecret: () => "secret-webhook-001"
+    });
+    registry.issueWebhookOriginChallenge({
+      tenant_id: "tenant-a",
+      origin: "https://receiver.example.com",
+      expires_at: "2026-06-14T12:05:00.000Z"
+    });
+
+    // Act
+    const result = await registry.verifyWebhookOriginChallengeFromDnsTxt({
+      challenge_id: "challenge-webhook-001",
+      resolveTxt: async () => {
+        throw new Error("DNS unavailable");
+      }
+    });
+
+    // Assert
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "challenge_dns_txt_fetch_failed"
+      }
+    });
+  });
+
   test("test_verified_challenges_build_publish_ownership_state", () => {
     // Arrange
     const keys = createServiceKeyPair();
