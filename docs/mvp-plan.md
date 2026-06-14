@@ -162,7 +162,7 @@ Owner checklist for the first production cutover:
 [ ] GitHub repository connected to Render.
 [ ] Paid Render Postgres database created in the same region as the web service.
 [ ] Secrets entered in Render, not committed to git.
-[ ] Dedicated API subdomain chosen.
+[x] Domain acquired and dedicated API subdomain chosen: `api.watasu.ai`.
 [ ] DNS record configured and Render domain verification passed.
 [ ] Production URL shared back with Codex for canary and published Agent Card checks.
 [ ] GitHub Actions CI is green on the deployed commit.
