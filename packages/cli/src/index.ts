@@ -113,6 +113,17 @@ function parseArgs(
     }
 
     if (arg === "--payload") {
+      if (payloadFile !== undefined) {
+        return {
+          ok: false,
+          error: {
+            code: "duplicate_payload_file",
+            path: "$.payload",
+            message: "--payload may be provided only once."
+          }
+        };
+      }
+
       const nextArg = args[index + 1];
       if (nextArg === undefined || nextArg.startsWith("--")) {
         return {
