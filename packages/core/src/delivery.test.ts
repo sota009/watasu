@@ -5,6 +5,7 @@ import { sha256Hash } from "./hash.js";
 import { createRequestVersionHashes, type PublishedRequestVersion } from "./request-version.js";
 import {
   createFetchDeliveryClient,
+  InMemoryDeliveryCircuitBreaker,
   deliverAcceptedSubmission,
   type AcceptedSubmission,
   type DeliveryClient,
@@ -412,6 +413,104 @@ describe("webhook delivery and metadata-only ledger", () => {
     expect(retainedJson).not.toContain("\"encrypted_payload\"");
     expect(retainedJson).not.toContain("\"protected\"");
     expect(retainedJson).not.toContain("\"tag\"");
+  });
+
+  test("test_circuit_breaker_fails_fast_after_repeated_webhook_failures_without_payload_body", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const ledger = createLedger();
+    const logs: DeliveryLogEvent[] = [];
+    const client = createClient(503);
+    const circuitBreaker = new InMemoryDeliveryCircuitBreaker({
+      failureThreshold: 2,
+      cooldownMs: 60_000,
+      clock: () => now
+    });
+
+    await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: createAcceptedSubmission(),
+      client,
+      ledger,
+      logger: {
+        write(event) {
+          logs.push(event);
+        }
+      },
+      circuitBreaker,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: {
+        ...createAcceptedSubmission(),
+        idempotency_key: "submit-002"
+      },
+      client,
+      ledger,
+      logger: {
+        write(event) {
+          logs.push(event);
+        }
+      },
+      circuitBreaker,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    const failFastResult = await deliverAcceptedSubmission({
+      mode: "hosted",
+      published,
+      envelope,
+      submission: {
+        ...createAcceptedSubmission(),
+        idempotency_key: "submit-003"
+      },
+      client,
+      ledger,
+      logger: {
+        write(event) {
+          logs.push(event);
+        }
+      },
+      circuitBreaker,
+      clock: () => now,
+      signingSecret: "test-signing-secret"
+    });
+    const retainedJson = canonicalizeJson({
+      failFastResult,
+      ledger: ledger.rows,
+      logs
+    });
+
+    expect(client.requests).toHaveLength(2);
+    expect(failFastResult).toMatchObject({
+      ok: false,
+      status: "resubmit_later",
+      error: {
+        code: "webhook_circuit_open"
+      }
+    });
+    expect(ledger.rows).toMatchObject([
+      {
+        delivery_status: "resubmit_later",
+        error_code: "webhook_delivery_failed"
+      },
+      {
+        delivery_status: "resubmit_later",
+        error_code: "webhook_delivery_failed"
+      },
+      {
+        delivery_status: "resubmit_later",
+        error_code: "webhook_circuit_open"
+      }
+    ]);
+    expect(retainedJson).not.toContain("base64url-ciphertext");
+    expect(retainedJson).not.toContain("\"encrypted_payload\"");
   });
 
   test("test_ledger_row_does_not_store_plaintext_or_encrypted_payload_body", async () => {

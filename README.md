@@ -147,6 +147,7 @@ Currently implemented:
 - in-memory capability registry for revoke and rotate without mutating request versions
 - webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - delivery timeout classification that returns `resubmit_later` without retaining payload bodies
+- in-memory delivery circuit breaker for fail-fast `resubmit_later` after repeated webhook failures
 - storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
