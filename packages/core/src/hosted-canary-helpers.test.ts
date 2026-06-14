@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   buildHostedCanaryCheckUrls,
@@ -139,5 +140,11 @@ describe("hosted canary helpers", () => {
       unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
       unsafeEncodedRequestId: "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
     });
+  });
+
+  test("test_hosted_canary_helper_declaration_includes_unsafe_route_url", () => {
+    const declaration = readFileSync(new URL("../../../scripts/hosted-canary-helpers.d.mts", import.meta.url), "utf8");
+
+    expect(declaration).toContain("unsafeEncodedRequestId: string;");
   });
 });
