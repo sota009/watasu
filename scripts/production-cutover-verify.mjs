@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 
 const targetOrigin = "https://api.watasu.ai";
+const usage = "Usage: pnpm --silent cutover:verify --head <40-char-sha> --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>";
 const requiredForbiddenFragments = [
   "tenant",
   "ledger",
@@ -34,11 +35,12 @@ try {
 }
 
 const failures = [
+  ...validateExpectedHead(inputs.head),
   ...validatePreflight(evidence.preflight),
   ...validateSmoke(evidence.smoke),
   ...validateCanary(evidence.canary),
   ...validateRetention(evidence.retention),
-  ...validateCi(evidence.ci)
+  ...validateCi(evidence.ci, inputs.head)
 ];
 
 if (failures.length > 0) {
@@ -51,6 +53,7 @@ process.stdout.write(`${JSON.stringify({
   decision: "go",
   checked_at: new Date().toISOString(),
   checked_origin: targetOrigin,
+  checked_head_sha: inputs.head,
   checked_evidence: ["preflight", "smoke", "canary", "retention", "ci"]
 })}\n`);
 
@@ -60,9 +63,11 @@ function parseArgs(args) {
     const name = args[index];
     const value = args[index + 1];
     if (value === undefined) {
-      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
+      throw new Error(usage);
     }
-    if (name === "--preflight") {
+    if (name === "--head") {
+      parsed.head = value;
+    } else if (name === "--preflight") {
       parsed.preflight = value;
     } else if (name === "--smoke") {
       parsed.smoke = value;
@@ -73,18 +78,19 @@ function parseArgs(args) {
     } else if (name === "--ci") {
       parsed.ci = value;
     } else {
-      throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
+      throw new Error(usage);
     }
   }
 
   if (
+    parsed.head === undefined ||
     parsed.preflight === undefined ||
     parsed.smoke === undefined ||
     parsed.canary === undefined ||
     parsed.retention === undefined ||
     parsed.ci === undefined
   ) {
-    throw new Error("Usage: pnpm --silent cutover:verify --preflight <json> --smoke <json> --canary <json> --retention <json> --ci <json>");
+    throw new Error(usage);
   }
 
   return parsed;
@@ -168,7 +174,15 @@ function validateRetention(value) {
   return failures;
 }
 
-function validateCi(value) {
+function validateExpectedHead(value) {
+  const failures = [];
+  if (typeof value !== "string" || !/^[0-9a-f]{40}$/i.test(value)) {
+    failures.push("Expected head must be a 40-character commit SHA.");
+  }
+  return failures;
+}
+
+function validateCi(value, expectedHeadSha) {
   const failures = [];
   const runs = Array.isArray(value) ? value : [value];
   const successfulCiRun = runs.find((run) =>
@@ -176,10 +190,10 @@ function validateCi(value) {
     run?.status === "completed" &&
     run?.conclusion === "success" &&
     typeof run?.headSha === "string" &&
-    /^[0-9a-f]{40}$/i.test(run.headSha)
+    run.headSha.toLowerCase() === expectedHeadSha.toLowerCase()
   );
   if (successfulCiRun === undefined) {
-    failures.push("CI evidence must include a completed successful ci run with a 40-character headSha.");
+    failures.push("CI evidence must include a completed successful ci run for the expected head.");
   }
   return failures;
 }

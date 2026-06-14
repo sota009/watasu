@@ -7,6 +7,7 @@ import { parse as parseYaml } from "yaml";
 import { findSecretLikeValues } from "../../../scripts/secret-scan.mjs";
 
 const rootDir = new URL("../../../", import.meta.url);
+const expectedCutoverHeadSha = "0123456789abcdef0123456789abcdef01234567";
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(new URL(path, rootDir), "utf8"));
@@ -281,6 +282,7 @@ describe("workspace foundation", () => {
       ok: true,
       target_origin: "https://api.watasu.ai",
       before_render_commands: [
+        "git rev-parse HEAD > cutover-head.txt",
         "pnpm --silent deploy:preflight",
         "pnpm --silent smoke:hosted",
         "pnpm --silent secret:identity --plain"
@@ -293,9 +295,10 @@ describe("workspace foundation", () => {
     });
     expect(report.external_actions).toContain("Verify api.watasu.ai DNS and TLS in Render.");
     expect(report.required_evidence).toEqual([
+      "cutover-head.txt records the deployed commit SHA",
       "deploy:preflight ok=true",
       "smoke:hosted checked_status=200",
-      "GitHub Actions CI green on deployed commit",
+      "GitHub Actions CI green on the cutover head",
       "canary checked_origin=https://api.watasu.ai",
       "canary checked_forbidden_fragments present",
       "retention dry_run=true",
@@ -312,7 +315,7 @@ describe("workspace foundation", () => {
     expect(japaneseReadme).toContain("pnpm --silent cutover:plan");
     expect(japaneseReadme).toContain("pnpm --silent smoke:hosted");
     expect(japaneseReadme).toContain("pnpm --silent secret:identity --plain");
-    expect(japaneseReadme).toContain("pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json");
+    expect(japaneseReadme).toContain("pnpm --silent cutover:verify --head \"$(cat cutover-head.txt)\" --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json");
     expect(japaneseReadme).toContain("ci.json");
   });
 
@@ -352,12 +355,14 @@ describe("workspace foundation", () => {
       workflowName: "ci",
       status: "completed",
       conclusion: "success",
-      headSha: "0123456789abcdef0123456789abcdef01234567"
+      headSha: expectedCutoverHeadSha
     }));
 
     const result = spawnSync("pnpm", [
       "--silent",
       "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
       "--preflight",
       preflightPath,
       "--smoke",
@@ -379,6 +384,7 @@ describe("workspace foundation", () => {
       ok: true,
       decision: "go",
       checked_origin: "https://api.watasu.ai",
+      checked_head_sha: expectedCutoverHeadSha,
       checked_evidence: ["preflight", "smoke", "canary", "retention", "ci"]
     });
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
@@ -424,12 +430,14 @@ describe("workspace foundation", () => {
       workflowName: "ci",
       status: "completed",
       conclusion: "success",
-      headSha: "0123456789abcdef0123456789abcdef01234567"
+      headSha: expectedCutoverHeadSha
     }));
 
     const result = spawnSync("pnpm", [
       "--silent",
       "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
       "--preflight",
       preflightPath,
       "--smoke",
@@ -487,12 +495,14 @@ describe("workspace foundation", () => {
       workflowName: "ci",
       status: "completed",
       conclusion: "success",
-      headSha: "0123456789abcdef0123456789abcdef01234567"
+      headSha: expectedCutoverHeadSha
     }));
 
     const result = spawnSync("pnpm", [
       "--silent",
       "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
       "--preflight",
       preflightPath,
       "--smoke",
@@ -550,12 +560,14 @@ describe("workspace foundation", () => {
       workflowName: "ci",
       status: "completed",
       conclusion: "success",
-      headSha: "0123456789abcdef0123456789abcdef01234567"
+      headSha: expectedCutoverHeadSha
     }));
 
     const result = spawnSync("pnpm", [
       "--silent",
       "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
       "--preflight",
       preflightPath,
       "--smoke",
@@ -612,12 +624,14 @@ describe("workspace foundation", () => {
       workflowName: "ci",
       status: "completed",
       conclusion: "failure",
-      headSha: "0123456789abcdef0123456789abcdef01234567"
+      headSha: expectedCutoverHeadSha
     }));
 
     const result = spawnSync("pnpm", [
       "--silent",
       "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
       "--preflight",
       preflightPath,
       "--smoke",
@@ -636,6 +650,70 @@ describe("workspace foundation", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("CI evidence must include a completed successful ci run");
+  });
+
+  test("test_production_cutover_verify_rejects_ci_evidence_for_different_head", () => {
+    const evidenceDir = mkdtempSync(join(tmpdir(), "watasu-cutover-evidence-"));
+    const preflightPath = join(evidenceDir, "preflight.json");
+    const smokePath = join(evidenceDir, "smoke.json");
+    const canaryPath = join(evidenceDir, "canary.json");
+    const retentionPath = join(evidenceDir, "retention.json");
+    const ciPath = join(evidenceDir, "ci.json");
+    writeFileSync(preflightPath, JSON.stringify({
+      ok: true,
+      checked_domain: "api.watasu.ai",
+      checked_secret_command: "pnpm --silent secret:identity --plain"
+    }));
+    writeFileSync(smokePath, JSON.stringify({
+      ok: true,
+      checked_command: "pnpm --filter @watasu/hosted start",
+      checked_status: 200
+    }));
+    writeFileSync(canaryPath, JSON.stringify({
+      ok: true,
+      checked_origin: "https://api.watasu.ai",
+      checked_forbidden_fragments: ["tenant", "ledger", "postgres", "payload", "secret", "WATASU_POSTGRES_URL"],
+      go_no_go: {
+        decision: "go"
+      }
+    }));
+    writeFileSync(retentionPath, JSON.stringify({
+      ok: true,
+      dry_run: true,
+      retention_days: 90,
+      tenant_id: "watasu-private-alpha",
+      would_delete: 0
+    }));
+    writeFileSync(ciPath, JSON.stringify({
+      workflowName: "ci",
+      status: "completed",
+      conclusion: "success",
+      headSha: "89abcdef0123456789abcdef0123456789abcdef"
+    }));
+
+    const result = spawnSync("pnpm", [
+      "--silent",
+      "cutover:verify",
+      "--head",
+      expectedCutoverHeadSha,
+      "--preflight",
+      preflightPath,
+      "--smoke",
+      smokePath,
+      "--canary",
+      canaryPath,
+      "--retention",
+      retentionPath,
+      "--ci",
+      ciPath
+    ], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("CI evidence must include a completed successful ci run for the expected head");
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {

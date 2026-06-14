@@ -7,6 +7,7 @@ process.stdout.write(`${JSON.stringify({
   checked_at: new Date().toISOString(),
   target_origin: targetOrigin,
   before_render_commands: [
+    "git rev-parse HEAD > cutover-head.txt",
     "pnpm --silent deploy:preflight",
     "pnpm --silent smoke:hosted",
     "pnpm --silent secret:identity --plain"
@@ -25,9 +26,10 @@ process.stdout.write(`${JSON.stringify({
     "pnpm --filter @watasu/hosted retention -- --dry-run"
   ],
   required_evidence: [
+    "cutover-head.txt records the deployed commit SHA",
     "deploy:preflight ok=true",
     "smoke:hosted checked_status=200",
-    "GitHub Actions CI green on deployed commit",
+    "GitHub Actions CI green on the cutover head",
     `canary checked_origin=${targetOrigin}`,
     "canary checked_forbidden_fragments present",
     "retention dry_run=true",
@@ -36,6 +38,7 @@ process.stdout.write(`${JSON.stringify({
   stop_conditions: [
     "Do not proceed if deploy:preflight reports a repo-side mismatch.",
     "Do not proceed if smoke:hosted cannot verify the low-information health response.",
+    "Do not proceed if CI evidence does not match cutover-head.txt.",
     "Do not proceed if the canary output omits checked_forbidden_fragments or go_no_go.",
     "Do not proceed if retention dry run prints payload bodies, database URLs, or secret values."
   ]

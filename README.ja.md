@@ -186,13 +186,19 @@ Production cutover plan:
 pnpm --silent cutover:plan
 ```
 
+production evidence と紐づける cutover commit を記録します:
+
+```bash
+git rev-parse HEAD > cutover-head.txt
+```
+
 Production cutover evidence verification after deploy:
 
 ```bash
-pnpm --silent cutover:verify --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json
+pnpm --silent cutover:verify --head "$(cat cutover-head.txt)" --preflight preflight.json --smoke smoke.json --canary canary.json --retention retention.json --ci ci.json
 ```
 
-cutover verifier は `deploy:preflight`、`smoke:hosted`、`canary:hosted`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読み、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
+cutover verifier は `deploy:preflight`、`smoke:hosted`、`canary:hosted`、retention dry run、latest successful `ci` GitHub Actions run の JSON output を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。
 
 Hosted runtime smoke before deploy:
 
