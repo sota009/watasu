@@ -3,7 +3,8 @@ import type { RequestDefinition } from "./request-definition.js";
 import { createRequestVersionHashes } from "./request-version.js";
 import {
   generateEncryptedEnvelopeSchema,
-  generatePlaintextPayloadSchema
+  generatePlaintextPayloadSchema,
+  validateGeneratedJsonSchema
 } from "./schema.js";
 import { sha256Hash } from "./hash.js";
 import { canonicalizeJson } from "./request-definition.js";
@@ -122,5 +123,42 @@ describe("encrypted envelope schema generation", () => {
       "encrypted_payload",
       "encrypted_payload_hash"
     ]);
+  });
+});
+
+describe("generated JSON Schema 2020-12 validation", () => {
+  test("test_generated_plaintext_schema_is_valid_json_schema_2020_12", () => {
+    const schema = generatePlaintextPayloadSchema(baseDefinition);
+
+    expect(validateGeneratedJsonSchema(schema)).toEqual({
+      ok: true
+    });
+  });
+
+  test("test_generated_envelope_schema_is_valid_json_schema_2020_12", () => {
+    const hashes = createRequestVersionHashes(baseDefinition);
+    const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
+
+    expect(validateGeneratedJsonSchema(schema)).toEqual({
+      ok: true
+    });
+  });
+
+  test("test_invalid_generated_schema_returns_machine_readable_errors", () => {
+    const schema = {
+      ...generatePlaintextPayloadSchema(baseDefinition),
+      type: "definitely-not-a-json-schema-type"
+    };
+
+    const result = validateGeneratedJsonSchema(schema);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toEqual({
+        path: expect.any(String),
+        message: expect.any(String)
+      });
+    }
   });
 });
