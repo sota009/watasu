@@ -53,6 +53,8 @@ describe("workspace foundation", () => {
       "canary:hosted": "node scripts/hosted-canary.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
+      loop: "node scripts/loop-engineer.mjs",
+      "loop:full": "node scripts/loop-engineer.mjs --full",
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
       test: "pnpm typecheck && vitest run",
