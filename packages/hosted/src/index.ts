@@ -142,6 +142,7 @@ export function createHostedProductionServerFromEnv(input: {
   });
   const app = createHostedProductionBootstrapApp({
     repository: new InMemoryRequestVersionRepository(),
+    publicBaseUrl: config.publicBaseUrl,
     ledgerReader: createMetadataLedgerReader({
       rows: [],
       requestTenants: {},

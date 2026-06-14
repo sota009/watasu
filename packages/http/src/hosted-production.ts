@@ -1,3 +1,7 @@
+import {
+  buildAgentCard,
+  type PublishedRequestVersion
+} from "@watasu/core";
 import type {
   HostedMetadataApp,
   HostedMetadataRequest,
@@ -19,6 +23,10 @@ export interface HostedProductionApp {
 export interface CreateHostedProductionAppInput {
   publishApp: HostedPublishApp;
   metadataApp: HostedMetadataApp;
+  publicBaseUrl: string;
+  requestVersions: {
+    list(requestId: string): PublishedRequestVersion[];
+  };
 }
 
 export function createHostedProductionApp(input: CreateHostedProductionAppInput): HostedProductionApp {
@@ -35,6 +43,25 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
         return input.publishApp.handle(request);
       }
 
+      const agentCardRequestId = matchAgentCardPath(request);
+      if (agentCardRequestId !== undefined) {
+        const published = latestPublishedRequest(input.requestVersions.list(agentCardRequestId));
+        if (published === undefined) {
+          return jsonResponse(404, {
+            ok: false,
+            error: {
+              code: "request_version_not_found",
+              message: "Published request was not found."
+            }
+          });
+        }
+
+        return jsonResponse(200, buildAgentCard({
+          published,
+          endpointUrl: `${input.publicBaseUrl}/requests/${encodeURIComponent(published.request_id)}/submit`
+        }));
+      }
+
       if (request.method === "GET" && /^\/requests\/[^/]+\/ledger$/.test(request.path)) {
         return input.metadataApp.handle(request);
       }
@@ -48,6 +75,28 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
       });
     }
   };
+}
+
+function matchAgentCardPath(request: HostedProductionRequest): string | undefined {
+  if (request.method !== "GET") {
+    return undefined;
+  }
+
+  const match = /^\/requests\/([^/]+)\/agent-card\.json$/.exec(request.path);
+  if (match === null) {
+    return undefined;
+  }
+
+  try {
+    const requestId = decodeURIComponent(match[1] ?? "");
+    return requestId.length === 0 ? undefined : requestId;
+  } catch {
+    return undefined;
+  }
+}
+
+function latestPublishedRequest(versions: PublishedRequestVersion[]): PublishedRequestVersion | undefined {
+  return versions.at(-1);
 }
 
 function jsonResponse(status: number, value: unknown): HostedProductionResponse {

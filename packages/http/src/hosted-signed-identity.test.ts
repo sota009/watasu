@@ -157,6 +157,7 @@ describe("hosted signed service identity resolver", () => {
     });
     const app = createHostedProductionBootstrapApp({
       repository,
+      publicBaseUrl: "https://api.watasu.ai",
       ledgerReader: createMetadataLedgerReader({
         rows: [],
         requestTenants: {},

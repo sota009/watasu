@@ -99,6 +99,7 @@ describe("hosted production bootstrap app", () => {
     const auditEvents: unknown[] = [];
     const app = createHostedProductionBootstrapApp({
       repository,
+      publicBaseUrl: "https://api.watasu.ai",
       ledgerReader: createMetadataLedgerReader({
         rows: createRows(),
         requestTenants: {
@@ -131,6 +132,10 @@ describe("hosted production bootstrap app", () => {
       method: "GET",
       path: "/requests/event-attendee-intake/ledger"
     }));
+    const agentCardResponse = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/agent-card.json"
+    }));
 
     expect(publishResponse.status).toBe(201);
     expect(parseJson(publishResponse.body)).toMatchObject({
@@ -140,6 +145,15 @@ describe("hosted production bootstrap app", () => {
       }
     });
     expect(repository.list("event-attendee-intake")).toHaveLength(1);
+    expect(agentCardResponse.status).toBe(200);
+    expect(parseJson(agentCardResponse.body)).toMatchObject({
+      supportedInterfaces: [
+        {
+          url: "https://api.watasu.ai/requests/event-attendee-intake/submit"
+        }
+      ]
+    });
+    expect(agentCardResponse.body).not.toContain("receiver.example.com/private");
     expect(ledgerResponse.status).toBe(200);
     expect(parseJson(ledgerResponse.body)).toMatchObject({
       ok: true,
@@ -162,6 +176,7 @@ describe("hosted production bootstrap app", () => {
   test("test_bootstrap_rejects_routes_when_trusted_principal_is_missing", async () => {
     const app = createHostedProductionBootstrapApp({
       repository: new InMemoryRequestVersionRepository(),
+      publicBaseUrl: "https://api.watasu.ai",
       ledgerReader: createMetadataLedgerReader({
         rows: createRows(),
         requestTenants: {

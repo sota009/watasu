@@ -1,5 +1,6 @@
 import type {
   MetadataLedgerReader,
+  PublishedRequestVersion,
   PublishOwnershipVerification,
   RequestDefinition,
   RequestVersionPublisher
@@ -17,8 +18,11 @@ import {
 import { createHostedPublishApp } from "./hosted-publish.js";
 
 export interface CreateHostedProductionBootstrapAppInput {
-  repository: RequestVersionPublisher;
+  repository: RequestVersionPublisher & {
+    list(requestId: string): PublishedRequestVersion[];
+  };
   ledgerReader: MetadataLedgerReader;
+  publicBaseUrl: string;
   resolvePrincipal(request: HostedProductionRequest): TrustedServicePrincipal | undefined;
   resolveOwnershipVerification(input: {
     principal: TrustedServicePrincipal;
@@ -37,6 +41,8 @@ export function createHostedProductionBootstrapApp(
   });
 
   return createHostedProductionApp({
+    publicBaseUrl: input.publicBaseUrl,
+    requestVersions: input.repository,
     publishApp: createHostedPublishApp({
       repository: input.repository,
       resolveServiceIdentity,
