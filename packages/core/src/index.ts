@@ -6,6 +6,7 @@ export {
 } from "./request-definition.js";
 export { sha256Hash } from "./hash.js";
 export {
+  FileSystemRequestVersionRepository,
   InMemoryRequestVersionRepository,
   createRequestVersionHashes
 } from "./request-version.js";

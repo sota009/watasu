@@ -1,6 +1,10 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import type { RequestDefinition } from "./request-definition.js";
 import {
+  FileSystemRequestVersionRepository,
   InMemoryRequestVersionRepository,
   createRequestVersionHashes
 } from "./request-version.js";
@@ -125,5 +129,60 @@ describe("request version repository", () => {
     expect(() => {
       published.definition.consent.text = "mutated after publish";
     }).toThrow(TypeError);
+  });
+});
+
+describe("filesystem request version repository", () => {
+  test("test_filesystem_repository_persists_versions_by_request_id", async () => {
+    const storeRoot = await mkdtemp(join(tmpdir(), "watasu-request-versions-"));
+    const firstRepository = new FileSystemRequestVersionRepository(storeRoot);
+    const secondRepository = new FileSystemRequestVersionRepository(storeRoot);
+    const changedConsent = definitionWith({
+      consent: {
+        text: "ExampleConf uses this information for event operations and emergency contact."
+      }
+    });
+
+    const first = await firstRepository.publish("event-attendee-intake", baseDefinition);
+    const second = await firstRepository.publish("event-attendee-intake", changedConsent);
+    const persisted = await secondRepository.list("event-attendee-intake");
+
+    expect(persisted.map((version) => version.request_version)).toEqual([
+      first.request_version,
+      second.request_version
+    ]);
+  });
+
+  test("test_filesystem_repository_reuses_same_version_for_same_definition", async () => {
+    const storeRoot = await mkdtemp(join(tmpdir(), "watasu-request-versions-"));
+    const repository = new FileSystemRequestVersionRepository(storeRoot);
+
+    const first = await repository.publish("event-attendee-intake", baseDefinition);
+    const second = await repository.publish("event-attendee-intake", baseDefinition);
+
+    expect([first.request_version, second.request_version]).toEqual(["v1", "v1"]);
+  });
+
+  test("test_filesystem_repository_writes_index_without_plaintext_payload", async () => {
+    const storeRoot = await mkdtemp(join(tmpdir(), "watasu-request-versions-"));
+    const repository = new FileSystemRequestVersionRepository(storeRoot);
+
+    await repository.publish("event-attendee-intake", baseDefinition);
+    const indexJson = await readFile(
+      join(storeRoot, "requests", "event-attendee-intake", "index.json"),
+      "utf8"
+    );
+
+    expect(indexJson).toContain("request_version_hash");
+    expect(indexJson).not.toContain("payload");
+  });
+
+  test("test_filesystem_repository_rejects_unsafe_request_id", async () => {
+    const storeRoot = await mkdtemp(join(tmpdir(), "watasu-request-versions-"));
+    const repository = new FileSystemRequestVersionRepository(storeRoot);
+
+    await expect(repository.publish("../escape", baseDefinition)).rejects.toThrow(
+      "request_id must use only letters, numbers, dots, underscores, and hyphens"
+    );
   });
 });
