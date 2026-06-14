@@ -131,9 +131,27 @@ describe("submission envelope validation", () => {
       submission: {
         request_id: "event-attendee-intake",
         request_version: "v1",
-        idempotency_key: "submit-001"
+        idempotency_key: "submit-001",
+        capability_hash: sha256Hash("https://example.com/.well-known/watasu/cap/abc")
       }
     });
+  });
+
+  test("test_accepted_submission_does_not_expose_raw_capability_url", () => {
+    const published = createPublished();
+    const capabilityUrl =
+      "https://example.com/.well-known/watasu/cap/high-entropy-secret-token";
+    const envelope = createEnvelope(published);
+    const context = createContext(published, {
+      capability: {
+        url: capabilityUrl,
+        revoked: false
+      }
+    });
+
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(canonicalizeJson(result)).not.toContain("high-entropy-secret-token");
   });
 
   test("test_schema_hash_mismatch_is_rejected", () => {
@@ -241,6 +259,41 @@ describe("submission envelope validation", () => {
       error: {
         code: "idempotency_key_replayed"
       }
+    });
+  });
+
+  test("test_idempotency_validation_claim_is_not_terminal_delivery_success", () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const idempotencyStore = new InMemoryIdempotencyStore();
+    const context = createContext(published, { idempotencyStore });
+
+    validateSubmissionEnvelope(envelope, context);
+    const claim = idempotencyStore.getValidationClaim("event-attendee-intake:v1:submit-001");
+
+    expect(claim).toEqual({
+      request_id: "event-attendee-intake",
+      request_version: "v1",
+      idempotency_key: "submit-001",
+      submitted_at: "2026-06-14T11:59:00.000Z",
+      claimed_at: "2026-06-14T12:00:00.000Z",
+      status: "validation_accepted"
+    });
+  });
+
+  test("test_released_validation_claim_allows_retry_after_delivery_failure", () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const idempotencyStore = new InMemoryIdempotencyStore();
+    const context = createContext(published, { idempotencyStore });
+
+    validateSubmissionEnvelope(envelope, context);
+    idempotencyStore.releaseValidation("event-attendee-intake:v1:submit-001");
+    const result = validateSubmissionEnvelope(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "accepted"
     });
   });
 
