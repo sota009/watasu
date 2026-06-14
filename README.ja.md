@@ -174,7 +174,7 @@ pnpm canary:hosted -- https://api.watasu.ai
 
 推奨される次の作業と手動確認は [docs/mvp-plan.md](docs/mvp-plan.md) を見てください。
 
-Local Protocol MVP は実装済みで、手元で manual test できます。Repo-side Hosted Production MVP の library/runtime building blocks は存在し、`api.watasu.ai` 用に health-check 可能な web service、published request version 用の request-specific Agent Card route、default hosted API security headers、Blueprint-managed PostgreSQL、scheduled metadata retention、GitHub Actions CI gate、HTTPS 必須の hosted canary まで最初の deployment-facing slice に入りました。Render workspace / billing setup、DNS verification、TLS issuance、real secret values は引き続き deployment follow-up work です。
+Local Protocol MVP は実装済みで、手元で manual test できます。Repo-side Hosted Production MVP の library/runtime building blocks は存在し、`api.watasu.ai` 用に health-check 可能な web service、published request version 用の request-specific Agent Card / A2A submit route、default hosted API security headers、Blueprint-managed PostgreSQL、scheduled metadata retention、GitHub Actions CI gate、HTTPS 必須の hosted canary まで最初の deployment-facing slice に入りました。Render workspace / billing setup、DNS verification、TLS issuance、real secret values は引き続き deployment follow-up work です。
 
 MVP で作らないもの:
 

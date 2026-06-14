@@ -210,6 +210,7 @@ Currently implemented:
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
 - hosted request-specific Agent Card route for published request versions
+- hosted A2A submit route for validating and delivering encrypted submissions without retaining payload bodies
 - low-information hosted `/health` endpoint for deployment health checks
 - hosted HTTP security headers for low-information API responses
 - hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
@@ -244,7 +245,7 @@ Currently implemented:
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for `api.watasu.ai` with a health-checkable web service, request-specific Agent Card routes for published request versions, Blueprint-managed PostgreSQL, and scheduled metadata retention. Render workspace/billing setup, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
+Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for `api.watasu.ai` with a health-checkable web service, request-specific Agent Card and A2A submit routes for published request versions, Blueprint-managed PostgreSQL, and scheduled metadata retention. Render workspace/billing setup, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
 
 Not in scope for the MVP:
 

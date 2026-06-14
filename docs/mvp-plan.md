@@ -123,6 +123,7 @@ Current repo-side status:
 - Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, and URL-credential rejection checks. Local loopback HTTP remains allowed for smoke tests.
 - Done: hosted runtime validates `WATASU_PUBLIC_BASE_URL` at startup and the Render Blueprint pins it to `https://api.watasu.ai`.
 - Done: hosted production exposes request-specific Agent Card JSON for published request versions at `/requests/{request_id}/agent-card.json`.
+- Done: hosted production accepts A2A HTTP+JSON submissions at `/requests/{request_id}/submit`, validates envelope metadata, enforces idempotency/rate-limit hooks, and delivers encrypted envelopes without retaining payload bodies.
 - Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
