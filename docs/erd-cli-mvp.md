@@ -920,6 +920,7 @@ Default short-lived state and optional ledger retention:
 Hosted ledger access control:
 
 - CLI / MCP hosted access requires a service API token or OAuth-style service identity.
+- deployment identity provider integration may pass service identity through short-lived signed headers. Signed headers must include tenant id, roles, issued_at, and HMAC-SHA256 signature; watasu verifies timestamp skew and signature before converting them into trusted service identity.
 - requests, request_versions, deliveries, and audit logs are scoped by `tenant_id`.
 - `list_ledger` and `inspect_delivery` enforce tenant and role checks server-side.
 - role は `service_identities` と `service_identity_roles` から解決し、request body、MCP tool arguments、Agent Card metadata に含まれる tenant / role は信頼しない。

@@ -17,6 +17,14 @@ export type {
   HostedServiceIdentityResolver,
   TrustedServicePrincipal
 } from "./hosted-identity.js";
+export {
+  createSignedServiceIdentityHeaders,
+  createSignedServiceIdentityPrincipalResolver
+} from "./hosted-signed-identity.js";
+export type {
+  CreateSignedServiceIdentityHeadersInput,
+  CreateSignedServiceIdentityPrincipalResolverInput
+} from "./hosted-signed-identity.js";
 export { createHostedPublishApp } from "./hosted-publish.js";
 export type {
   HostedPublishApp,
