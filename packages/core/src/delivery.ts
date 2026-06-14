@@ -29,6 +29,10 @@ export interface DeliveryLedger {
   writeDeliveryAttempt(row: DeliveryLedgerRow): void;
 }
 
+export interface DeliveryLogger {
+  write(event: DeliveryLogEvent): void;
+}
+
 export interface DeliveryLedgerRow {
   request_id: string;
   request_version: string;
@@ -36,6 +40,18 @@ export interface DeliveryLedgerRow {
   submitted_at: string;
   delivered_at: string;
   delivery_status: "delivered" | "resubmit_later";
+  destination_url_hash: Sha256Hash;
+  encrypted_payload_hash: Sha256Hash;
+  webhook_status?: number | undefined;
+  error_code?: string | undefined;
+}
+
+export interface DeliveryLogEvent {
+  event: "watasu.delivery_attempt";
+  request_id: string;
+  request_version: string;
+  idempotency_key: string;
+  delivery_status: DeliveryLedgerRow["delivery_status"];
   destination_url_hash: Sha256Hash;
   encrypted_payload_hash: Sha256Hash;
   webhook_status?: number | undefined;
@@ -65,6 +81,7 @@ export async function deliverAcceptedSubmission(input: {
   submission: AcceptedSubmission;
   client: DeliveryClient;
   ledger: DeliveryLedger;
+  logger?: DeliveryLogger | undefined;
   clock: () => Date;
   signingSecret: string;
 }): Promise<DeliveryResult> {
@@ -97,6 +114,7 @@ export async function deliverAcceptedSubmission(input: {
     if (response.status >= 200 && response.status < 300) {
       const ledgerRow = createLedgerRow(input, deliveredAt, "delivered", response.status);
       input.ledger.writeDeliveryAttempt(ledgerRow);
+      writeDeliveryLog(input.logger, ledgerRow);
       return {
         ok: true,
         status: "delivered",
@@ -112,6 +130,7 @@ export async function deliverAcceptedSubmission(input: {
       "webhook_delivery_failed"
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
+    writeDeliveryLog(input.logger, ledgerRow);
     return resubmitLater("webhook_delivery_failed", "Webhook delivery did not return 2xx.", ledgerRow);
   } catch {
     const ledgerRow = createLedgerRow(
@@ -122,6 +141,7 @@ export async function deliverAcceptedSubmission(input: {
       "webhook_delivery_failed"
     );
     input.ledger.writeDeliveryAttempt(ledgerRow);
+    writeDeliveryLog(input.logger, ledgerRow);
     return resubmitLater("webhook_delivery_failed", "Webhook delivery could not be completed.", ledgerRow);
   }
 }
@@ -246,4 +266,21 @@ function resubmitLater(
     },
     ledger
   };
+}
+
+function writeDeliveryLog(
+  logger: DeliveryLogger | undefined,
+  row: DeliveryLedgerRow
+): void {
+  logger?.write({
+    event: "watasu.delivery_attempt",
+    request_id: row.request_id,
+    request_version: row.request_version,
+    idempotency_key: row.idempotency_key,
+    delivery_status: row.delivery_status,
+    destination_url_hash: row.destination_url_hash,
+    encrypted_payload_hash: row.encrypted_payload_hash,
+    webhook_status: row.webhook_status,
+    error_code: row.error_code
+  });
 }
