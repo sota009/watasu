@@ -29,6 +29,10 @@ export function buildHostedCanaryCheckUrls(baseUrl) {
       baseUrl
     ).toString(),
     mcpEndpoint: new URL("/mcp", baseUrl).toString(),
+    mcpProtectedResourceMetadata: new URL(
+      "/.well-known/oauth-protected-resource",
+      baseUrl
+    ).toString(),
     unsafeEncodedRequestId: new URL(
       "/requests/__watasu%2Fcanary__/agent-card.json",
       baseUrl
@@ -46,6 +50,7 @@ export function buildHostedCanarySuccessReport(input) {
       input.urls.unpublishedEnvelopeSchema,
       input.urls.unpublishedSubmit,
       input.urls.mcpEndpoint,
+      input.urls.mcpProtectedResourceMetadata,
       input.urls.unsafeEncodedRequestId
     ],
     checked_headers: Object.keys(hostedCanaryRequiredHeaders),

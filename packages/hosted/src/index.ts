@@ -22,7 +22,10 @@ import {
   type HostedProductionRequest,
   type HostedPostgresRuntimeConfig
 } from "@watasu/http";
-import { createHostedMcpHttpEntrypoint } from "@watasu/mcp";
+import {
+  buildMcpProtectedResourceMetadata,
+  createHostedMcpHttpEntrypoint
+} from "@watasu/mcp";
 import type { Server } from "node:http";
 import type {
   Pool,
@@ -210,9 +213,22 @@ export function createHostedProductionServerFromEnv(input: {
     resourceMetadataUrl: `${config.publicBaseUrl}/.well-known/oauth-protected-resource`,
     scopes: ["watasu:publish", "watasu:ledger:read"]
   });
+  const mcpProtectedResourceMetadata = buildMcpProtectedResourceMetadata({
+    resource: `${config.publicBaseUrl}/mcp`,
+    authorizationServers: [config.publicBaseUrl],
+    scopesSupported: ["watasu:publish", "watasu:ledger:read"]
+  });
   const server = createHostedProductionServer(app, {
     async beforeAppRequest(request, response) {
       const path = request.url === undefined ? "/" : new URL(request.url, config.publicBaseUrl).pathname;
+      if (path === "/.well-known/oauth-protected-resource") {
+        response.writeHead(200, {
+          "content-type": "application/json; charset=utf-8"
+        });
+        response.end(`${JSON.stringify(mcpProtectedResourceMetadata)}\n`);
+        return true;
+      }
+
       if (path !== "/mcp") {
         return false;
       }

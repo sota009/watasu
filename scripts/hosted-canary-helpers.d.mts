@@ -10,6 +10,7 @@ export function buildHostedCanaryCheckUrls(baseUrl: URL): {
   unpublishedEnvelopeSchema: string;
   unpublishedSubmit: string;
   mcpEndpoint: string;
+  mcpProtectedResourceMetadata: string;
   unsafeEncodedRequestId: string;
 };
 

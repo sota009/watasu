@@ -168,7 +168,7 @@ Hosted canary after deploy:
 pnpm canary:hosted -- https://api.watasu.ai
 ```
 
-The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_timeout_ms` so the cutover record shows the bound used. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge without exposing payload or secret fragments.
+The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_timeout_ms` so the cutover record shows the bound used. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge and that the protected-resource metadata URL is reachable without exposing payload or secret fragments.
 
 Hosted metadata retention dry run:
 
@@ -257,7 +257,7 @@ Currently implemented:
 - hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
 - Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
 - GitHub Actions CI gate for Render `checksPass`
-- hosted canary script for `/health`, unpublished Agent Card / submit routes, leak fragments, security headers, HTTPS production origin URLs, and unsafe base URL rejection
+- hosted canary script for `/health`, unpublished Agent Card / submit routes, MCP auth metadata, leak fragments, security headers, HTTPS production origin URLs, and unsafe base URL rejection
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 

@@ -133,6 +133,11 @@ await assertMcpEndpoint({
   url: urls.mcpEndpoint
 });
 
+await assertMcpProtectedResourceMetadata({
+  label: "MCP protected resource metadata",
+  url: urls.mcpProtectedResourceMetadata
+});
+
 console.log(JSON.stringify(buildHostedCanarySuccessReport({
   status: response.status,
   timeoutMs,
@@ -146,6 +151,50 @@ function assertRequiredHeaders(checkedResponse, label) {
       console.error(`${label} header ${name} expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}.`);
       process.exit(1);
     }
+  }
+}
+
+async function assertMcpProtectedResourceMetadata(input) {
+  const checkedResponse = await fetch(input.url, withHostedCanaryTimeout({
+    method: "GET",
+    headers: {
+      accept: "application/json"
+    },
+    redirect: "manual"
+  }, timeoutMs));
+  const checkedBody = await checkedResponse.text();
+
+  if (checkedResponse.status !== 200) {
+    console.error(`${input.label} expected status 200 but got ${checkedResponse.status}.`);
+    process.exit(1);
+  }
+  assertRequiredHeaders(checkedResponse, input.label);
+
+  let checkedJson;
+  try {
+    checkedJson = JSON.parse(checkedBody);
+  } catch {
+    console.error(`${input.label} did not return JSON.`);
+    process.exit(1);
+  }
+
+  if (
+    checkedJson?.resource !== urls.mcpEndpoint ||
+    !Array.isArray(checkedJson?.authorization_servers) ||
+    !checkedJson.authorization_servers.includes(new URL(input.url).origin) ||
+    !Array.isArray(checkedJson?.scopes_supported) ||
+    !checkedJson.scopes_supported.includes("watasu:publish") ||
+    !Array.isArray(checkedJson?.bearer_methods_supported) ||
+    !checkedJson.bearer_methods_supported.includes("header")
+  ) {
+    console.error(`${input.label} returned an unexpected metadata body.`);
+    process.exit(1);
+  }
+
+  const routeLeak = mcpForbiddenFragments().find((fragment) => checkedBody.includes(fragment));
+  if (routeLeak !== undefined) {
+    console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
+    process.exit(1);
   }
 }
 
@@ -185,12 +234,15 @@ async function assertMcpEndpoint(input) {
     process.exit(1);
   }
 
-  const mcpForbiddenFragments = forbiddenFragments.filter((fragment) => fragment !== "ledger");
-  const routeLeak = mcpForbiddenFragments.find((fragment) => checkedBody.includes(fragment) || challenge.includes(fragment));
+  const routeLeak = mcpForbiddenFragments().find((fragment) => checkedBody.includes(fragment) || challenge.includes(fragment));
   if (routeLeak !== undefined) {
     console.error(`${input.label} leaked forbidden fragment: ${routeLeak}`);
     process.exit(1);
   }
+}
+
+function mcpForbiddenFragments() {
+  return forbiddenFragments.filter((fragment) => fragment !== "ledger");
 }
 
 async function assertUnpublishedRoute(input) {

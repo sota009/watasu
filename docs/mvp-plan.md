@@ -121,7 +121,7 @@ Current repo-side status:
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: default hosted API security headers: CSP deny-by-default, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`.
-- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, URL-credential rejection, unpublished Agent Card / submit routes, and hosted MCP authentication challenge checks. Local loopback HTTP remains allowed for smoke tests.
+- Done: `pnpm canary:hosted` for deployed health, leak-fragment, security-header, HTTPS production URL, URL-credential rejection, unpublished Agent Card / submit routes, hosted MCP authentication challenge checks, and MCP protected-resource metadata checks. Local loopback HTTP remains allowed for smoke tests.
 - Done: hosted runtime validates `WATASU_PUBLIC_BASE_URL` at startup and the Render Blueprint pins it to `https://api.watasu.ai`.
 - Done: hosted production exposes request-specific Agent Card JSON for published request versions at `/requests/{request_id}/agent-card.json`.
 - Done: hosted production exposes request-specific plaintext and encrypted envelope schemas for published request versions at `/requests/{request_id}/schemas/*.json`.

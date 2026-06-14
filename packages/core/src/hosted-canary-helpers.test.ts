@@ -140,6 +140,7 @@ describe("hosted canary helpers", () => {
       unpublishedEnvelopeSchema: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
       unpublishedSubmit: `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
       mcpEndpoint: "https://api.watasu.ai/mcp",
+      mcpProtectedResourceMetadata: "https://api.watasu.ai/.well-known/oauth-protected-resource",
       unsafeEncodedRequestId: "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
     });
   });
@@ -161,6 +162,7 @@ describe("hosted canary helpers", () => {
         `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/schemas/envelope.json`,
         `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/submit`,
         "https://api.watasu.ai/mcp",
+        "https://api.watasu.ai/.well-known/oauth-protected-resource",
         "https://api.watasu.ai/requests/__watasu%2Fcanary__/agent-card.json"
       ],
       checked_headers: [
@@ -184,5 +186,11 @@ describe("hosted canary helpers", () => {
     const declaration = readFileSync(new URL("../../../scripts/hosted-canary-helpers.d.mts", import.meta.url), "utf8");
 
     expect(declaration).toContain("mcpEndpoint: string;");
+  });
+
+  test("test_hosted_canary_helper_declaration_includes_mcp_metadata_url", () => {
+    const declaration = readFileSync(new URL("../../../scripts/hosted-canary-helpers.d.mts", import.meta.url), "utf8");
+
+    expect(declaration).toContain("mcpProtectedResourceMetadata: string;");
   });
 });
