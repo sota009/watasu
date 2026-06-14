@@ -86,7 +86,7 @@ Codex should proceed without asking when the next step is clear and low risk. As
 For broad instructions such as "make this work", "continue", "improve it", or "いい感じにやって", Codex should:
 
 1. Inspect the current repo state.
-2. Pick the next unfinished item from `docs/implementation-plan-tdd.md` or the failing verification output.
+2. Pick the next unfinished item from `docs/mvp-plan.md` or the failing verification output.
 3. Announce the inferred one-loop goal in one or two sentences.
 4. Execute the loop through tests, implementation, verification, review, and commit hygiene.
 

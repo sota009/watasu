@@ -418,33 +418,45 @@ MVP で通用させないユースケース:
 
 ## 10. Acceptance Criteria
 
-MVP は以下を満たすまで完了扱いにしない。
+watasu は MVP を 2 段階で扱う。Local Protocol MVP は、開発者の手元で protocol と no-payload-custody を検証する段階である。Hosted Production MVP は、複数 tenant が使う hosted service として安全に運用する段階である。
 
-- サービス側 reference agent が request definition を生成し、MCP 経由で validate / publish できる。
+### 10.1 Local Protocol MVP
+
+Local Protocol MVP は以下を満たすまで完了扱いにしない。
+
+- CLI が request definition を validate / publish できる。
 - publish 前に、人間が request name、fields、purposes、destination、retention、public key fingerprint を確認できる。
 - A2A sender fixture が Agent Card と schema を読み、payload を暗号化して submission できる。
 - generated Agent Card が A2A v1.0 の必須フィールドと supported interface を満たす。
-- A2A submission は hosted production で `application/a2a+json`、`A2A-Version: 1.0`、required watasu extension opt-in を envelope validation 前に検証できる。
+- A2A submission は local HTTP demo で `application/a2a+json`、`A2A-Version: 1.0`、required watasu extension opt-in を envelope validation 前に検証できる。
 - request field sensitivity は自己申告だけに依存せず、health、financial、government identity、minor、auth secret、safety-sensitive metadata を安全側に分類し、危険な trust profile への publish を拒否できる。
 - watasu は不正な schema hash、unknown service key、expired submission、replayed idempotency key を拒否できる。
 - watasu は rate limit、payload size limit、revoked capability URL に違反する submission を webhook 配送前に拒否できる。
-- production hosted request は trust profile を持ち、default では sender signature を検証できる。
-- service public key と destination webhook domain の ownership verification を publish 前に完了できる。
-- `verified_sender` / `private_invite` は登録済み sender key だけを受け付け、unknown、revoked、expired、request に紐づかない sender key は webhook 配送前に `auth_required` になる。
-- leaked capability URL は revoke でき、再発行後の旧 URL は webhook 配送前に拒否される。
 - watasu は encrypted envelope を webhook に配送できる。
-- webhook delivery は timeout、tenant / request concurrency cap、circuit breaker、SSRF-safe redirect handling を持ち、slow destination で watasu worker を枯渇させない。
 - service-side template は payload を復号し validation できる。
-- default hosted path は persistent ledger を作らず、短期 operational state のみで replay protection、rate limit、sender response を処理できる。
-- optional persistent ledger を有効化した場合、payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
-- optional persistent ledger を有効化した場合、ledger metadata と consent receipt metadata は server-side tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
-- hosted roles は publish、key admin、ledger view、audit を分離し、service identity 由来の tenant / role だけを信頼する。
 - DB、logs、temporary files、APM traces、metrics labels、crash reports、test snapshots に plaintext payload または encrypted payload body が残らない。
 - webhook 5xx 時に watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。
 - 復号後 validation failure は既存 request version を変更せず、新しい request version で修正できる。
 
+### 10.2 Hosted Production MVP
+
+Hosted Production MVP は Local Protocol MVP に加えて、以下を満たすまで完了扱いにしない。
+
+- サービス側 reference agent が request definition を生成し、MCP 経由で validate / publish できる。
+- MCP resources または read tools から Agent Card、schemas、delivery metadata を取得できる。
+- production hosted request は trust profile を持ち、default では sender signature を検証できる。
+- service public key と destination webhook domain の ownership verification を publish 前に完了できる。
+- `verified_sender` / `private_invite` は登録済み sender key だけを受け付け、unknown、revoked、expired、request に紐づかない sender key は webhook 配送前に `auth_required` になる。
+- leaked capability URL は revoke でき、再発行後の旧 URL は webhook 配送前に拒否される。
+- webhook delivery は timeout、tenant / request concurrency cap、circuit breaker、SSRF-safe redirect handling を持ち、slow destination で watasu worker を枯渇させない。
+- default hosted path は persistent ledger を作らず、短期 operational state のみで replay protection、rate limit、sender response を処理できる。
+- optional persistent ledger を有効化した場合、payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
+- optional persistent ledger を有効化した場合、ledger metadata と consent receipt metadata は server-side tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
+- hosted roles は publish、key admin、ledger view、audit を分離し、service identity 由来の tenant / role だけを信頼する。
+
 ## 11. 関連文書
 
 - ERD: `docs/erd-cli-mvp.md`
+- MVP plan: `docs/mvp-plan.md`
 
 PRD は「何を実現するか」「誰にどんな価値があるか」「何をMVPに含めるか」を定義する。暗号方式、A2A wire format、MCP tool schema、webhook署名、DB schema、contract tests などの実装詳細は ERD に置く。

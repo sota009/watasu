@@ -23,7 +23,8 @@ docs/
   prd-cli-mvp.md              Product requirements and scope
   erd-cli-mvp.md              Engineering requirements, protocol, data model
   protocol-baseline.md        Latest-info and dependency vetting record
-  implementation-plan-tdd.md  TDD phase plan
+  mvp-plan.md                 MVP stages, manual checks, execution phases
+  loop-engineering.md         Codex loop template and verification rules
 packages/
   core/                       Request validation, hashes, publish, schemas, A2A, delivery
   cli/                        File-based watasu CLI wrapper
@@ -119,13 +120,17 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm review:self
-pnpm test -- --run security
+pnpm exec vitest run packages/core/src/security-regression.test.ts
 pnpm --filter @watasu/http test
 ```
 
 `pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
 
 ## Current MVP Status
+
+See `docs/mvp-plan.md` for the recommended next actions, including manual checks you can run locally.
+
+Local Protocol MVP is implemented and manually testable.
 
 Currently implemented:
 
@@ -145,14 +150,14 @@ Currently implemented:
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Not yet in the MVP:
+Still remaining for Hosted Production MVP:
 
 - dashboard UI or human form builder
 - user-side agent, personal vault, or consumer AI companion
 - hosted production service
 - optional persistent metadata store and hosted retention jobs
-- production MCP tool surface beyond request definition validation
+- MCP production surface beyond request definition validation
 - service-owned key management beyond the local JWE wrapper
 - production retry queue for payload bodies
 
-See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/implementation-plan-tdd.md` for the deeper product and engineering contract.
+See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.
