@@ -4,6 +4,7 @@ import type { RequestDefinition } from "./request-definition.js";
 import { sha256Hash } from "./hash.js";
 import { createRequestVersionHashes, type PublishedRequestVersion } from "./request-version.js";
 import {
+  createFetchDeliveryClient,
   deliverAcceptedSubmission,
   type AcceptedSubmission,
   type DeliveryClient,
@@ -447,5 +448,87 @@ describe("webhook delivery and metadata-only ledger", () => {
     expect(logsJson).not.toContain("\"protected\"");
     expect(logsJson).not.toContain("\"tag\"");
     expect(logsJson).not.toContain("receiver.example.com");
+  });
+});
+
+describe("fetch delivery client adapter", () => {
+  test("test_fetch_delivery_client_posts_signed_request_without_rewriting_body", async () => {
+    const calls: Array<{
+      url: string;
+      init: RequestInit;
+    }> = [];
+    const client = createFetchDeliveryClient({
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {}
+        });
+        return new Response(null, {
+          status: 204
+        });
+      }
+    });
+
+    const response = await client.post({
+      url: "https://receiver.example.com/watasu/intake",
+      headers: {
+        "content-type": "application/json",
+        "x-watasu-request-id": "event-attendee-intake"
+      },
+      body: "{\"envelope\":{\"encrypted_payload_hash\":\"sha256:test\"}}"
+    });
+
+    expect(response).toEqual({
+      status: 204
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      url: "https://receiver.example.com/watasu/intake",
+      init: {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-watasu-request-id": "event-attendee-intake"
+        },
+        body: "{\"envelope\":{\"encrypted_payload_hash\":\"sha256:test\"}}"
+      }
+    });
+  });
+
+  test("test_fetch_delivery_client_returns_non_2xx_status_to_delivery_layer", async () => {
+    const client = createFetchDeliveryClient({
+      fetch: async () => new Response(null, {
+        status: 503
+      })
+    });
+
+    await expect(client.post({
+      url: "https://receiver.example.com/watasu/intake",
+      headers: {},
+      body: "{}"
+    })).resolves.toEqual({
+      status: 503
+    });
+  });
+
+  test("test_fetch_delivery_client_aborts_after_timeout", async () => {
+    const signals: AbortSignal[] = [];
+    const client = createFetchDeliveryClient({
+      timeoutMs: 1,
+      fetch: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        if (init?.signal instanceof AbortSignal) {
+          signals.push(init.signal);
+          init.signal.addEventListener("abort", () => reject(new Error("aborted")));
+        }
+      })
+    });
+
+    await expect(client.post({
+      url: "https://receiver.example.com/watasu/intake",
+      headers: {},
+      body: "{}"
+    })).rejects.toThrow("aborted");
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
   });
 });

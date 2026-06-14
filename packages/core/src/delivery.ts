@@ -25,6 +25,18 @@ export interface DeliveryClient {
   post(request: DeliveryRequest): Promise<DeliveryResponse>;
 }
 
+export type FetchDeliveryClientFetch = (
+  input: string,
+  init: {
+    method: "POST";
+    headers: Record<string, string>;
+    body: string;
+    signal: AbortSignal;
+  }
+) => Promise<{
+  status: number;
+}>;
+
 export interface DeliveryLedger {
   writeDeliveryAttempt(row: DeliveryLedgerRow): void;
 }
@@ -73,6 +85,36 @@ export type DeliveryResult =
       };
       ledger?: DeliveryLedgerRow | undefined;
     };
+
+export function createFetchDeliveryClient(input: {
+  fetch?: FetchDeliveryClientFetch | undefined;
+  timeoutMs?: number | undefined;
+} = {}): DeliveryClient {
+  const fetchImplementation = input.fetch ?? fetch;
+  const timeoutMs = input.timeoutMs ?? 5_000;
+
+  return {
+    async post(request) {
+      const abortController = new AbortController();
+      const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
+      try {
+        const response = await fetchImplementation(request.url, {
+          method: "POST",
+          headers: request.headers,
+          body: request.body,
+          signal: abortController.signal
+        });
+
+        return {
+          status: response.status
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  };
+}
 
 export async function deliverAcceptedSubmission(input: {
   mode: PublishMode;

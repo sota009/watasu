@@ -137,7 +137,7 @@ Currently implemented:
 - A2A-compatible Agent Card generation
 - A2A HTTP+JSON protocol gate
 - submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
-- webhook delivery helper with signed headers and metadata-only ledger rows
+- webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
