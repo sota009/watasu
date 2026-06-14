@@ -8,6 +8,8 @@ export function findFirstExistingPath(
   pathExists?: (path: string) => boolean
 ): string | null;
 
+export function shouldRequireGstackReviewChecklist(env: Record<string, string | undefined>): boolean;
+
 export function parseGitHubRepositoryFullName(remoteUrl: string): string | null;
 
 export function buildPullRequestUrl(input: {

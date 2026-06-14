@@ -5,7 +5,8 @@ import {
   buildPullRequestUrl,
   findFirstExistingPath,
   gstackReviewChecklistCandidates,
-  parseGitHubRepositoryFullName
+  parseGitHubRepositoryFullName,
+  shouldRequireGstackReviewChecklist
 } from "../../../scripts/workflow-helpers.mjs";
 
 describe("workflow helpers", () => {
@@ -26,6 +27,15 @@ describe("workflow helpers", () => {
     const result = findFirstExistingPath(["/missing", "/found", "/later"], (path) => path === "/found");
 
     expect(result).toBe("/found");
+  });
+
+  test("test_should_require_gstack_review_checklist_outside_ci", () => {
+    expect(shouldRequireGstackReviewChecklist({})).toBe(true);
+    expect(shouldRequireGstackReviewChecklist({ CI: "false" })).toBe(true);
+  });
+
+  test("test_should_not_require_gstack_review_checklist_in_ci", () => {
+    expect(shouldRequireGstackReviewChecklist({ CI: "true" })).toBe(false);
   });
 
   test("test_parse_github_repository_full_name_supports_ssh_and_https_remotes", () => {

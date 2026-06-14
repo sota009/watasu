@@ -12,6 +12,10 @@ export function findFirstExistingPath(paths, pathExists = existsSync) {
   return paths.find((path) => pathExists(path)) ?? null;
 }
 
+export function shouldRequireGstackReviewChecklist(env) {
+  return env["CI"] !== "true";
+}
+
 export function parseGitHubRepositoryFullName(remoteUrl) {
   const normalizedUrl = remoteUrl.trim();
   const sshMatch = normalizedUrl.match(/^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/);

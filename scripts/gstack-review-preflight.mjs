@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import {
   findFirstExistingPath,
-  gstackReviewChecklistCandidates
+  gstackReviewChecklistCandidates,
+  shouldRequireGstackReviewChecklist
 } from "./workflow-helpers.mjs";
 
 const repoRoot = runGit(["rev-parse", "--show-toplevel"]) ?? process.cwd();
@@ -13,15 +14,20 @@ const checklistPath = findFirstExistingPath(
 );
 
 if (checklistPath === null) {
-  console.error("gstack review checklist was not found.");
-  console.error("Checked:");
-  for (const candidate of gstackReviewChecklistCandidates({ repoRoot, homeDir: homedir() })) {
-    console.error(`- ${candidate}`);
+  if (shouldRequireGstackReviewChecklist(process.env)) {
+    console.error("gstack review checklist was not found.");
+    console.error("Checked:");
+    for (const candidate of gstackReviewChecklistCandidates({ repoRoot, homeDir: homedir() })) {
+      console.error(`- ${candidate}`);
+    }
+    process.exit(1);
   }
-  process.exit(1);
+
+  console.log("Checklist: skipped in CI because gstack is not installed on the runner.");
+} else {
+  console.log(`Checklist: ${checklistPath}`);
 }
 
-console.log(`Checklist: ${checklistPath}`);
 console.log(`Branch: ${currentBranch}`);
 console.log(`Base: ${baseBranch}`);
 console.log("");
@@ -63,4 +69,3 @@ function runGit(args) {
 
   return result.stdout.trim();
 }
-
