@@ -1,0 +1,36 @@
+name: event-attendee-intake
+schema_version: "2026-06-14"
+description: Collect attendee details for ExampleConf.
+fields:
+  - id: full_name
+    type: string
+    required: true
+    purpose: Confirm attendees at reception.
+    sensitivity: low
+  - id: email
+    type: string
+    format: email
+    required: true
+    purpose: Send event updates.
+    sensitivity: low
+consent:
+  text: ExampleConf uses this information only for event operations.
+destination:
+  type: webhook
+  url: https://example.com/watasu/intake
+retention:
+  destination_policy: Delete within 30 days after the event.
+encryption:
+  mode: required
+  algorithm: JWE
+  key_management: ECDH-ES+A256KW
+  content_encryption: A256GCM
+  service_key_id: jwk-thumbprint:sha256:example
+  public_key_jwk:
+    kty: EC
+    crv: P-256
+    x: base64url-x
+    y: base64url-y
+metadata_retention:
+  days: 90
+trust_profile: verified_sender
