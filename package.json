@@ -9,6 +9,8 @@
   },
   "scripts": {
     "lint": "node scripts/secret-scan.mjs --repo",
+    "loop": "node scripts/loop-engineer.mjs",
+    "loop:full": "node scripts/loop-engineer.mjs --full",
     "pr:draft": "node scripts/create-draft-pr.mjs",
     "review:self": "node scripts/gstack-review-preflight.mjs",
     "test": "pnpm typecheck && vitest run",

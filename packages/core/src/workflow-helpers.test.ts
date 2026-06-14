@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   buildDraftPullRequestBody,
+  buildLoopCommandPlan,
   buildPullRequestUrl,
   findFirstExistingPath,
   gstackReviewChecklistCandidates,
@@ -54,5 +55,25 @@ describe("workflow helpers", () => {
     expect(body).toContain("- `pnpm test`");
     expect(body).toContain("Self-review clean.");
   });
-});
 
+  test("test_loop_command_plan_keeps_fast_loop_local_and_deterministic", () => {
+    const plan = buildLoopCommandPlan({ includeAudit: false });
+
+    expect(plan.map((command) => command.label)).toEqual([
+      "typecheck",
+      "test",
+      "lint",
+      "gstack-review-preflight"
+    ]);
+    expect(plan.some((command) => command.command.includes("audit"))).toBe(false);
+  });
+
+  test("test_loop_command_plan_can_include_supply_chain_audit_for_full_gate", () => {
+    const plan = buildLoopCommandPlan({ includeAudit: true });
+
+    expect(plan.at(-1)).toEqual({
+      label: "audit",
+      command: "pnpm audit --audit-level moderate"
+    });
+  });
+});
