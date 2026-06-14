@@ -151,4 +151,30 @@ describe("request publishing", () => {
     });
     expect(repository.list("event-attendee-intake")).toHaveLength(0);
   });
+
+  test("test_publish_stores_capability_token_hash_only", () => {
+    const repository = new InMemoryRequestVersionRepository();
+
+    const result = publishRequestVersion({
+      requestId: "event-attendee-intake",
+      definition: baseDefinition,
+      confirmed: true,
+      mode: "hosted",
+      repository,
+      generateCapabilityToken: () => "cap_test_abcdefghijklmnopqrstuvwxyz1234567890"
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      published: {
+        capability: {
+          token_hash: expect.stringMatching(/^sha256:/)
+        }
+      }
+    });
+    expect(JSON.stringify(result)).not.toContain("cap_test_abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(JSON.stringify(repository.list("event-attendee-intake"))).not.toContain(
+      "cap_test_abcdefghijklmnopqrstuvwxyz1234567890"
+    );
+  });
 });
