@@ -67,6 +67,7 @@ Default server:
 - `http://127.0.0.1:8787/schemas/plaintext.json`
 - `http://127.0.0.1:8787/schemas/envelope.json`
 - `POST http://127.0.0.1:8787/submit`
+- `http://127.0.0.1:8787/ledger`
 
 Manual checks:
 
@@ -76,7 +77,7 @@ curl http://127.0.0.1:8787/schemas/plaintext.json
 curl http://127.0.0.1:8787/schemas/envelope.json
 ```
 
-For `POST /submit`, the local demo validates the A2A HTTP+JSON protocol gate. Use `Content-Type: application/a2a+json`, `A2A-Version: 1.0`, and `A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1`.
+For `POST /submit`, the local demo validates the A2A HTTP+JSON protocol gate, checks the encrypted envelope against the published fixture, delivers to a receiver fixture, and records metadata-only ledger rows. Use `Content-Type: application/a2a+json`, `A2A-Version: 1.0`, and `A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1`.
 
 ## Verification Loop
 
