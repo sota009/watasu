@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "tdd-wada-style": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "47b50168d4b52ecc4d5182606db685f43cc7f0f3d04e0a62a0773cfb24cfef56"
+    }
+  }
+}
