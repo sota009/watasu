@@ -1,16 +1,121 @@
-# watasu PRD: Agent-native MCP/CLI encrypted personal data intake
+# watasu PRD: Agent-native personal data intake
+
+## 0. 初めて読む人へ
+
+この PRD は、A2A、MCP、Agent Card、JWE、validate、publish、payload などの用語を知らない人でも読めるように、最初に watasu のしくみと主要用語を説明する。詳細な wire format、DB schema、contract tests は `docs/erd-cli-mvp.md` に置く。
+
+## 0.1 用語集
+
+| 用語 | 説明 |
+| --- | --- |
+| intake | データの受け取り口。watasu では、個人データをフォームではなくエージェント経由で受け取る仕組み全体を指す。 |
+| agent-native | 人間の画面操作ではなく、エージェントが読んで操作できることを最初から前提にした設計。 |
+| agent | AI などがユーザーや開発者の代わりに作業する主体。watasu のMVPが提供するのは主にサービス側エージェント向け操作面で、利用ユーザー側エージェント本体は別プロダクトの責務。 |
+| service-side agent | サービス開発者を手伝うエージェント。request definition を作り、validate / publish する。 |
+| user-side agent | 利用ユーザーの代理で動く外部エージェント。Agent Card を読み、ユーザーに確認し、payload を暗号化して送るが、watasu MVP の提供スコープ外。 |
+| MCP | Model Context Protocol。AI アプリやエージェントが外部の tool や data source を呼ぶための共通ルール。watasu ではサービス側エージェントが request を validate / publish する入口。 |
+| A2A | Agent2Agent Protocol。別々の agent 同士が相手を発見し、メッセージを送り、作業を進めるための共通ルール。watasu では利用ユーザー側エージェントが intake endpoint に submission する入口。 |
+| CLI | Command Line Interface。ターミナルから実行するコマンド操作の入口。MVP では MCP と同じ操作をローカル検証できるようにする。 |
+| tool | エージェントが呼び出せる操作。例: `validate_request`、`publish_request`。 |
+| validate | 内容がルールに合っているか検証すること。watasu では request definition、schema hash、envelope などを確認する。 |
+| publish | 検証済みの request を公開し、Agent Card、schema、submission endpoint を発行すること。 |
+| request | サービス側が「どの個人データを、なぜ、どこへ送ってほしいか」を定義した要求。 |
+| request definition | request の中身を YAML / JSON などで書いた機械可読の要求文書。 |
+| request version | 公開済み request definition の固定版。一度公開した version は書き換えず、変更時は新 version を作る。 |
+| field | 要求するデータ項目。例: 氏名、メールアドレス、アレルギー情報。 |
+| purpose | field を何のために使うかという利用目的。例: イベント受付、連絡、安全確認。 |
+| schema | データの形を定義するルール。どの field が必要か、型は何か、形式は何かを表す。 |
+| payload | ユーザーがサービスへ渡す個人データ本文。watasu は payload を復号せず、保存もしない。 |
+| plaintext payload | 暗号化されていない payload。watasu は plaintext payload を受け取らない、保存しない、log に出さない。 |
+| encrypted payload | 暗号化済みの payload。watasu は配送時に扱うが、delivery attempt 後は body を保持しない。 |
+| envelope | payload と request id、schema hash、consent receipt hash などをまとめた配送用の封筒。 |
+| submission | 利用ユーザー側エージェントが watasu に送る提出データ。encrypted payload と metadata を含む。 |
+| endpoint | HTTP などでデータを送る先の URL。watasu では submission endpoint や webhook endpoint がある。 |
+| Agent Card | agent や agent-like endpoint の自己紹介カード。「何ができるか」「どこに送るか」「どんな形式を受け付けるか」を JSON で伝える。 |
+| webhook | サービス側が用意する HTTP の受け口。watasu は encrypted envelope を webhook に配送する。 |
+| receiver | webhook を受け取るサービス側の処理。署名を検証し、payload を復号し、schema validation を行う。 |
+| delivery | watasu が encrypted envelope をサービス側 webhook に届けること。 |
+| retry | 失敗した処理をもう一度試すこと。MVP では watasu が payload を保存して後続 retry せず、sender に `resubmit_later` を返す。 |
+| sender | submission を送る主体。通常は利用ユーザー側エージェント。 |
+| consent | ユーザーが「何を、なぜ、どこへ渡すか」を確認して同意すること。 |
+| consent receipt | ユーザー同意の技術的な証跡。法的に完全な同意ではなく、どの request version / consent text / field purpose / destination policy に紐づいた submission かを検証するための metadata。 |
+| metadata | payload 本文ではない補助情報。例: request id、version、hash、delivery status、timestamp。組み合わせると個人関連情報になり得る。 |
+| retention | データや metadata をどのくらい保持するかという保持方針。 |
+| ledger | 配送台帳。payload 本文は保存せず、配送 status、request version、hash、error category などの metadata だけを残す。 |
+| hash | データから作る短い検証用の値。中身そのものを保存せず、改ざんや一致確認に使う。 |
+| signature | 送信者や配送元が本物か、内容が改ざんされていないかを確認するための署名。 |
+| key | 暗号化や署名に使う鍵。watasu は service private key を持たない。 |
+| public key | 公開鍵。payload を暗号化するために利用ユーザー側エージェントへ公開してよい鍵。 |
+| private key | 秘密鍵。payload を復号するためにサービス側だけが持つ鍵。 |
+| fingerprint | 鍵やschemaなどを識別するための短い指紋。人間が公開前 summary で確認できる。 |
+| JWE / JWK | JWE は JSON Web Encryption、JWK は JSON Web Key。watasu では payload を JSON 互換の暗号化形式で包み、公開鍵を JSON で扱う。 |
+| capability URL | URLを知っていること自体がアクセス権になる高エントロピーURL。漏れた場合に備えて revoke できる必要がある。 |
+| revoke / revocation | 一度発行した URL や権限を無効化すること。 |
+| rate limit | 短時間に大量送信されないよう送信回数を制限すること。webhook DoS や台帳汚染を防ぐ。 |
+| idempotency key | 同じ送信を重複処理しないためのキー。retry や replay protection に使う。 |
+| replay protection | 過去の submission を再送して不正に処理させる攻撃を防ぐ仕組み。 |
+| log | システムが動作記録として残す情報。watasu は plaintext payload を log に出さない。 |
+| DB | Database。watasu は payload 本文をDBに保存せず、metadataだけを保存する。 |
+| reference sender fixture | A2A submission contract を検証するための固定サンプル送信器またはfixture。本物の user-side agent ではない。 |
+| fixture | テストやデモで使う固定サンプルデータ。実ユーザーの個人データではない。 |
+| auth_required | sender authentication や sender signature が必要なのに不足している状態。 |
+| resubmit_later | watasu が payload を保存して retry せず、sender に後で再送してもらうための応答。 |
+
+MCP と A2A の違い:
+
+| 観点 | MCP | A2A |
+| --- | --- | --- |
+| 主な相手 | agent と tool / data source | agent と agent |
+| watasu での用途 | サービス側エージェントが watasu を操作する | 利用ユーザー側エージェントが intake endpoint に送る |
+| 例 | `publish_request` を呼ぶ | encrypted submission を送る |
+| 注意点 | tool 実行なので確認と権限管理が大事 | agent 間通信なので発見、認証、状態管理が大事 |
 
 ## 1. 概要
 
-watasu は、サービス側エージェントが個人データの要求定義と受け口を作り、利用ユーザー側エージェントがその要求に応じてデータを提供できるようにする、agent-native な個人データ intake ツールキット。
+watasu は、人間向けフォームの代わりに、サービス側エージェントが個人データの要求定義と暗号化 intake endpoint を作れるようにする agent-native intake product。
 
-サービス開発者本人が手でフォーム項目をポチポチ入力するのではなく、サービス開発を支援しているエージェントが watasu の CLI または MCP tool surface を使って「このサービスはどの個人データを、何の目的で、どこに受け取りたいか」を定義する。watasu はその定義から、A2A 互換の Agent Card、JSON Schema、暗号化 envelope 仕様、配送設定を生成する。
+サービス側エージェントは「どの個人データを、何の目的で、どこに受け取りたいか」を要求定義として作る。外部の利用ユーザー側エージェントは、その要求を読み、ユーザー同意にもとづいて暗号化 submission を送る。watasu は A2A 互換の受け口を公開し、暗号化された submission をサービス側へ配送する。payload 本文は復号も保存もしない。
 
-利用ユーザー側の AI コンパニオンまたはデータエージェントは、その要求定義を読み、ユーザーに同意確認し、必要なデータを集め、サービス側公開鍵で payload を暗号化して watasu に送信する。
+MVP は CLI / MCP で完結する。人間用回答フォーム、回答一覧画面、dashboard UI、ユーザー vault、ログイン、非エンジニア向け UI、利用ユーザー側エージェント本体は作らない。
 
-watasu は暗号化された envelope をサービス側 webhook に配送する。watasu は個人データを復号しない。payload 本文も保存しない。保存するのは配送台帳と最小限の接続メタデータだけ。
+## 1.1 しくみの概要
 
-MVP では、人間用回答フォーム、回答一覧 DB、ユーザー vault、ログイン機能、非エンジニア向け dashboard は作らない。最初の価値検証に必要な作成、公開、送信、検証、配送確認は MCP tool surface と CLI で完結させる。主な利用者は人間ではなく、サービス開発側エージェントと利用ユーザー側エージェントである。
+watasu の中心アイデアはシンプルである。
+
+1. サービス側が「どんな個人データが必要か」を機械が読める形で公開する。
+2. 外部の利用ユーザー側エージェントがその要求を読み、ユーザーに確認する。
+3. ユーザーが同意したら、外部の利用ユーザー側エージェントがデータを暗号化して送る。
+4. watasu は暗号化された封筒をサービス側に届ける。
+5. watasu は payload 本文を読まない。保存もしない。
+
+```mermaid
+sequenceDiagram
+    participant Dev as サービス開発者
+    participant SA as サービス側エージェント
+    participant W as watasu
+    participant UA as 利用ユーザー側エージェント
+    participant User as 利用ユーザー
+    participant R as サービス側 receiver
+
+    Dev->>SA: このサービス用の受け口を作って
+    SA->>W: MCP validate_request
+    W-->>SA: validation result
+    SA->>Dev: publish 前 summary
+    Dev->>SA: 承認
+    SA->>W: MCP publish_request
+    W-->>SA: Agent Card URL / schema / endpoint
+    UA->>W: Agent Card を取得
+    W-->>UA: request metadata / schema / public key info
+    UA->>User: 何を、なぜ、どこへ渡すか確認
+    User->>UA: 同意
+    UA->>UA: payload を暗号化
+    UA->>W: A2A encrypted submission
+    W->>W: envelope / hash / replay / rate limit 検証
+    W->>R: encrypted envelope を webhook 配送
+    R->>R: 署名検証、復号、schema validation
+    R-->>W: delivery result
+    W-->>UA: delivered / rejected / resubmit_later
+```
 
 ## 2. プロダクトの一文
 
@@ -18,856 +123,267 @@ MVP では、人間用回答フォーム、回答一覧 DB、ユーザー vault�
 
 ## 3. 背景と課題
 
-これまでの Web では、サービスが個人データを集める場所は人間向けフォームだった。ユーザーはフォーム画面を開き、氏名、メール、住所、職歴、健康情報、希望条件などを手で入力していた。サービス側も、そのために毎回フォーム、入力 validation、一時 DB、CSV export、同意文、配送処理を作ってきた。
+これまでの Web では、個人データの受け渡しは人間向けフォームが中心だった。ユーザーは氏名、メール、住所、職歴、健康情報、希望条件などを何度も手入力し、サービス側はフォーム、一時 DB、CSV export、同意文、配送処理、ログ、セキュリティ対策を毎回作ってきた。
 
-しかし、AI コンパニオンやデータエージェントがユーザーの代理として動くなら、データ受け渡しの中心は人間用フォームではなく、エージェントが読める要求定義と、エージェントが送れる受け取り口になる。
+AI コンパニオンやデータエージェントがユーザーの代理として動くなら、中心になるべきものはフォームではなく、エージェントが読める要求定義と、エージェントが送れる受け口である。
 
-watasu が作りたいのは、人間が入力するフォームではない。サービス側エージェントが「必要な個人データの要求」を定義し、利用ユーザー側エージェントがその要求を理解して、ユーザーの同意のもとで必要なデータを集め、サービス側へ送れる場所である。
-
-この受け口があることで、サービス側とユーザーの AI コンパニオンを便利に接続できる。サービスは「欲しいデータ」を機械可読に公開でき、ユーザー側エージェントは「何を、なぜ、どこへ渡すのか」を理解した上でデータ提供できる。
-
-従来サービスが作っていた受領基盤:
-
-- フォーム
-- 一時 DB
-- 同意文
-- CSV export
-- webhook routing
-- 配送ログ
-- 個人データのための場当たり的なセキュリティ設計
-
-watasu はこれを agent-native な要求・受領レイヤーに置き換える。ただし、個人データ vault にはならない。
+watasu は、サービス側とユーザー側のエージェントを接続し、「何を、なぜ、どこへ渡すのか」を機械可読にしたうえで、同意付きの個人データ提供を可能にする。ただし、watasu 自体は個人データ vault にはならない。
 
 ## 4. 目的
 
-- サービス開発側エージェントが CLI または MCP tool surface から暗号化された個人データ受け口を作れるようにする。
-- エージェントが A2A 互換メタデータ経由で要求内容を発見できるようにする。
+- サービス開発側エージェントが MCP または CLI から暗号化された個人データ受け口を作れるようにする。
+- 外部の利用ユーザー側エージェントが A2A 互換メタデータ経由で要求内容を発見できるようにする。
 - watasu が復号できない形で encrypted submission を受け付ける。
 - encrypted submission をサービス側 webhook に配送する。
 - payload 本文ではなく配送メタデータだけを保存する。
-- ユーザー側エージェントとサービス側エージェントの挙動を検証できる reference agents を提供する。
-- A2A、MCP、将来の WebMCP、auth.md に接続できる小さな protocol surface を定義する。
+- 同意対象を後から検証できる最小限の consent receipt metadata を保存する。
+- 公開 intake endpoint の濫用を抑え、台帳汚染や webhook DoS を防ぐ。
+- サービス側 reference agent と A2A sender fixture で agent-to-agent 接続契約を検証できるようにする。
+- 医療、金融、未成年、政府ID、匿名通報などの高リスク領域では、watasu が解く範囲を「暗号化 intake transport と技術的証跡」に限定し、本人確認、法的同意、規制対応、代理権限、DSAR は service 側または別プロダクトの責務として明示する。
 
 ## 5. 設計原則
 
-- Agent-native first: 人間が画面で入力する導線ではなく、エージェントが読める schema、tool contract、Agent Card を中心にする。
+- Agent-native first: 人間が画面で入力する導線ではなく、エージェントが読める request definition、schema、tool contract、Agent Card を中心にする。
 - MCP for service-side agents: サービス開発側エージェントが watasu を操作する入口は MCP を第一級 interface とする。CLI は同じ操作をローカルで検証するための実行基盤。
-- A2A for user-side agents: 利用ユーザー側エージェントが受け口を発見し、要求内容を理解し、submission する入口は A2A 互換 Agent Card と message endpoint。
+- A2A-compatible intake surface: 外部の利用ユーザー側エージェントが受け口を発見し、submission できる入口として A2A 互換 Agent Card と message endpoint を公開する。ただし user-side agent workflow 自体は watasu MVP のスコープ外。
 - No payload custody: watasu は plaintext payload も delivery attempt 後の encrypted payload body も保持しない。
-- Immutable consent target: request version、consent text、field purpose、destination policy は submission 時点で再現できるように immutable にする。
-- Explicit trust boundary: watasu は「ユーザーが法的に有効な同意をした」ことまでは保証しない。watasu が保証するのは、どの immutable request version に対して、どの consent receipt が添付されたかを検証・記録すること。
+- Immutable consent target: request version、consent text、field purpose、destination policy は submission 時点で検証できるよう immutable にする。
+- Explicit trust boundary: watasu は法的に完全な同意を保証しない。watasu が保証するのは、どの immutable request version にどの consent receipt が紐づいたかの検証と記録である。
+- Abuse-resistant public surface: request-specific endpoint は public または準 public に配布される前提で、rate limit、payload size limit、idempotency、revocation を最初から持つ。
 - Future UI remains agent-operable: 将来 UI を作る場合も、フォームビルダーではなく WebMCP-compatible な request builder / review surface として設計する。
 
-## 6. Protocol Baseline
+## 5.1 信頼設計の要点
 
-このPRDは、2026-06-14 時点で確認した以下の仕様を前提にする。
+watasu が一番守りたいのは、「個人データの中身を watasu が持たない、見ない、保存しない」こと。
 
-- MCP: 2025-06-18 specification
-- A2A: latest / v1.0 specification
-- WebMCP: Chrome docs の WebMCP 概念
-- auth.md: WorkOS auth.md
+- watasu は service private key を持たない。
+- 利用ユーザー側エージェントは service public key で payload を暗号化する。
+- watasu は暗号化された envelope をサービス側 webhook に運ぶ。
+- watasu は配送後に encrypted payload body を保存しない。
+- webhook が失敗した場合、watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。
 
-### 6.1 MCP 2025-06-18 で使うもの
+ただし、payload 本文を保存しないだけでは同意対象を後から検証できない。そこで watasu は、payload 値を含まない最小限の consent receipt metadata を保存する。
 
-MCP は、サービス開発側エージェントが watasu を操作するために使う。
+保存する例:
 
-使う機能:
+- request id
+- request version
+- consent text hash
+- field purpose hash
+- destination policy hash
+- confirmed at
+- user confirmation method
+- agent disclosure
 
-- Tools: `validate_request`、`publish_request`、`run_test_submission` などを model-controlled tool として公開する。
-- Resources: request version、Agent Card、schemas、delivery metadata を取得可能な URI として公開する。
-- Prompts: request 作成 workflow や review workflow をテンプレート化する。
-- Elicitation: publish 前の不足情報や承認確認にだけ使う。
+保存しない例:
 
-使わない、または制限する機能:
+- 氏名
+- メールアドレス
+- 住所
+- 健康情報
+- その他の payload 値
 
-- MCP elicitation で利用ユーザーの機微な個人データを集めない。
-- MCP tool annotation は便利なヒントとして扱うが、それだけを信頼境界にしない。
-- 外部状態を変える tool は watasu 側の dry-run と client 側の human confirmation を必須にする。
+公開 Agent Card や request-specific endpoint は、ユーザー側エージェントに渡すため完全な社内秘密にはできない。そのため MVP でも payload size limit、rate limit、idempotency key、high entropy capability URL、revocation、必要に応じた sender signature / authentication を持つ。
 
-### 6.2 A2A v1.0 で使うもの
+metadata も安全上の対象である。watasu は payload 値を持たないが、request type、field_ids、submission time、sender pseudonym、consent receipt metadata の組み合わせは個人関連情報になり得る。そのため ledger metadata には tenant scope、role check、retention、access audit を適用し、MVP 完了条件にも含める。
 
-A2A は、利用ユーザー側エージェントが watasu intake endpoint を発見し、要求内容を理解し、encrypted submission を送るために使う。
+## 6. 対象ユーザー
 
-使う機能:
+### 6.1 サービス開発側エージェント
 
-- Agent Card
-- AgentSkill
-- AgentExtension
-- SecurityScheme / SecurityRequirement
-- Send Message operation
-- structured `Part.data` with `mediaType: "application/json"`
-- Extended Agent Card, 必要になった場合
+MVP の主対象。サービス開発者の代理または支援者として、要求定義の作成、validation、publish、test submission、delivery ledger の確認を行う。
 
-A2A v1.0 では `Part` の型判別に legacy な `kind` field を使わない。structured payload は `{"data": {...}, "mediaType": "application/json"}` の current form に寄せる。
+### 6.2 サービス開発者
 
-Agent Card discovery は以下を使い分ける。
+サービス側エージェントに初期指示を出し、publish 前 summary を確認する人間。細かなフォーム項目を手で組む利用者ではなく、要求内容、同意文、配送先、保持方針、公開鍵 fingerprint を承認する責任者。
 
-- domain-level discovery: `https://{domain}/.well-known/agent-card.json`
-- request-specific discovery: watasu が発行する Agent Card URL
-- private/direct discovery: 招待リンク、QR、メール、アプリ内handoff
-- future registry discovery: request type や skill tag で検索可能な registry
+### 6.3 外部の利用ユーザー側エージェント
 
-公開 Agent Card には機密情報を入れない。必要な場合は authenticated Extended Agent Card を使う。public card に入れてよいのは、要求の概要、schema hash、consent hash、public key fingerprint、submission constraints まで。内部 webhook URL、secret、service private config は入れない。
+ユーザー本人の代理として Agent Card と schema を読み、ユーザーに要求内容を提示し、同意を得て、必要データを暗号化 submission として送るエージェント。これは別プロダクトとして提供され、watasu MVP はその実装を含まない。watasu はこの外部エージェントが利用できる protocol surface と contract tests を提供する。
 
-### 6.3 WebMCP と auth.md の位置づけ
+### 6.4 利用ユーザー
 
-WebMCP は MVP の core protocol ではない。将来、非エンジニア向け UI を出す場合に、その UI を agent-operable にするために使う。
+個人データを提供する本人。watasu のフォームに入力するのではなく、自分のエージェントを通じて「何を、なぜ、どこへ渡すか」を確認し、同意または拒否する。
 
-auth.md は MVP では実装しない。ただし、将来の agentic login、verified agent、user-claimed flow、OAuth-style authorization に接続できるよう、agent identity と sender signature の設計を塞がない。
+### 6.5 Reference components
 
-## 7. MVP の非目的
+agent-to-agent 接続契約の検証用に提供する最小コンポーネント。サービス側 reference agent と A2A sender fixture は含めるが、一般消費者向け AI companion、本物の personal vault、利用ユーザー側エージェント本体は含めない。
 
-- 人間向け回答フォーム。
-- 非エンジニア向けの hosted intake builder UI。
-- watasu 内の回答テーブル、回答一覧、回答閲覧画面。
-- ユーザー個人データ vault。
-- 一般ユーザー向け AI companion。
-- ログイン、アカウント連携、auth.md ベースの agentic registration。
-- Google Sheets、Notion、Airtable、S3 destination。
-- production plaintext intake。
-- 完全な本人確認、代理権限、法的 DSAR workflow。
-- watasu が payload を保持して後続再送する retry queue。
+## 7. MVP スコープ
 
-## 8. 対象ユーザー
+### 7.1 Agent-native 要求定義
 
-### 8.1 サービス開発側エージェント
+サービス開発側エージェントは、初期指示、既存コード、サービス仕様、destination 設定などをもとに要求定義を作成する。人間が手で全項目を入力する前提にはしない。
 
-MVP の主対象。サービス開発者の代理または支援者として動き、個人データの要求定義、受け口作成、schema 生成、webhook 設定、テスト送信を実行するエージェント。
-
-90% のユースケースでは、人間の開発者が watasu CLI を直接叩くのではなく、開発環境や coding agent が watasu を tool として呼び出す想定。
-
-利用する interface:
-
-- CLI command
-- MCP tools
-- YAML または JSON の要求定義
-- webhook endpoint
-- public/private key
-- local validation script
-
-### 8.2 サービス開発者
-
-サービス側エージェントに初期指示を出す人間。たとえば「イベント参加者から氏名、メール、アレルギー情報を集める受け口を作って」と自然言語や音声で指示する。細かい項目入力や画面操作を人間が担う前提にはしない。
-
-必要に応じて、生成された要求定義、同意文、配送先、保持方針を review する。
-
-### 8.3 利用ユーザー側エージェント
-
-ユーザー本人の代理として動く AI コンパニオンまたはデータエージェント。サービス側が公開した Agent Card と要求定義を読み、ユーザーに提示し、同意を取り、必要なデータを集め、ローカルで validation し、payload を暗号化して送信する。
-
-### 8.4 利用ユーザー
-
-個人データを提供する本人。watasu の回答フォームに入力するのではなく、自分の AI コンパニオンを通じて、何をどの目的で渡すかを確認し、同意する。
-
-### 8.5 Reference Agents
-
-watasu が提供する最小限の service-side reference agent と user-side reference agent。デモ、テスト、初期 integration 用。一般消費者向け companion product ではない。
-
-## 9. MVP スコープ
-
-### 9.1 Agent-native 要求定義
-
-サービス開発側エージェントは、ユーザーからの初期指示、既存コード、サービス仕様、destination 設定などをもとに要求定義ファイルを作成する。人間が手で全項目を入力する前提にはしない。
-
-```yaml
-name: event-attendee-intake
-description: ExampleConf の参加者情報を受け取る
-fields:
-  - id: full_name
-    type: string
-    required: true
-    purpose: 受付で参加者を確認するため
-    sensitivity: low
-  - id: email
-    type: string
-    format: email
-    required: true
-    purpose: イベント連絡を送るため
-    sensitivity: moderate
-  - id: allergies
-    type: string
-    required: false
-    purpose: 食事提供時の安全確認のため
-    sensitivity: high
-consent:
-  text: ExampleConf はこの情報をイベント運営のためだけに利用します。
-destination:
-  type: webhook
-  url: https://example.com/watasu/intake
-retention:
-  destination_policy: イベント終了後 30 日以内に削除します。
-encryption:
-  mode: required
-  public_key: age1...
-  algorithm: age-v1
-metadata_retention:
-  days: 90
-```
-
-要求定義に必要な項目:
+要求定義に含めるもの:
 
 - request name
 - description
-- fields
-- 各 field の required / optional
-- 各 field の purpose
-- 各 field の sensitivity level
+- requested fields
+- required / optional
+- field purpose
+- sensitivity level
 - consent text
 - destination webhook
 - destination retention policy
 - schema version
 - service public key
-- encryption algorithm
+- encryption policy
 - metadata retention period
 
-CLI は要求定義を validation し、canonical request version を生成する。公開済みの request version は immutable とする。
+公開済み request version は immutable とし、変更時は新しい version を作る。
 
-MVP 決定事項:
+### 7.2 Service-side agent workflow
 
-- default encryption primitive は JWE とする。
-- payload encryption は `ECDH-ES+A256KW` + `A256GCM` を標準にする。
-- service public key は JWK 形式で登録する。
-- key id は JWK thumbprint をもとに生成する。
-- HPKE は将来候補として残すが MVP default にはしない。
-- age は CLI local demo では使えてもよいが、agent interoperability の標準 surface にはしない。
-- request publish は hosted control plane を標準にする。
-- local-only publish は dev/test mode として提供する。
-- production request URL は高 entropy の request access token を含む capability URL とする。
-- Agent Card には service secret や webhook secret を含めない。
+1. サービス開発者が coding agent に「このサービス用の個人データ受け口を作って」と指示する。
+2. サービス開発側エージェントが service context を読み、要求定義を作る。
+3. エージェントが watasu MCP tool で request を validate する。
+4. publish 前 summary を人間に提示する。
+5. 人間が承認する。
+6. エージェントが request を publish する。
+7. watasu が request version、Agent Card、schemas、submission endpoint を公開する。
 
-暗号化 payload の format:
+### 7.3 External user-side agent integration contract
 
-```json
-{
-  "protected": "...",
-  "encrypted_key": "...",
-  "iv": "...",
-  "ciphertext": "...",
-  "tag": "..."
-}
-```
+watasu MVP は利用ユーザー側エージェント本体を提供しない。別プロダクトの user-side agent が接続できるよう、以下の contract を公開・検証する。
 
-JWE protected header に含めるもの:
+- request-specific Agent Card URL
+- plaintext JSON Schema
+- encrypted envelope schema
+- consent receipt schema
+- submission endpoint
+- accepted encryption policy and public key fingerprint
+- structured response states: `delivered`, `rejected`, `resubmit_later`, `auth_required`
 
-- `alg`
-- `enc`
-- `kid`
-- `typ: "watasu+jwe"`
-- `request_id`
-- `request_version`
-- `schema_hash`
+外部 user-side agent の責務:
 
-サービス側 receiver は JWE を復号した後、plaintext JSON Schema と business rule validation を実行する。
+- Agent Card と schema を読む。
+- ユーザーに要求内容を提示し、同意を得る。
+- 必要データを収集し、ローカルで validation する。
+- service public key で payload を暗号化する。
+- A2A submission として watasu に送る。
 
-### 9.2 CLI / MCP tool surface
+watasu の責務:
 
-MVP では CLI command を一次 interface とする。ただし、この CLI は人間が直接使うためだけのものではなく、coding agent や service-development agent が安全に呼び出せる tool surface として設計する。
+- Agent Card、schema、submission endpoint を公開する。
+- envelope、hash、replay、rate limit、capability URL status を検証する。
+- encrypted envelope をサービス側 webhook に配送する。
+- delivery metadata と consent receipt metadata を ledger に記録する。
 
-MVP で提供する command:
+### 7.4 CLI / MCP ledger
 
-```bash
-watasu init
-watasu keygen
-watasu request validate request.yaml
-watasu request publish request.yaml
-watasu request inspect <request_id>
-watasu agent-card get <request_id>
-watasu schema get <request_id>
-watasu submit --request <request_id> --payload payload.json
-watasu ledger list --request <request_id>
-watasu ledger inspect <submission_id>
-watasu webhook verify --secret <secret>
-```
+MVP では dashboard UI を作らない。配送状況は CLI または MCP resource/tool 経由で確認する。
 
-`watasu submit` は reference sender と local test 用。production submission は、公開された Agent Card と submission endpoint を読んだユーザー側エージェントから送られる想定。
+確認できるもの:
 
-MCP は、サービス開発側エージェントが watasu を呼び出すための標準 interface として扱う。MVP では CLI を先に実装し、同じ操作を MCP tools として薄く公開できる構造にする。
-
-MCP tool として公開しうる操作:
-
-- `validate_request`
-- `publish_request`
-- `inspect_request`
-- `get_agent_card`
-- `get_schema`
-- `run_test_submission`
-- `list_ledger`
-- `inspect_delivery`
-
-MCP tool description は agent が読む入口になるため、prompt injection や tool poisoning を前提に、権限、入力 schema、破壊的操作の有無、payload 非保存の制約を明示する。
-
-### 9.3 MCP Tool Contract
-
-MVP では、MCP tool contract を PRD の実装契約として扱う。CLI command は同じ内部 API を呼ぶ。
-
-必須 MCP tools:
-
-| Tool | Input | Output | Confirmation |
-| --- | --- | --- | --- |
-| `validate_request` | request definition JSON/YAML | validation result, normalized definition, warnings | 不要 |
-| `publish_request` | normalized request definition, destination config, service public key | request_id, request_version, hashes, URLs | 必要 |
-| `inspect_request` | request_id, optional version | canonical request definition, status, hashes | 不要 |
-| `get_agent_card` | request_id, version | A2A-compatible Agent Card | 不要 |
-| `get_schema` | request_id, version | plaintext JSON Schema, envelope schema | 不要 |
-| `run_test_submission` | request_id, sample payload, test key config | encrypted submission result, webhook result | 必要 |
-| `list_ledger` | request_id, filters | delivery metadata list | 不要 |
-| `inspect_delivery` | submission_id | delivery metadata, error category | 不要 |
-
-すべての MCP tool は以下を持つ。
-
-- `name`
-- `title`
-- `description`
-- `inputSchema`
-- `outputSchema`
-- side effect policy: `read_only`、`dry_run_available`、`requires_confirmation`、`external_delivery_attempt` のいずれか
-- payload handling policy: `no_plaintext_payload`、`no_payload_persistence`、`metadata_only`
-
-`outputSchema` は agent が後続 action を自動判断できる粒度にする。text-only response に依存しない。
-
-MCP resources:
-
-- `watasu://requests/{request_id}/versions/{version}`
-- `watasu://requests/{request_id}/agent-card`
-- `watasu://requests/{request_id}/schemas/plaintext`
-- `watasu://requests/{request_id}/schemas/envelope`
-- `watasu://deliveries/{submission_id}`
-
-共通 error codes:
-
-- `invalid_request_definition`
-- `unsafe_destination`
-- `missing_public_key`
-- `key_ownership_unverified`
-- `request_version_conflict`
-- `publish_requires_confirmation`
-- `payload_not_accepted_by_policy`
-- `delivery_failed`
-- `resubmit_later`
-
-`publish_request` と `run_test_submission` は外部状態を変えるため、MCP tool metadata で confirmation required と明示する。エージェントは publish 前に、人間のサービス開発者へ request name、fields、purposes、destination、retention、public key fingerprint を提示する。
-
-MCP prompts:
-
-- `draft_request_from_service_context`: サービス仕様や既存コードから要求定義を作る。
-- `review_request_before_publish`: publish 前に fields、purposes、consent、destination、retention、public key fingerprint を確認する。
-- `debug_delivery_failure`: ledger metadata と receiver error から修正候補を作る。
-- `version_request_after_validation_error`: 復号後 validation failure から新しい request version を作る。
-
-MCP elicitation policy:
-
-- watasu MCP server は、service developer から不足している非機微情報を確認するためにだけ elicitation を使う。
-- 例: request name、destination label、retention days、publish confirmation。
-- watasu MCP server は、利用ユーザーの個人データや高機微情報を elicitation で要求しない。
-- 利用ユーザーの個人データ収集は、MCP ではなく A2A intake request とユーザー側エージェントの consent flow で扱う。
-
-### 9.4 生成物
-
-公開された request ごとに watasu が生成するもの:
-
-- canonical request definition JSON
-- plaintext payload 用 JSON Schema
-- encrypted submission envelope schema
-- A2A-compatible Agent Card
-- submission endpoint URL
-- request version hash
-- consent receipt template
-- webhook delivery contract
-
-### 9.5 A2A Agent Card Profile
-
-watasu は intake request ごとに A2A 互換の Agent Card を公開する。
-
-Agent Card は、watasu を特定 skill を持つ intake agent/server として表現する。
-
-例:
-
-- skill id: `encrypted_personal_data_intake`
-- input mode: JSON encrypted envelope
-- output mode: JSON delivery acknowledgement
-- endpoint: request-specific message endpoint
-- security requirements: 初期は環境に応じて API token または unsigned test mode
-
-A2A は独自フォーム投稿 API ではなく、agent interoperability surface として扱う。watasu は、狭い intake skill を受け付ける A2A-compatible remote endpoint である。
-
-Agent Card には、A2A v1.0 の AgentExtension として watasu-specific extension を宣言する。トップレベルに独自 `x-*` field を増やさない。
-
-```json
-{
-  "capabilities": {
-    "extendedAgentCard": false,
-    "extensions": [
-      {
-        "uri": "https://watasu.dev/extensions/encrypted-intake/v1",
-        "required": true,
-        "params": {
-          "request_id": "req_123",
-          "request_version": "v1",
-          "schema_hash": "sha256:...",
-          "consent_text_hash": "sha256:...",
-          "destination_policy_hash": "sha256:...",
-          "encryption": {
-            "required": true,
-            "algorithm": "age-v1",
-            "service_key_id": "key_123",
-            "public_key_fingerprint": "sha256:..."
-          },
-          "submission": {
-            "max_payload_bytes": 262144,
-            "expires_in_seconds": 900,
-            "idempotency_required": true
-          }
-        }
-      }
-    ]
-  },
-  "skills": [
-    {
-      "id": "encrypted_personal_data_intake",
-      "name": "Encrypted personal data intake",
-      "description": "Accepts encrypted personal data submissions bound to a published request version.",
-      "inputModes": ["application/json"],
-      "outputModes": ["application/json"],
-      "tags": ["personal-data", "encrypted-intake", "watasu"]
-    }
-  ]
-}
-```
-
-利用ユーザー側エージェントは、この profile を読めば以下を判断できる必要がある。
-
-- どのデータが要求されているか
-- それぞれの field purpose は何か
-- どの destination policy に同意するのか
-- payload をどの鍵で暗号化するのか
-- submission の有効期限と replay protection 条件は何か
-- watasu が復号できないこと
-
-公開 Agent Card に入れる情報:
-
-- request_id
-- request_version
-- schema_hash
-- consent_text_hash
-- destination_policy_hash
-- service public key fingerprint
-- encryption algorithm
-- max payload size
-- submission TTL
-
-公開 Agent Card に入れない情報:
-
-- service webhook secret
-- service private key
-- internal receiver URL
-- raw sender identifier
-- user personal data
-- plaintext example payload containing real personal data
-
-将来、公開 card では不十分な場合は `capabilities.extendedAgentCard: true` を使い、認証済み client にだけ Extended Agent Card を返す。Extended Agent Card でも secret や private key は返さない。
-
-### 9.6 A2A Submission Operation
-
-利用ユーザー側エージェントは、A2A `Send Message` operation で encrypted submission を送る。
-
-MVP では HTTP+JSON/REST binding を優先する。JSON-RPC binding も将来対応できるよう、内部 model は A2A operation と data model に寄せる。
-
-Submission message の規則:
-
-- `messageId` は `submission_id` または idempotency key と対応させる。
-- `metadata` に `request_id`、`request_version`、`schema_hash` を入れる。
-- `parts` には `mediaType: "application/json"` の structured data を使う。
-- legacy `kind` discriminator は使わない。
-- response は delivery acknowledgement または sender-actionable error を structured data で返す。
-
-例:
-
-```json
-{
-  "message": {
-    "messageId": "sub_123",
-    "role": "user",
-    "metadata": {
-      "request_id": "req_123",
-      "request_version": "v1",
-      "schema_hash": "sha256:..."
-    },
-    "parts": [
-      {
-        "mediaType": "application/json",
-        "data": {
-          "envelope_type": "watasu.encrypted_submission.v1",
-          "submission_id": "sub_123",
-          "idempotency_key": "idem_123",
-          "encrypted_payload": "base64...",
-          "encrypted_payload_hash": "sha256:...",
-          "consent_receipt_hash": "sha256:...",
-          "consent_receipt": {
-            "request_id": "req_123",
-            "request_version": "v1"
-          }
-        }
-      }
-    ]
-  },
-  "configuration": {
-    "acceptedOutputModes": ["application/json"],
-    "returnImmediately": false
-  }
-}
-```
-
-Response states:
-
-- accepted: watasu accepted the envelope and attempted delivery.
-- delivered: webhook delivery completed.
-- rejected: envelope validation failed and sender should not retry unchanged.
-- resubmit_later: watasu did not persist payload and sender should resubmit later.
-- auth_required: request requires authenticated or extended Agent Card flow.
-
-MVP の A2A security:
-
-- public Agent Card は secret を含まない。
-- request-specific Agent Card URL は high entropy URL とする。
-- submission endpoint は rate limit、payload size limit、idempotency、replay protection を必須にする。
-- production では service 側が `sender_signature_required` を選べる。
-- sender signature なしの submission は anonymous/pseudonymous submission として扱う。
-- auth.md / OAuth / verified-agent は post-MVP の認可強化として扱う。
-
-### 9.7 Encrypted Submission Envelope
-
-ユーザーエージェントは、encrypted payload と検証可能な metadata を含む envelope を送る。
-
-Envelope fields:
-
-- request_id
-- request_version
-- schema_hash
-- submission_id
-- idempotency_key
-- encrypted_payload
-- encrypted_payload_hash
-- encryption_algorithm
-- service_key_id
-- consent_receipt_hash
-- consent_receipt
-- submitted_at
-- expires_at
-- sender_pseudonym
-- sender_signature, MVP では optional
-
-watasu が validation するもの:
-
-- request が存在し published であること
-- request version が immutable かつ active であること
-- schema_hash が request version と一致すること
-- encryption algorithm が許可されていること
-- service_key_id が request version と一致すること
-- encrypted payload size が上限以内であること
-- encrypted_payload_hash が encrypted payload と一致すること
-- consent_receipt_hash が consent receipt と一致すること
-- timestamp が許容 clock skew 内であること
-- expires_at を過ぎていないこと
-- idempotency_key が未受理であること
-- replay submission ではないこと
-- destination webhook が配送試行できる状態であること
-
-watasu は payload を復号できないため、plaintext schema validation は行わない。復号後の schema validation はサービス側責務。
-
-### 9.8 Consent Receipt
-
-MVP では canonical consent receipt format を定義する。hash だけでは、後から同意内容を検証できない。
-
-Consent receipt fields:
-
-- request_id
-- request_version
-- consent_text_hash
-- field_ids
-- field_purposes_hash
-- destination_policy_hash
-- user_confirmation_method
-- confirmed_at
-- agent_disclosure
-
-ユーザー側エージェントは、要求内容をユーザーに提示し、同意を取得する責務を持つ。watasu は、送信された consent receipt が immutable request version に対応していることだけを検証する。
-
-MVP の trust boundary:
-
-- watasu は、ユーザー側エージェントが本当に適切な同意 UI を出したことまでは保証しない。
-- watasu は、法的に完全な同意、本人確認、代理権限を保証しない。
-- watasu は、request version、consent text、field purposes、destination policy の hash が submission と一致することを検証する。
-- sender signature は MVP では optional。将来 auth.md と verified-agent flow に接続する。
-- consent receipt は、法的同意の完全証明ではなく、提示内容を後から再現するための証跡である。
-
-### 9.9 Webhook Delivery
-
-watasu は encrypted envelope をサービス側 webhook に配送する。
-
-Webhook requirements:
-
-- HTTPS only
-- watasu delivery signature header
-- idempotency key
-- request_id
-- submission_id
-- request_version
-- delivery timestamp
-- encrypted envelope body
-
-watasu は webhook signature verification helper と template receiver を提供する。
-
-MVP の receiver template:
-
-- Node.js webhook receiver
-- service-side decrypt and JSON Schema validate example
-
-### 9.10 配送台帳
-
-watasu が保存するのは配送 metadata のみ。
-
-保存する fields:
-
-- request_id
-- request_version
-- submission_id
-- schema_hash
-- encrypted_payload_hash
-- sender_pseudonym
-- consent_receipt_hash
-- received_at
-- delivered_at
-- destination type
+- request count
+- submission count
 - delivery status
-- retry instruction status
 - error category
-- idempotency_key hash
+- retry instruction status
+- request version
+- schema hash
+- consent receipt hash
+- consent receipt metadata
 
-watasu が保存しないもの:
+確認できないもの:
 
 - plaintext payload
 - decrypted payload
-- delivery attempt 後の encrypted payload body
-- raw long-lived agent identifier
-- service private key
+- encrypted payload body
+- 実ユーザーの個人データ本文
 
-webhook が 5xx を返した、または timeout した場合、watasu は後続 replay のために encrypted payload を保存しない。失敗試行を台帳に記録し、sender に `resubmit_later` response を返す。
+### 7.5 Failure and abuse behavior
 
-### 9.11 Agent-to-agent happy path
+MVP は public または準 public な Agent Card URL が共有される前提で、以下を sender に機械可読に返す。
 
-MVP の最重要成功シナリオは、人間が CLI を叩けることではなく、サービス側エージェントと利用ユーザー側エージェントが end-to-end に接続できること。
+- invalid request / schema / key / consent hash は `rejected`
+- expired submission と replayed idempotency key は `rejected`
+- webhook 5xx または timeout は payload を保存せず `resubmit_later`
+- rate limit、revoked capability URL、payload size limit 超過は sender-actionable error
+- 認証や署名が必要な request では `auth_required`
 
-1. サービス開発者が coding agent に「イベント参加者情報の受け口を作って」と指示する。
-2. サービス開発側エージェントが既存コード、サービス仕様、webhook receiver、保持方針を読み取る。
-3. サービス開発側エージェントが MCP `validate_request` を呼び、要求定義を生成・検証する。
-4. サービス開発側エージェントが publish 前 summary を人間に提示する。
-5. 人間が承認する。
-6. サービス開発側エージェントが MCP `publish_request` を呼ぶ。
-7. watasu が immutable request version、Agent Card、schemas、submission endpoint を公開する。
-8. 利用ユーザー側エージェントが A2A Agent Card を発見する。
-9. 利用ユーザー側エージェントが要求 fields、purposes、consent text、destination policy をユーザーに提示する。
-10. ユーザーが同意する。
-11. 利用ユーザー側エージェントが必要データを集め、plaintext JSON Schema で local validation する。
-12. 利用ユーザー側エージェントが service public key で payload を暗号化する。
-13. 利用ユーザー側エージェントが encrypted submission envelope を watasu に送る。
-14. watasu が envelope を検証し、サービス webhook に配送する。
-15. サービス側 receiver が watasu signature を検証し、payload を復号し、schema validation する。
-16. watasu ledger には delivery metadata だけが残る。
+### 7.6 Reference components
 
-### 9.12 Service-side agent feedback loop
-
-復号後 validation や business rule validation はサービス側責務。失敗した場合、サービス側エージェントが修正 loop を回せる必要がある。
-
-想定 flow:
-
-1. webhook receiver が復号後 validation に失敗する。
-2. receiver は service-side validation error を内部ログまたは service agent 向け channel に記録する。
-3. サービス側エージェントが error を読み、要求定義、JSON Schema、field purpose、business rule のどこがズレているかを判断する。
-4. 既存 request version は変更せず、新しい request version を作る。
-5. サービス側エージェントが MCP `validate_request` と `publish_request` を再実行する。
-6. 新しい Agent Card / schema が公開される。
-
-watasu は過去 version を immutable に保ち、どの submission がどの version に紐づいたかを ledger で追跡できるようにする。
-
-### 9.13 ローカル開発フロー
-
-MVP は 1 terminal で demo できる必要がある。
-
-例:
-
-```bash
-watasu keygen --out .watasu/service-key
-watasu request validate examples/event.yaml
-watasu request publish examples/event.yaml
-watasu agent-card get req_123
-watasu submit --request req_123 --payload examples/attendee.json
-watasu ledger list --request req_123
-```
-
-期待状態:
-
-- request が publish されている
-- Agent Card と schema が取得できる
-- payload は submission 前に暗号化される
-- watasu は payload を復号できない
-- webhook が encrypted envelope を受け取る
-- service-side template が復号し JSON Schema validation できる
-- ledger には配送 metadata だけが表示される
-
-### 9.14 Reference Agent Scope
-
-MVP では full AI companion を作らない。ただし、agent-native product として検証するために、最小限の reference agent を 2 種類提供する。
+MVP では full AI companion や user-side agent workflow を作らない。ただし、agent-native integration を検証するために最小限の reference components を提供する。
 
 Service-side reference agent:
 
 - MCP tools を discovery する。
 - service fixture から request definition を生成する。
-- `validate_request` を呼ぶ。
-- publish 前 summary を出す。
-- `publish_request` を呼ぶ。
+- validate / publish を実行する。
 - Agent Card URL と schemas を取得する。
 
-User-side reference agent:
+A2A sender fixture:
 
 - Agent Card URL を読む。
-- A2A AgentExtension を解釈する。
-- plaintext JSON Schema から必要 fields を抽出する。
-- consent presentation summary を生成する。
+- schema と extension metadata を parse する。
 - sample user data fixture から payload を作る。
-- local validation する。
-- service public key で JWE encrypt する。
-- A2A Send Message operation で submission する。
+- payload を暗号化する。
+- A2A submission を送る。
+- response state を検証する。
 
-Reference agent がやらないこと:
+Reference components は、本物の personal vault、Gmail / Calendar / Drive 連携、本人確認、代理権限、汎用 AI companion、利用ユーザー側エージェント本体を提供しない。
 
-- ユーザーの本物の personal vault を持つ。
-- Gmail、Calendar、Drive などから実データを集める。
-- 法的同意の完全性を保証する。
-- 本人確認や代理権限を保証する。
-- 汎用 AI companion として振る舞う。
+### 7.7 MVP security modes
 
-### 9.15 Protocol Drift Guardrails
+MVP は幅広いユースケースに耐えるため、intake ごとに trust profile を明示する。production hosted request は安全側に倒し、緩い設定は demo / public-intake 用に明示した場合だけ許可する。
 
-A2A と MCP は変化が速い前提で、実装とPRDに drift guardrails を入れる。
+Trust profiles:
 
-- A2A spec version と MCP spec version を generated artifacts に含める。
-- Agent Card generation は snapshot test で固定する。
-- A2A `Part` は current data model に合わせ、legacy `kind` discriminator を使わない。
-- A2A AgentExtension は `uri` と `required` と `params` を使う。
-- MCP tools は `inputSchema` と `outputSchema` を必須にする。
-- MCP tool result は structured content を返し、free text だけにしない。
-- MCP elicitation は機微な個人データ収集に使わない。
-- CI で公式 schema または vendored schema snapshot に対する contract test を走らせる。
-- spec upgrade 時は `protocol-baseline` section と generated fixture を同時に更新する。
+- `public_capability`: capability URL、rate limit、idempotency、short TTL で守る低リスク intake。イベント受付、資料請求、waitlist などに使う。高機微 field を含む request では使えない。
+- `verified_sender`: sender signature を必須にする production default。採用、医療、金融、未成年、住所、政府ID、健康情報など、中〜高リスク data を含む intake に使う。MVP では登録済み sender key の allowlist、key rotation、revocation、unknown sender の `auth_required` を最小要件にする。
+- `private_invite`: request-specific capability URL と verified sender を併用し、招待済み sender key と invite-bound capability URL の両方に一致する submission だけを受け付ける。限定ベータ、B2B onboarding、機密度の高い intake に使う。
+- `local_demo`: localhost / fixture 用。外部公開、実ユーザー personal data、production webhook への配送には使わない。
 
-## 10. 標準技術の位置づけ
+Production hosted request の default は `verified_sender` とする。`public_capability` を使う場合、publish 前 summary は「署名なし sender を受け入れる理由」「field sensitivity」「rate limit」「metadata retention」「漏洩時の revoke 手順」を表示し、人間の明示承認を要求する。
 
-### 10.1 MCP
+### 7.8 Use-case fit
 
-MCP は、MVP からサービス開発側エージェントが watasu の機能を呼び出すための主要な tool interface として扱う。
+MVP で通用させるユースケース:
 
-MCP の役割:
+- イベント受付、waitlist、問い合わせ前 intake: `public_capability` または `verified_sender`。低リスク field のみなら公開配布に向く。
+- 採用、業務委託 onboarding、B2B 登録: `verified_sender`。履歴書、職歴、住所、税務情報などを扱う場合は sender signature 必須。
+- アレルギー、健康、金融、本人確認に近い情報: `verified_sender` または `private_invite`。watasu は legal consent や identity proof を保証しないため、サービス側 receiver が追加確認を行う。
+- 限定リンク、QR、email handoff: `private_invite`。capability URL 漏洩に備え、revoke と再発行を運用手順に含める。
+- ローカル agent-to-agent demo と contract test: `local_demo`。実データを使わない。
 
-- サービス開発側エージェントに watasu の tools を公開する
-- 要求定義の validation / publish / inspect を agent から実行できるようにする
-- schema、Agent Card、delivery ledger を resources として取得できるようにする
-- request 作成 workflow を prompts として提供する
-- coding agent や IDE agent から watasu を自然に呼び出せるようにする
+MVP で条件付き transport としてだけ通用するユースケース:
 
-MVP では CLI を先に実装してよいが、CLI command と MCP tool は同じ内部 API を呼ぶ構造にする。これにより、人間が terminal で試すことも、エージェントが MCP 経由で自律的に実行することもできる。
+- 医療問診、薬剤アレルギー、緊急連絡先、未成年情報: 暗号化配送と同意対象 hash の検証はできる。医療上の説明責任、保護者同意、本人確認、緊急時の例外処理は watasu 外で扱う。
+- 金融、税務、KYC、政府ID: `private_invite` と verified sender で未検証 sender を拒否できる。KYC、AML、規制監査、jurisdiction ごとの保持と削除は watasu 外で扱う。
+- 大規模 public campaign: rate limit と payload size limit で webhook delivery 前に抑制する。ただし bot mitigation、edge WAF、abuse notification は hosted 運用側の追加責務である。
 
-MCP は強力な tool execution surface になるため、以下を初期から設計に含める。
+MVP で通用させないユースケース:
 
-- tool ごとの入力 schema
-- tool ごとの権限境界
-- destructive / irreversible operation の明示
-- request publish 前の dry-run
-- payload 非保存 invariant の明示
-- tool metadata を信頼しすぎない client-side safety 前提
-- agent がユーザーまたは開発者に確認すべきタイミングの machine-readable 表現
+- watasu が本人確認、代理権限、法的同意、DSAR workflow を完結させる用途。
+- watasu が plaintext payload を閲覧、保存、検索、CSV export する用途。
+- sender を識別できないまま、高機微または規制対象データを大量収集する用途。
+- 匿名性そのものを保証する内部通報、報道情報源保護、DV避難、政治・宗教・労組活動などの用途。watasu の ledger metadata は最小化されるが、匿名性保証のための mix network、unlinkability、legal shield は MVP の範囲外である。
+- 災害、救急、医療トリアージなど、可用性、本人確認、同意例外、オフライン動作、法的根拠が同時に必要な用途。MVP は blocking delivery と `resubmit_later` を持つが、生命安全システムとしては扱わない。
 
-### 10.2 WebMCP
+## 8. MVP の非目的
 
-WebMCP は CLI MVP には含めない。
+- 人間向け回答フォーム。
+- 非エンジニア向け hosted intake builder UI。
+- dashboard UI。
+- watasu 内の回答テーブル、回答一覧、回答閲覧画面。
+- ユーザー個人データ vault。
+- 利用ユーザー側エージェント本体。
+- 一般ユーザー向け AI companion。
+- ログイン、アカウント連携、auth.md ベースの agentic registration。
+- Google Sheets、Notion、Airtable、S3 destination。
+- production plaintext intake。
+- 完全な本人確認、代理権限、法的 DSAR workflow。
+- 医療、金融、未成年、政府ID、匿名通報、生命安全システムの end-to-end 業務保証。
+- watasu が payload を保持して後続再送する retry queue。
 
-ただし、将来の非エンジニア向け UI では重要になりうる。watasu が browser-based request builder や review page を提供する場合、WebMCP によってその UI を agent-operable にできる。
-
-将来 WebMCP tool として公開しうる操作:
-
-- create request
-- inspect fields
-- update consent text
-- configure destination
-- publish request
-- run test submission
-
-WebMCP は core intake protocol ではなく、visible UI に対する progressive enhancement として扱う。将来、UI が dynamic software interface としてエージェントから直接操作される形になるなら、WebMCP の重要度は上がる。ただし MVP は browser context に依存しない。
-
-### 10.3 auth.md
-
-auth.md は watasu と競合するものではなく、将来利用する方向で設計する。
-
-将来の利用可能性:
-
-- service developer account への agentic login
-- service user の代理として agent を登録する
-- trusted agent に scoped access token を発行する
-- watasu request access を OAuth-style authorization に接続する
-- verified-agent flow または user-claimed flow を支える
-
-MVP では login も auth.md integration も実装しない。ただし、将来 auth.md を採用できなくなる設計にはしない。
-
-### 10.4 A2A
-
-A2A は agent-to-agent discovery と submission の主要な互換対象。
-
-MVP では、利用ユーザー側エージェントが watasu の intake endpoint を発見し、要求内容を理解し、encrypted submission を送るために A2A concepts を使う。
-
-- Agent Card
-- skill description
-- message endpoint
-- input / output modes
-- security scheme metadata
-
-watasu 固有 extension が必要な場合を除き、A2A と互換しない独自 metadata は増やさない。
-
-役割分担としては、MCP は「サービス開発側エージェントが watasu を操作するため」、A2A は「利用ユーザー側エージェントが watasu の受け口を発見し送信するため」に使う。
-
-## 11. Security Invariants
-
-production mode では以下を常に満たす。
-
-- watasu は service private key を持たない。
-- watasu は JWE payload を復号できない。
-- watasu は plaintext payload を保存しない。
-- watasu は plaintext payload を log に出さない。
-- watasu は delivery attempt 後に encrypted payload body を保持しない。
-- published request version は immutable。
-- すべての submission は request version に bind される。
-- すべての submission に replay protection がある。
-- すべての webhook delivery は watasu によって署名される。
-- service webhook receiver は watasu signature を検証できる。
-- metadata retention が明示されている。
-- ledger metadata への内部アクセスは audit log 対象。
-- public Agent Card に secret、private URL、private key、raw user data を含めない。
-- request-specific capability URL は high entropy で、revocation 可能にする。
-- MCP elicitation で利用ユーザーの個人データや高機微情報を要求しない。
-- MCP publish tool は dry-run と human confirmation を持つ。
-- A2A structured submission は current v1.0 data model に従い、legacy field に依存しない。
-
-## 12. 成功指標
+## 9. 成功指標
 
 ### Activation
 
-- install から初回 request publish までの時間。
-- request file から successful webhook delivery までの時間。
-- key generation 完了率。
-- test submission 完了率。
 - service-side agent が MCP 経由で request publish できる率。
 - publish 前 summary を人間が確認できる率。
-
-目標:
-
 - local encrypted delivery を 15 分以内に完了できる。
 - hosted request publish を 30 分以内に完了できる。
 
@@ -876,15 +392,10 @@ production mode では以下を常に満たす。
 - published request count
 - successful encrypted submissions
 - successful webhook deliveries
-- delivery failure rate
-- resubmission success rate
+- rejected abusive or invalid submissions
 - A2A Agent Card discovery success rate
-- user-side agent submission success rate
-
-目標:
-
-- webhook が利用可能な場合の successful delivery 99%。
-- delivery attempt latency p95 が 5 秒未満。
+- external user-side agent contract compatibility rate
+- delivery attempt latency p95 5 秒未満
 
 ### Trust
 
@@ -892,85 +403,40 @@ production mode では以下を常に満たす。
 - unredacted payload logs: 0
 - watasu-held private keys: 0
 - plaintext payload stored in DB: 0
+- public endpoint abuse causing webhook delivery attempts beyond rate policy: 0
 - production encrypted delivery adoption: 100%
 
 ### Agent Experience
 
 - agent-generated request validity rate
 - MCP tool call success rate
-- user-agent schema comprehension success rate
-- consent presentation correctness
-- end-to-end agent submission success rate
+- Agent Card / schema contract validation success rate
+- A2A sender fixture submission success rate
 
-目標:
+## 10. Acceptance Criteria
 
-- service-side agent が生成した request definition の初回 validation 成功率 80% 以上。
-- 利用ユーザー側エージェントが Agent Card から required fields と consent summary を正しく抽出できる率 95% 以上。
-- agent-to-agent happy path の end-to-end 成功率 90% 以上。
+MVP は以下を満たすまで完了扱いにしない。
 
-## 13. Acceptance Tests
-
-MVP は以下の test が通るまで完了扱いにしない。
-
-- MCP `validate_request` が request definition を validate できる。
-- MCP `publish_request` が confirmation required として公開される。
-- MCP `publish_request` によって immutable request version が作られる。
-- MCP resource から request、Agent Card、schemas、delivery metadata を取得できる。
-- CLI から request definition を validate できる。
-- request publish によって immutable request version が作られる。
-- published request の Agent Card を取得できる。
-- published request の JSON Schema を取得できる。
-- A2A Agent Card に `https://watasu.dev/extensions/encrypted-intake/v1` AgentExtension が含まれる。
-- 利用ユーザー側 reference agent が Agent Card から fields、purposes、consent text、destination policy を抽出できる。
-- 利用ユーザー側 reference agent が consent presentation summary を生成できる。
-- user-side reference agent は submission 前に payload を JWE 暗号化する。
-- A2A submission は `Part.data` と `mediaType: "application/json"` を使い、legacy `kind` discriminator を使わない。
-- MCP tool result は `outputSchema` に合う structured content を返す。
-- MCP elicitation は利用ユーザーの個人データ収集に使われない。
-- watasu は不正な `schema_hash` を拒否する。
-- watasu は未知の `service_key_id` を拒否する。
-- watasu は expired submission を拒否する。
-- watasu は replayed `idempotency_key` を拒否する。
-- watasu は encrypted envelope を webhook に配送する。
-- webhook receiver は watasu delivery signature を検証できる。
+- サービス側 reference agent が request definition を生成し、MCP 経由で validate / publish できる。
+- publish 前に、人間が request name、fields、purposes、destination、retention、public key fingerprint を確認できる。
+- A2A sender fixture が Agent Card と schema を読み、payload を暗号化して submission できる。
+- generated Agent Card が A2A v1.0 の必須フィールドと supported interface を満たす。
+- watasu は不正な schema hash、unknown service key、expired submission、replayed idempotency key を拒否できる。
+- watasu は rate limit、payload size limit、revoked capability URL に違反する submission を webhook 配送前に拒否できる。
+- production hosted request は trust profile を持ち、default では sender signature を検証できる。
+- service public key と destination webhook domain の ownership verification を publish 前に完了できる。
+- `verified_sender` / `private_invite` は登録済み sender key だけを受け付け、unknown、revoked、expired、request に紐づかない sender key は webhook 配送前に `auth_required` になる。
+- leaked capability URL は revoke でき、再発行後の旧 URL は webhook 配送前に拒否される。
+- watasu は encrypted envelope を webhook に配送できる。
 - service-side template は payload を復号し validation できる。
-- ledger には metadata だけが保存される。
-- DB に plaintext payload が保存されない。
-- log に plaintext payload が出ない。
-- webhook 5xx 時に watasu は retry 用 payload を保存しない。
-- delivery failure は sender が処理できる `resubmit_later` response を返す。
+- ledger には payload body ではなく delivery metadata と consent receipt metadata だけが保存される。
+- ledger metadata と consent receipt metadata は tenant / role check、retention、access audit の対象になり、cross-tenant access と retention 期限超過をテストで検出できる。
+- DB と logs に plaintext payload が残らない。
+- webhook 5xx 時に watasu は retry 用 payload を保存せず、sender に `resubmit_later` を返す。
 - 復号後 validation failure は既存 request version を変更せず、新しい request version で修正できる。
 
-## 14. MVP 実装順序
+## 11. 関連文書
 
-1. request definition schema を定義する。
-2. canonical request version と hash を定義する。
-3. MCP tool contract と resource URI を定義する。
-4. service key generation と key id handling を実装する。
-5. encrypted envelope schema を定義する。
-6. CLI validation を実装する。
-7. MCP `validate_request` を実装する。
-8. request publish を実装する。
-9. MCP `publish_request` を実装する。
-10. JSON Schema と Agent Card の生成を実装する。
-11. A2A encrypted-intake AgentExtension profile を実装する。
-12. reference submit command を実装する。
-13. 利用ユーザー側 reference agent の Agent Card 読み取りを実装する。
-14. webhook delivery を実装する。
-15. webhook signature verification helper を実装する。
-16. delivery ledger metadata を実装する。
-17. no-payload-persistence と log-redaction tests を追加する。
-18. service-side decrypt and validate template を追加する。
-19. service-side agent feedback loop の sample を追加する。
+- ERD: `docs/erd-cli-mvp.md`
 
-## 15. Open Questions
-
-- 最小の A2A interoperability test suite はどこまで必要か。
-- sender signature は optional、production required、auth.md integration まで deferred のどれにするか。
-- service public key ownership をどう検証するか。
-- destination webhook domain ownership を publish 前に検証するか。
-- 対象 jurisdiction でどの metadata が個人データまたは個人関連情報に該当するか。
-- ledger metadata の default retention は何日が妥当か。
-- MCP server を watasu CLI に同梱するか、別 package として配布するか。
-- JWE key rotation と request version rotation を同時に行うか、別 lifecycle にするか。
-- capability URL が漏れた場合の revocation UX をどうするか。
+PRD は「何を実現するか」「誰にどんな価値があるか」「何をMVPに含めるか」を定義する。暗号方式、A2A wire format、MCP tool schema、webhook署名、DB schema、contract tests などの実装詳細は ERD に置く。
