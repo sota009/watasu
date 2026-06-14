@@ -1,9 +1,13 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { sha256Hash } from "./hash.js";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import {
   createMetadataLedgerReader,
   createPolicyControlledDeliveryLedger,
+  JsonlDeliveryLedgerStore,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
 } from "./storage-policy.js";
@@ -265,5 +269,71 @@ describe("storage policy controlled delivery ledger", () => {
     expect(resultJson).not.toContain("base64url-ciphertext");
     expect(resultJson).not.toContain("encrypted_payload");
     expect(resultJson).not.toContain("full_name");
+  });
+
+  test("test_jsonl_delivery_ledger_store_persists_metadata_only_rows", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "watasu-ledger-"));
+    const filePath = join(tempDir, "delivery-ledger.jsonl");
+    const store = new JsonlDeliveryLedgerStore({
+      filePath
+    });
+    const rowWithUnexpectedPayload = {
+      ...createLedgerRow(),
+      encrypted_payload: {
+        ciphertext: "base64url-ciphertext"
+      }
+    } as DeliveryLedgerRow;
+
+    try {
+      store.writeDeliveryAttempt(rowWithUnexpectedPayload);
+
+      expect(store.listDeliveryRows()).toEqual([createLedgerRow()]);
+      expect(readFileSync(filePath, "utf8")).not.toContain("\"encrypted_payload\"");
+      expect(readFileSync(filePath, "utf8")).not.toContain("base64url-ciphertext");
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
+  });
+
+  test("test_jsonl_delivery_ledger_store_supports_retention_deletes", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "watasu-ledger-"));
+    const filePath = join(tempDir, "delivery-ledger.jsonl");
+    const store = new JsonlDeliveryLedgerStore({
+      filePath
+    });
+    const expired = createLedgerRow({
+      idempotency_key: "expired-submit",
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    });
+    const active = createLedgerRow({
+      idempotency_key: "active-submit",
+      delivered_at: "2026-06-13T12:00:00.000Z"
+    });
+
+    try {
+      store.writeDeliveryAttempt(expired);
+      store.writeDeliveryAttempt(active);
+
+      const result = runMetadataLedgerRetention({
+        now: new Date("2026-06-14T12:00:00.000Z"),
+        retentionDays: 7,
+        store
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        deleted: 1,
+        retained: 1
+      });
+      expect(store.listDeliveryRows()).toEqual([active]);
+    } finally {
+      rmSync(tempDir, {
+        recursive: true,
+        force: true
+      });
+    }
   });
 });
