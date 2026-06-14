@@ -3,12 +3,44 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { findSecretLikeValues } from "../../../scripts/secret-scan.mjs";
 
 const rootDir = new URL("../../../", import.meta.url);
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(new URL(path, rootDir), "utf8"));
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Expected a YAML object.");
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    throw new Error("Expected a YAML array.");
+  }
+
+  return value.map(asRecord);
+}
+
+function findNamedRecord(records: Array<Record<string, unknown>>, name: string): Record<string, unknown> {
+  const record = records.find((candidate) => candidate["name"] === name);
+  if (record === undefined) {
+    throw new Error(`Expected YAML record named ${name}.`);
+  }
+
+  return record;
+}
+
+function envVarsByKey(service: Record<string, unknown>): Map<string, Record<string, unknown>> {
+  return new Map(
+    asRecordArray(service["envVars"]).map((envVar) => [String(envVar["key"]), envVar])
+  );
 }
 
 describe("workspace foundation", () => {
@@ -105,25 +137,60 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("\"encrypted_payload\"");
   }, 60_000);
 
-  test("test_render_blueprint_uses_health_check_and_unsynced_secrets", () => {
-    const renderYaml = readFileSync(new URL("render.yaml", rootDir), "utf8");
+  test("test_render_blueprint_uses_reviewable_private_alpha_boundaries", () => {
+    const blueprint = asRecord(parseYaml(readFileSync(new URL("render.yaml", rootDir), "utf8")));
+    const services = asRecordArray(blueprint["services"]);
+    const databases = asRecordArray(blueprint["databases"]);
+    const web = findNamedRecord(services, "watasu-hosted");
+    const retention = findNamedRecord(services, "watasu-metadata-retention");
+    const database = findNamedRecord(databases, "watasu-metadata");
+    const webEnv = envVarsByKey(web);
+    const retentionEnv = envVarsByKey(retention);
 
-    expect(renderYaml).toContain("name: watasu-hosted");
-    expect(renderYaml).toContain("autoDeployTrigger: checksPass");
-    expect(renderYaml).toContain("healthCheckPath: /health");
-    expect(renderYaml).toContain("api.watasu.ai");
-    expect(renderYaml).toContain("value: 24.14.1");
-    expect(renderYaml).toContain("name: watasu-metadata");
-    expect(renderYaml).toContain("type: cron");
-    expect(renderYaml).toContain("name: watasu-metadata-retention");
-    expect(renderYaml).toContain("schedule: \"0 3 * * *\"");
-    expect(renderYaml).toContain("startCommand: pnpm --filter @watasu/hosted retention");
-    expect(renderYaml).toContain("fromDatabase:");
-    expect(renderYaml).toContain("property: connectionString");
-    expect(renderYaml).toContain("ipAllowList: []");
-    expect(renderYaml).toContain("key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET");
-    expect(renderYaml).toContain("sync: false");
-    expect(renderYaml).not.toContain("WATASU_POSTGRES_URL: postgres://");
+    expect(web).toMatchObject({
+      type: "web",
+      runtime: "node",
+      plan: "starter",
+      region: "singapore",
+      branch: "main",
+      buildCommand: "corepack enable && pnpm install --frozen-lockfile && pnpm typecheck",
+      startCommand: "pnpm --filter @watasu/hosted start",
+      autoDeployTrigger: "checksPass",
+      healthCheckPath: "/health",
+      domains: ["api.watasu.ai"]
+    });
+    expect(webEnv.get("NODE_VERSION")).toMatchObject({ value: "24.14.1" });
+    expect(webEnv.get("WATASU_METADATA_LEDGER_STORE")).toMatchObject({ value: "disabled" });
+    expect(webEnv.get("WATASU_SERVICE_IDENTITY_SIGNING_SECRET")).toMatchObject({ sync: false });
+    expect(webEnv.has("WATASU_POSTGRES_URL")).toBe(false);
+
+    expect(retention).toMatchObject({
+      type: "cron",
+      runtime: "node",
+      plan: "starter",
+      region: "singapore",
+      branch: "main",
+      schedule: "0 3 * * *",
+      buildCommand: "corepack enable && pnpm install --frozen-lockfile && pnpm typecheck",
+      startCommand: "pnpm --filter @watasu/hosted retention"
+    });
+    expect(retentionEnv.get("NODE_VERSION")).toMatchObject({ value: "24.14.1" });
+    expect(retentionEnv.get("WATASU_METADATA_LEDGER_STORE")).toMatchObject({ value: "postgres" });
+    expect(retentionEnv.get("WATASU_POSTGRES_SSL")).toMatchObject({ value: "require" });
+    expect(retentionEnv.get("WATASU_POSTGRES_URL")).toMatchObject({
+      fromDatabase: {
+        name: "watasu-metadata",
+        property: "connectionString"
+      }
+    });
+
+    expect(database).toMatchObject({
+      region: "singapore",
+      plan: "basic-256mb",
+      databaseName: "watasu",
+      user: "watasu_app",
+      ipAllowList: []
+    });
   });
 
   test("test_ci_workflow_runs_loop_with_read_only_permissions", () => {
