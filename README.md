@@ -209,6 +209,7 @@ Currently implemented:
 - metadata ledger read authorization helper with tenant, role, and audit checks
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
+- hosted request route parsing that rejects unsafe encoded request IDs before app delegation
 - hosted request-specific Agent Card route for published request versions
 - hosted request-specific plaintext and encrypted envelope schema routes for published request versions
 - hosted A2A submit route for validating and delivering encrypted submissions without retaining payload bodies

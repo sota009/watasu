@@ -19,6 +19,7 @@ import type {
   HostedSenderTrustResolver,
   HostedSenderTrustResult
 } from "./hosted-sender-auth.js";
+import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedSubmitRequest {
   method: string;
@@ -271,12 +272,7 @@ function matchSubmitPath(path: string): string | undefined {
     return undefined;
   }
 
-  try {
-    const requestId = decodeURIComponent(match[1] ?? "");
-    return requestId.length === 0 ? undefined : requestId;
-  } catch {
-    return undefined;
-  }
+  return decodeHostedRequestIdSegment(match[1]);
 }
 
 function latestPublishedRequest(versions: PublishedRequestVersion[]): PublishedRequestVersion | undefined {

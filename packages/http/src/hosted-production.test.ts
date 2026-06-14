@@ -423,6 +423,50 @@ describe("hosted production HTTP app", () => {
     expect(handledPaths).toEqual(["/requests/event-attendee-intake/ledger"]);
   });
 
+  test.each([
+    ["GET", "/requests/event%2Funsafe/agent-card.json"],
+    ["GET", "/requests/event%2Funsafe/schemas/plaintext.json"],
+    ["GET", "/requests/event%2Funsafe/schemas/envelope.json"],
+    ["POST", "/requests/event%2Funsafe/publish"],
+    ["POST", "/requests/event%2Funsafe/submit"],
+    ["GET", "/requests/event%2Funsafe/ledger"]
+  ])("test_hosted_routes_reject_encoded_slash_request_id", async (method, path) => {
+    // Arrange
+    const requestVersions = new InMemoryRequestVersionRepository();
+    requestVersions.publish("event/unsafe", definition);
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle unsafe request id route");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("unsafe request id"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions,
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle unsafe request id route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method,
+      path
+    }));
+
+    // Assert
+    expect(response.status).toBe(404);
+    expect(parseJson(response.body)).toEqual({
+      ok: false,
+      error: {
+        code: "not_found",
+        message: "Hosted production route was not found."
+      }
+    });
+  });
+
   test("test_unknown_hosted_route_returns_not_found", async () => {
     // Arrange
     const app = createHostedProductionApp({

@@ -19,6 +19,7 @@ import type {
   HostedSubmitRequest,
   HostedSubmitResponse
 } from "./hosted-submit.js";
+import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest & HostedSubmitRequest;
 export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse & HostedSubmitResponse;
@@ -47,11 +48,11 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
         });
       }
 
-      if (request.method === "POST" && /^\/requests\/[^/]+\/publish$/.test(request.path)) {
+      if (matchActionPath(request, "POST", "publish") !== undefined) {
         return input.publishApp.handle(request);
       }
 
-      if (request.method === "POST" && /^\/requests\/[^/]+\/submit$/.test(request.path)) {
+      if (matchActionPath(request, "POST", "submit") !== undefined) {
         return input.submitApp.handle(request);
       }
 
@@ -83,7 +84,7 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
         }));
       }
 
-      if (request.method === "GET" && /^\/requests\/[^/]+\/ledger$/.test(request.path)) {
+      if (matchActionPath(request, "GET", "ledger") !== undefined) {
         return input.metadataApp.handle(request);
       }
 
@@ -96,6 +97,23 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
       });
     }
   };
+}
+
+function matchActionPath(
+  request: HostedProductionRequest,
+  method: string,
+  action: "publish" | "submit" | "ledger"
+): string | undefined {
+  if (request.method !== method) {
+    return undefined;
+  }
+
+  const match = new RegExp(`^/requests/([^/]+)/${action}$`).exec(request.path);
+  if (match === null) {
+    return undefined;
+  }
+
+  return decodeHostedRequestIdSegment(match[1]);
 }
 
 function matchSchemaPath(request: HostedProductionRequest): {
@@ -111,20 +129,16 @@ function matchSchemaPath(request: HostedProductionRequest): {
     return undefined;
   }
 
-  try {
-    const requestId = decodeURIComponent(match[1] ?? "");
-    const schema = match[2];
-    if (requestId.length === 0 || (schema !== "plaintext" && schema !== "envelope")) {
-      return undefined;
-    }
-
-    return {
-      requestId,
-      schema
-    };
-  } catch {
+  const requestId = decodeHostedRequestIdSegment(match[1]);
+  const schema = match[2];
+  if (requestId === undefined || (schema !== "plaintext" && schema !== "envelope")) {
     return undefined;
   }
+
+  return {
+    requestId,
+    schema
+  };
 }
 
 function matchAgentCardPath(request: HostedProductionRequest): string | undefined {
@@ -137,12 +151,7 @@ function matchAgentCardPath(request: HostedProductionRequest): string | undefine
     return undefined;
   }
 
-  try {
-    const requestId = decodeURIComponent(match[1] ?? "");
-    return requestId.length === 0 ? undefined : requestId;
-  } catch {
-    return undefined;
-  }
+  return decodeHostedRequestIdSegment(match[1]);
 }
 
 function latestPublishedRequest(versions: PublishedRequestVersion[]): PublishedRequestVersion | undefined {

@@ -2,6 +2,7 @@ import type {
   HostedServiceIdentity,
   MetadataLedgerReader
 } from "@watasu/core";
+import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedMetadataRequest {
   method: string;
@@ -87,11 +88,7 @@ function matchLedgerPath(path: string): string | undefined {
     return undefined;
   }
 
-  try {
-    return decodeURIComponent(match[1] ?? "");
-  } catch {
-    return undefined;
-  }
+  return decodeHostedRequestIdSegment(match[1]);
 }
 
 function jsonResponse(status: number, value: unknown): HostedMetadataResponse {

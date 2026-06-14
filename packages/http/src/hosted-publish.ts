@@ -6,6 +6,7 @@ import {
   type RequestDefinition,
   type RequestVersionPublisher
 } from "@watasu/core";
+import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedPublishRequest {
   method: string;
@@ -162,12 +163,7 @@ function matchPublishPath(path: string): string | undefined {
     return undefined;
   }
 
-  try {
-    const requestId = decodeURIComponent(match[1] ?? "");
-    return requestId.length === 0 ? undefined : requestId;
-  } catch {
-    return undefined;
-  }
+  return decodeHostedRequestIdSegment(match[1]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
