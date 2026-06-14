@@ -376,6 +376,6 @@ Ask for human review at these points:
 - Real user-side agent.
 - Legal consent engine.
 - Identity proof, KYC, or delegated authority.
-- Production retry queue for encrypted payload.
+- Production retry queue that stores encrypted payload bodies inside watasu.
 - Custom crypto or HPKE-first design.
 - Full hosted deployment pipeline.

@@ -168,6 +168,6 @@ Still remaining for Hosted Production MVP:
 - optional persistent metadata store and hosted retention jobs
 - MCP hosted production surface beyond local in-memory publish and read tools
 - service-owned key management beyond the local JWE wrapper
-- production retry queue for payload bodies
+- production sender resubmission/backoff guidance that keeps the no payload retry queue rule
 
 See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.
