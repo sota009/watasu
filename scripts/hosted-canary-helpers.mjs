@@ -44,6 +44,7 @@ export function buildHostedCanarySuccessReport(input) {
   return {
     ok: true,
     checked_at: input.checkedAt,
+    checked_origin: new URL(input.urls.health).origin,
     checked_url: input.urls.health,
     checked_public_routes: [
       input.urls.unpublishedAgentCard,

@@ -183,6 +183,7 @@ describe("hosted canary helpers", () => {
     expect(report).toEqual({
       ok: true,
       checked_at: "2026-06-15T00:00:00.000Z",
+      checked_origin: "https://api.watasu.ai",
       checked_url: "https://api.watasu.ai/health",
       checked_public_routes: [
         `https://api.watasu.ai/requests/${hostedCanaryUnpublishedRequestId}/agent-card.json`,

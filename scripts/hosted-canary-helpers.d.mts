@@ -22,6 +22,7 @@ export function buildHostedCanarySuccessReport(input: {
 }): {
   ok: true;
   checked_at: string;
+  checked_origin: string;
   checked_url: string;
   checked_public_routes: string[];
   checked_method_boundaries: Array<{
