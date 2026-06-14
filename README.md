@@ -185,13 +185,13 @@ Currently implemented:
 - hosted MCP publish and ledger tools that delegate to the hosted production app
 - hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
 - hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
+- hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
 Still remaining for Hosted Production MVP:
 
 - PostgreSQL infrastructure provisioning for hosted metadata stores
-- production MCP HTTP transport entrypoint on the selected deployment platform
 
 Not in scope for the MVP:
 
