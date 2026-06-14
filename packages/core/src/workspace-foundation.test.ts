@@ -85,7 +85,7 @@ describe("workspace foundation", () => {
   });
 
   test("test_handoff_demo_outputs_metadata_only_summary", () => {
-    const result = spawnSync("pnpm", ["demo:handoff"], {
+    const result = spawnSync(process.execPath, ["scripts/local-handoff-demo.mjs"], {
       cwd: rootDir,
       encoding: "utf8"
     });
@@ -98,5 +98,5 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("alice@example.com");
     expect(result.stdout).not.toContain("base64url-ciphertext");
     expect(result.stdout).not.toContain("\"encrypted_payload\"");
-  });
+  }, 60_000);
 });

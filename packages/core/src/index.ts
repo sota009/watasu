@@ -29,6 +29,7 @@ export {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
+  buildSenderSignaturePayload,
   createIdempotencyClaimKey,
   validateSubmissionEnvelope
 } from "./submission.js";
@@ -91,7 +92,8 @@ export type {
   SubmissionValidationContext,
   SubmissionValidationError,
   SubmissionValidationResult,
-  TrustedInviteBinding
+  TrustedInviteBinding,
+  TrustedSenderPublicKey
 } from "./submission.js";
 export type {
   DeliveryClient,
