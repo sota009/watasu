@@ -198,6 +198,14 @@ pnpm --silent deploy:preflight
 
 The preflight checks the repo-side Render Blueprint, domain, runtime commands, secret-generation command, and remaining external actions without printing secret values or database URLs.
 
+Render account setup brief:
+
+```bash
+pnpm --silent render:brief
+```
+
+The brief prints the Render service names, database name, domain, secret command, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
+
 Production cutover plan:
 
 ```bash

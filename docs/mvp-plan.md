@@ -128,6 +128,7 @@ Current repo-side status:
 - Done: hosted production accepts A2A HTTP+JSON submissions at `/requests/{request_id}/submit`, validates envelope metadata, enforces idempotency/rate-limit hooks, and delivers encrypted envelopes without retaining payload bodies.
 - Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures.
 - Done: `pnpm --silent deploy:preflight` reports repo-side Render readiness and remaining external actions without printing secret values or database URLs.
+- Done: `pnpm --silent render:brief` reports Render service names, database name, domain, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
 - Done: `pnpm --silent cutover:prepare` records the cutover head, deploy preflight, and hosted smoke JSON under the gitignored `cutover-evidence/` directory.
 - Done: `pnpm --silent cutover:ci` records a completed successful GitHub Actions `ci` run that matches `cutover-evidence/cutover-head.txt`.
 - Done: `pnpm --silent cutover:canary` records the deployed hosted canary result under `cutover-evidence/canary.json` without saving payload or secret-like output.
@@ -140,7 +141,7 @@ Current repo-side status:
 
 Product owner actions:
 
-1. Create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
+1. Run `pnpm --silent render:brief`, then create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
 2. Connect the GitHub repository to Render with least necessary repository access.
 3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
@@ -185,6 +186,7 @@ Owner checklist for the first production cutover:
 [x] Repo-side production cutover status command exists: `pnpm --silent cutover:status`.
 [x] Repo-side production cutover verifier command exists: `pnpm --silent cutover:verify`.
 [x] Repo-side Render deploy preflight command exists: `pnpm --silent deploy:preflight`.
+[x] Repo-side Render account setup brief command exists: `pnpm --silent render:brief`.
 [x] Repo-side hosted runtime smoke command exists: `pnpm --silent smoke:hosted`.
 [ ] `cutover-evidence/cutover-head.txt` records the exact deployed commit SHA.
 [ ] GitHub Actions CI is green on the deployed commit.

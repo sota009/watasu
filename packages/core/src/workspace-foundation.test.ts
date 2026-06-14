@@ -133,6 +133,7 @@ describe("workspace foundation", () => {
       "loop:full": "node scripts/loop-engineer.mjs --full",
       "pr:draft": "node scripts/create-draft-pr.mjs",
       "review:self": "node scripts/gstack-review-preflight.mjs",
+      "render:brief": "node scripts/render-setup-brief.mjs",
       "secret:identity": "node scripts/generate-identity-secret.mjs",
       "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
       test: "pnpm typecheck && vitest run",
@@ -279,6 +280,46 @@ describe("workspace foundation", () => {
     ]);
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+  });
+
+  test("test_render_setup_brief_reports_account_steps_without_secret_values", () => {
+    const result = spawnSync("pnpm", ["--silent", "render:brief"], {
+      cwd: rootDir,
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      target_domain: string;
+      render_services: string[];
+      render_database: string;
+      secret_command: string;
+      manual_secret_names: string[];
+      dns_origin: string;
+      external_actions: string[];
+      after_render_commands: string[];
+    };
+    expect(report).toMatchObject({
+      ok: true,
+      target_domain: "api.watasu.ai",
+      render_services: ["watasu-hosted", "watasu-metadata-retention"],
+      render_database: "watasu-metadata",
+      secret_command: "pnpm --silent secret:identity --plain",
+      manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"],
+      dns_origin: "https://api.watasu.ai",
+      after_render_commands: [
+        "pnpm --silent cutover:status",
+        "pnpm --silent cutover:canary",
+        "pnpm --silent cutover:retention",
+        "pnpm --silent cutover:verify"
+      ]
+    });
+    expect(report.external_actions).toContain("Create the Render Blueprint from render.yaml.");
+    expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+    expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
+    expect(result.stdout).not.toContain("postgres://");
   });
 
   test("test_hosted_start_smoke_runs_compiled_entrypoint_and_health_check", () => {
