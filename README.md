@@ -210,6 +210,7 @@ Currently implemented:
 - hosted metadata ledger HTTP adapter that resolves service identity server-side
 - hosted production HTTP app that composes publish and metadata routes
 - hosted request-specific Agent Card route for published request versions
+- hosted request-specific plaintext and encrypted envelope schema routes for published request versions
 - hosted A2A submit route for validating and delivering encrypted submissions without retaining payload bodies
 - hosted submit sender-trust resolver hook for `verified_sender` and `private_invite` authentication boundaries
 - low-information hosted `/health` endpoint for deployment health checks
