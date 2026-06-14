@@ -24,6 +24,12 @@ export {
   watasuA2aProtocolVersion
 } from "./a2a.js";
 export { publishRequestVersion } from "./publish.js";
+export {
+  InMemoryIdempotencyStore,
+  InMemorySubmissionRateLimiter,
+  createIdempotencyClaimKey,
+  validateSubmissionEnvelope
+} from "./submission.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
   RequestDefinition,
@@ -50,3 +56,15 @@ export type {
   A2aProtocolGateResult,
   A2aSubmissionRequest
 } from "./a2a.js";
+export type {
+  AcceptedSubmission,
+  IdempotencyValidationClaim,
+  IdempotencyStore,
+  SubmissionCapability,
+  SubmissionEnvelope,
+  SubmissionRateLimiter,
+  SubmissionValidationContext,
+  SubmissionValidationError,
+  SubmissionValidationResult,
+  TrustedInviteBinding
+} from "./submission.js";
