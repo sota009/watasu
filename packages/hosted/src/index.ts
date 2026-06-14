@@ -4,6 +4,7 @@ import {
   InMemoryOwnershipChallengeRegistry,
   InMemoryRequestVersionRepository,
   createMigratedPostgresDeliveryLedgerStore,
+  runHostedMetadataLedgerRetentionJob,
   type PostgresQueryClient,
   type PostgresDeliveryLedgerStore
 } from "@watasu/core";
@@ -40,6 +41,11 @@ export interface HostedProductionServerRuntime {
   config: HostedRuntimeConfig;
   server: Server;
   close(): Promise<void>;
+}
+
+export interface HostedRetentionJobConfig {
+  tenantId: string;
+  retentionDays: number;
 }
 
 export type HostedIdentityProviderConfig =
@@ -98,6 +104,21 @@ export function createSignedHeaderIdentityProviderFromEnv(input: {
         signingSecret: config.signingSecret
       });
     }
+  };
+}
+
+export function loadHostedRetentionJobConfig(env: Record<string, string | undefined>): HostedRetentionJobConfig {
+  const tenantId = env["WATASU_RETENTION_TENANT_ID"]?.trim();
+  if (tenantId === undefined || tenantId.length === 0) {
+    throw new Error("WATASU_RETENTION_TENANT_ID is required.");
+  }
+
+  return {
+    tenantId,
+    retentionDays: parsePositiveIntegerEnv(env["WATASU_METADATA_RETENTION_DAYS"], {
+      defaultValue: 90,
+      name: "WATASU_METADATA_RETENTION_DAYS"
+    })
   };
 }
 
@@ -222,4 +243,31 @@ export async function createHostedPostgresLedgerStoreFromEnv(input: {
       await pool.end();
     }
   };
+}
+
+export async function runHostedPostgresRetentionJobFromEnv(input: {
+  env: Record<string, string | undefined>;
+  now: () => Date;
+  createPool?: ((config: PoolConfig) => PostgresPoolLike) | undefined;
+}) {
+  const config = loadHostedRetentionJobConfig(input.env);
+  const runtime = await createHostedPostgresLedgerStoreFromEnv({
+    env: input.env,
+    tenantId: config.tenantId,
+    createPool: input.createPool
+  });
+
+  try {
+    return await runHostedMetadataLedgerRetentionJob({
+      serviceIdentity: {
+        tenant_id: config.tenantId,
+        roles: ["auditor"]
+      },
+      now: input.now(),
+      retentionDays: config.retentionDays,
+      store: runtime.store
+    });
+  } finally {
+    await runtime.close();
+  }
 }

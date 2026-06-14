@@ -23,8 +23,8 @@ export interface PostgresQueryClient {
 }
 
 export interface RetentionDeliveryLedgerStore {
-  listDeliveryRows(): DeliveryLedgerRow[];
-  deleteDeliveryRows(rows: DeliveryLedgerRow[]): void;
+  listDeliveryRows(): DeliveryLedgerRow[] | Promise<DeliveryLedgerRow[]>;
+  deleteDeliveryRows(rows: DeliveryLedgerRow[]): void | Promise<void>;
 }
 
 export interface MetadataLedgerRetentionResult {
@@ -130,7 +130,7 @@ export class JsonlDeliveryLedgerStore implements PersistentDeliveryLedgerStore, 
   }
 }
 
-export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStore {
+export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStore, RetentionDeliveryLedgerStore {
   readonly #queryClient: PostgresQueryClient;
   readonly #tenantId: string;
 
@@ -172,6 +172,51 @@ export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStor
         metadata.error_code ?? null
       ]
     );
+  }
+
+  async listDeliveryRows(): Promise<DeliveryLedgerRow[]> {
+    const result = await this.#queryClient.query(
+      `select
+        request_id,
+        request_version,
+        idempotency_key,
+        submitted_at,
+        delivered_at,
+        delivery_status,
+        destination_url_hash,
+        encrypted_payload_hash,
+        webhook_status,
+        error_code
+      from watasu_delivery_ledger
+      where tenant_id = $1
+      order by delivered_at asc`,
+      [
+        this.#tenantId
+      ]
+    );
+
+    return result.rows.map((row) => sanitizeDeliveryLedgerRow(row as DeliveryLedgerRow));
+  }
+
+  async deleteDeliveryRows(rows: DeliveryLedgerRow[]): Promise<void> {
+    const sanitizedRows = rows.map((row) => sanitizeDeliveryLedgerRow(row));
+    for (const row of sanitizedRows) {
+      await this.#queryClient.query(
+        `delete from watasu_delivery_ledger
+        where tenant_id = $1
+          and request_id = $2
+          and request_version = $3
+          and idempotency_key = $4
+          and delivered_at = $5`,
+        [
+          this.#tenantId,
+          row.request_id,
+          row.request_version,
+          row.idempotency_key,
+          row.delivered_at
+        ]
+      );
+    }
   }
 }
 
@@ -314,17 +359,17 @@ export function createMetadataLedgerReader(input: {
   };
 }
 
-export function runMetadataLedgerRetention(input: {
+export async function runMetadataLedgerRetention(input: {
   now: Date;
   retentionDays: number;
   store: RetentionDeliveryLedgerStore;
-}): MetadataLedgerRetentionResult {
-  const rows = input.store.listDeliveryRows();
+}): Promise<MetadataLedgerRetentionResult> {
+  const rows = await input.store.listDeliveryRows();
   const cutoffMs = input.now.getTime() - input.retentionDays * 24 * 60 * 60 * 1000;
   const expiredRows = rows.filter((row) => new Date(row.delivered_at).getTime() < cutoffMs);
 
   if (expiredRows.length > 0) {
-    input.store.deleteDeliveryRows(expiredRows);
+    await input.store.deleteDeliveryRows(expiredRows);
   }
 
   return {
@@ -335,12 +380,12 @@ export function runMetadataLedgerRetention(input: {
   };
 }
 
-export function runHostedMetadataLedgerRetentionJob(input: {
+export async function runHostedMetadataLedgerRetentionJob(input: {
   serviceIdentity: HostedServiceIdentity;
   now: Date;
   retentionDays: number;
   store: RetentionDeliveryLedgerStore;
-}): HostedMetadataLedgerRetentionJobResult {
+}): Promise<HostedMetadataLedgerRetentionJobResult> {
   if (!input.serviceIdentity.roles.includes("auditor")) {
     return {
       ok: false,
@@ -354,7 +399,7 @@ export function runHostedMetadataLedgerRetentionJob(input: {
 
   return {
     tenant_id: input.serviceIdentity.tenant_id,
-    ...runMetadataLedgerRetention({
+    ...await runMetadataLedgerRetention({
       now: input.now,
       retentionDays: input.retentionDays,
       store: input.store

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
   createHostedProductionServerFromEnv,
+  runHostedPostgresRetentionJobFromEnv,
   createSignedHeaderIdentityProviderFromEnv,
   createHostedPostgresLedgerStoreFromEnv,
   createNodePostgresPoolConfig,
   createPostgresPoolQueryClient,
+  loadHostedRetentionJobConfig,
   loadHostedIdentityProviderConfig
 } from "./index.js";
 
@@ -35,6 +37,22 @@ describe("hosted production runtime package", () => {
         WATASU_IDENTITY_PROVIDER: "signed_headers"
       })
     ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
+  });
+
+  test("test_retention_job_config_reads_tenant_and_days", () => {
+    const config = loadHostedRetentionJobConfig({
+      WATASU_RETENTION_TENANT_ID: "tenant-a",
+      WATASU_METADATA_RETENTION_DAYS: "14"
+    });
+
+    expect(config).toEqual({
+      tenantId: "tenant-a",
+      retentionDays: 14
+    });
+  });
+
+  test("test_retention_job_config_requires_tenant", () => {
+    expect(() => loadHostedRetentionJobConfig({})).toThrow("WATASU_RETENTION_TENANT_ID is required.");
   });
 
   test("test_signed_header_identity_provider_from_env_resolves_principal", () => {
@@ -167,6 +185,70 @@ describe("hosted production runtime package", () => {
     // Assert
     expect(queries[0]?.text).toContain("create table if not exists watasu_delivery_ledger");
     expect(queries[1]?.values[0]).toBe("tenant-a");
+    expect(closed).toBe(true);
+    expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_hosted_postgres_retention_job_from_env_deletes_expired_rows_and_closes_pool", async () => {
+    // Arrange
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    let closed = false;
+
+    // Act
+    const result = await runHostedPostgresRetentionJobFromEnv({
+      env: {
+        WATASU_METADATA_LEDGER_STORE: "postgres",
+        WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
+        WATASU_POSTGRES_RUN_MIGRATIONS: "false",
+        WATASU_RETENTION_TENANT_ID: "tenant-a",
+        WATASU_METADATA_RETENTION_DAYS: "7"
+      },
+      now: () => new Date("2026-06-15T00:00:00.000Z"),
+      createPool() {
+        return {
+          async query(text, values) {
+            queries.push({
+              text,
+              values
+            });
+            return {
+              rows: text.includes("select")
+                ? [
+                    {
+                      request_id: "request-a",
+                      request_version: "v1",
+                      idempotency_key: "expired-submit",
+                      submitted_at: "2026-06-01T00:00:00.000Z",
+                      delivered_at: "2026-06-01T00:00:01.000Z",
+                      delivery_status: "delivered",
+                      destination_url_hash: "sha256:destination",
+                      encrypted_payload_hash: "sha256:payload"
+                    }
+                  ]
+                : []
+            };
+          },
+          async end() {
+            closed = true;
+          }
+        };
+      }
+    });
+
+    // Assert
+    expect(result).toEqual({
+      ok: true,
+      tenant_id: "tenant-a",
+      scanned: 1,
+      deleted: 1,
+      retained: 0
+    });
+    expect(queries[0]?.text).toContain("select");
+    expect(queries[1]?.text).toContain("delete from watasu_delivery_ledger");
     expect(closed).toBe(true);
     expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
     expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");

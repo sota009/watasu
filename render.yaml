@@ -23,3 +23,38 @@ services:
         value: disabled
       - key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET
         sync: false
+  - type: cron
+    name: watasu-metadata-retention
+    runtime: node
+    plan: starter
+    region: singapore
+    branch: main
+    schedule: "0 3 * * *"
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm typecheck
+    startCommand: pnpm --filter @watasu/hosted retention
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: WATASU_METADATA_LEDGER_STORE
+        value: postgres
+      - key: WATASU_POSTGRES_URL
+        fromDatabase:
+          name: watasu-metadata
+          property: connectionString
+      - key: WATASU_POSTGRES_SSL
+        value: require
+      - key: WATASU_POSTGRES_POOL_MAX
+        value: "2"
+      - key: WATASU_POSTGRES_RUN_MIGRATIONS
+        value: "true"
+      - key: WATASU_RETENTION_TENANT_ID
+        value: watasu-private-alpha
+      - key: WATASU_METADATA_RETENTION_DAYS
+        value: "90"
+databases:
+  - name: watasu-metadata
+    region: singapore
+    plan: basic-256mb
+    databaseName: watasu
+    user: watasu_app
+    ipAllowList: []

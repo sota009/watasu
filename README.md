@@ -220,6 +220,7 @@ Currently implemented:
 - hosted PostgreSQL runtime config parser and migrated ledger store factory for injected pool clients
 - hosted Node/PostgreSQL runtime package with bounded pool config and query adapter
 - hosted signed-header identity provider runtime config for production entrypoints
+- hosted Postgres retention command for scheduled metadata cleanup
 - metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
 - hosted metadata retention job runner gated by auditor role
 - flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
@@ -229,12 +230,12 @@ Currently implemented:
 - hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
 - hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
 - hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
-- Render Blueprint for the first health-checkable `api.watasu.ai` web service
+- Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
 - hosted canary script for `/health`
 - sender and receiver fixtures for local A2A handoff checks
 - file-based CLI wrappers and a local HTTP demo
 
-Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for a health-checkable `api.watasu.ai` web service. Persistent hosted metadata ledger enablement, database wiring in Blueprint, retention cron wiring, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
+Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for `api.watasu.ai` with a health-checkable web service, Blueprint-managed PostgreSQL, and scheduled metadata retention. Render workspace/billing setup, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
 
 Not in scope for the MVP:
 

@@ -193,7 +193,7 @@ describe("storage policy controlled delivery ledger", () => {
     ]);
   });
 
-  test("test_metadata_retention_deletes_expired_ledger_rows", () => {
+  test("test_metadata_retention_deletes_expired_ledger_rows", async () => {
     const deleted: DeliveryLedgerRow[] = [];
     const expired = createLedgerRow({
       idempotency_key: "expired-submit",
@@ -204,7 +204,7 @@ describe("storage policy controlled delivery ledger", () => {
       delivered_at: "2026-06-13T12:00:00.000Z"
     });
 
-    const result = runMetadataLedgerRetention({
+    const result = await runMetadataLedgerRetention({
       now: new Date("2026-06-14T12:00:00.000Z"),
       retentionDays: 7,
       store: {
@@ -226,13 +226,13 @@ describe("storage policy controlled delivery ledger", () => {
     expect(deleted).toEqual([expired]);
   });
 
-  test("test_metadata_retention_keeps_boundary_row", () => {
+  test("test_metadata_retention_keeps_boundary_row", async () => {
     const deleted: DeliveryLedgerRow[] = [];
     const boundary = createLedgerRow({
       delivered_at: "2026-06-07T12:00:00.000Z"
     });
 
-    const result = runMetadataLedgerRetention({
+    const result = await runMetadataLedgerRetention({
       now: new Date("2026-06-14T12:00:00.000Z"),
       retentionDays: 7,
       store: {
@@ -253,13 +253,13 @@ describe("storage policy controlled delivery ledger", () => {
     expect(deleted).toHaveLength(0);
   });
 
-  test("test_metadata_retention_summary_does_not_include_payload_body", () => {
+  test("test_metadata_retention_summary_does_not_include_payload_body", async () => {
     const expired = createLedgerRow({
       encrypted_payload_hash: sha256Hash("base64url-ciphertext"),
       delivered_at: "2026-06-01T12:00:00.000Z"
     });
 
-    const result = runMetadataLedgerRetention({
+    const result = await runMetadataLedgerRetention({
       now: new Date("2026-06-14T12:00:00.000Z"),
       retentionDays: 7,
       store: {
@@ -303,7 +303,7 @@ describe("storage policy controlled delivery ledger", () => {
     }
   });
 
-  test("test_jsonl_delivery_ledger_store_supports_retention_deletes", () => {
+  test("test_jsonl_delivery_ledger_store_supports_retention_deletes", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "watasu-ledger-"));
     const filePath = join(tempDir, "delivery-ledger.jsonl");
     const store = new JsonlDeliveryLedgerStore({
@@ -322,7 +322,7 @@ describe("storage policy controlled delivery ledger", () => {
       store.writeDeliveryAttempt(expired);
       store.writeDeliveryAttempt(active);
 
-      const result = runMetadataLedgerRetention({
+      const result = await runMetadataLedgerRetention({
         now: new Date("2026-06-14T12:00:00.000Z"),
         retentionDays: 7,
         store
@@ -342,12 +342,12 @@ describe("storage policy controlled delivery ledger", () => {
     }
   });
 
-  test("test_hosted_retention_job_requires_auditor_role", () => {
+  test("test_hosted_retention_job_requires_auditor_role", async () => {
     const store = new JsonlDeliveryLedgerStore({
       filePath: join(mkdtempSync(join(tmpdir(), "watasu-ledger-")), "delivery-ledger.jsonl")
     });
 
-    const result = runHostedMetadataLedgerRetentionJob({
+    const result = await runHostedMetadataLedgerRetentionJob({
       serviceIdentity: {
         tenant_id: "tenant-a",
         roles: ["publisher"]
@@ -366,7 +366,7 @@ describe("storage policy controlled delivery ledger", () => {
     });
   });
 
-  test("test_hosted_retention_job_deletes_expired_metadata_without_payload_body", () => {
+  test("test_hosted_retention_job_deletes_expired_metadata_without_payload_body", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "watasu-ledger-"));
     const store = new JsonlDeliveryLedgerStore({
       filePath: join(tempDir, "delivery-ledger.jsonl")
@@ -382,7 +382,7 @@ describe("storage policy controlled delivery ledger", () => {
     }));
 
     try {
-      const result = runHostedMetadataLedgerRetentionJob({
+      const result = await runHostedMetadataLedgerRetentionJob({
         serviceIdentity: {
           tenant_id: "tenant-a",
           roles: ["auditor"]
@@ -461,6 +461,63 @@ describe("storage policy controlled delivery ledger", () => {
       204,
       null
     ]);
+  });
+
+  test("test_postgres_delivery_ledger_store_supports_retention_reads_and_deletes", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const active = createLedgerRow({
+      idempotency_key: "active-submit",
+      delivered_at: "2026-06-14T12:00:00.000Z"
+    });
+    const expired = createLedgerRow({
+      idempotency_key: "expired-submit",
+      delivered_at: "2026-06-01T12:00:00.000Z"
+    });
+    const store = new PostgresDeliveryLedgerStore({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("select")
+              ? [expired, active]
+              : []
+          };
+        }
+      }
+    });
+
+    const result = await runMetadataLedgerRetention({
+      now: new Date("2026-06-15T00:00:00.000Z"),
+      retentionDays: 7,
+      store
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      scanned: 2,
+      deleted: 1,
+      retained: 1
+    });
+    expect(queries[0]?.text).toContain("where tenant_id = $1");
+    expect(queries[0]?.values).toEqual(["tenant-a"]);
+    expect(queries[1]?.text).toContain("delete from watasu_delivery_ledger");
+    expect(queries[1]?.text).toContain("tenant_id = $1");
+    expect(queries[1]?.values).toEqual([
+      "tenant-a",
+      "event-attendee-intake",
+      "v1",
+      "expired-submit",
+      "2026-06-01T12:00:00.000Z"
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+    expect(JSON.stringify(queries)).not.toContain("base64url-ciphertext");
   });
 
   test("test_postgres_delivery_ledger_schema_is_metadata_only", () => {

@@ -64,7 +64,7 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for a health-checkable `api.watasu.ai` web service; persistent metadata ledger deployment remains follow-up work.
+Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for `api.watasu.ai`: health-checkable web service, Blueprint-managed PostgreSQL, and scheduled metadata retention. External Render account, DNS, TLS, and secret setup remain follow-up work.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
@@ -88,7 +88,7 @@ pnpm loop:full
 pnpm demo:handoff
 ```
 
-Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, and hosted health canary are now present for the first web-service deploy. Blueprint-managed PostgreSQL, retention cron wiring, cloud account setup, managed database creation, DNS, TLS, scheduler wiring, and secret manager configuration remain deployment operations or follow-up repository work.
+Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, hosted health canary, Blueprint-managed PostgreSQL, and retention cron wiring are now present for the first private-alpha deploy. Cloud account setup, DNS, TLS, and secret manager values remain deployment operations outside this repository.
 
 ### Deployment operations handoff
 
@@ -113,20 +113,23 @@ Current repo-side status:
 
 - Done: production Node entrypoint through `@watasu/hosted`.
 - Done: Render web-service Blueprint for `api.watasu.ai`.
+- Done: Render-managed PostgreSQL database wiring with `fromDatabase`.
+- Done: scheduled metadata retention cron using `pnpm --filter @watasu/hosted retention`.
+- Done: web service keeps `WATASU_METADATA_LEDGER_STORE=disabled` until hosted read/write wiring intentionally needs DB access.
 - Done: Render platform `PORT` support while keeping `WATASU_HOSTED_PORT` for local runs.
 - Done: low-information `/health` response.
 - Done: `pnpm canary:hosted` for deployed health checks.
-- Remaining: Blueprint-managed PostgreSQL database and retention cron wiring after persistent hosted metadata ledger deployment is intentionally enabled.
+- Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
 
 Product owner actions:
 
 1. Create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
 2. Connect the GitHub repository to Render with least necessary repository access.
 3. Use the dedicated API subdomain `api.watasu.ai`. Prefer this subdomain over the apex domain for the first private alpha.
-4. Create the managed PostgreSQL database in the same region as the web service.
-5. In Render, set environment variables or an environment group for the production service. Real secret values must be entered in Render only, never committed to git.
-6. Add the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
-7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, and no-payload-custody checks pass on the deployed URL.
+4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
+5. In Render, set the prompted secret value for the production service. Real secret values must be entered in Render only, never committed to git.
+6. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
+7. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, retention cron dry run, and no-payload-custody checks pass on the deployed URL.
 
 Recommended production environment variables:
 
@@ -135,11 +138,13 @@ Recommended production environment variables:
 | `WATASU_IDENTITY_PROVIDER=signed_headers` | Codex can put the non-secret default in config. | Current hosted identity provider. |
 | `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate a high-entropy value. Rotate if exposed. |
 | `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived. |
-| `WATASU_METADATA_LEDGER_STORE=postgres` | Codex can put the non-secret default in config. | Use only when the hosted metadata ledger is intentionally enabled. |
-| `WATASU_POSTGRES_URL` | Product owner wires from Render Postgres in Render. | Secret. Never print in logs or PR text. |
+| `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. |
+| `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |
 | `WATASU_POSTGRES_SSL=require` | Codex can put the non-secret default in config. | Hosted database connections should require TLS. |
 | `WATASU_POSTGRES_POOL_MAX=5` | Codex can put the non-secret default in config. | Start small for private alpha; raise only with load evidence. |
 | `WATASU_POSTGRES_RUN_MIGRATIONS=true` | Codex can put the non-secret default in config. | Keep true for the first deploy unless migrations move to a dedicated job. |
+| `WATASU_RETENTION_TENANT_ID=watasu-private-alpha` | Codex can put the non-secret private-alpha tenant in config. | Retention cron scope. Move to per-tenant scheduling when multi-tenant operations need separate windows. |
+| `WATASU_METADATA_RETENTION_DAYS=90` | Codex can put the non-secret default in config. | Matches the fixture default and can be lowered per request policy later. |
 
 Owner checklist for the first production cutover:
 

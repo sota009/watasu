@@ -7,6 +7,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
+    "retention": "node dist/retention-bin.js",
     "start": "node dist/bin.js",
     "test": "vitest run --root ../.. src/*.test.ts",
     "typecheck": "tsc -b"

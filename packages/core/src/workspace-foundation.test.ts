@@ -113,6 +113,14 @@ describe("workspace foundation", () => {
     expect(renderYaml).toContain("healthCheckPath: /health");
     expect(renderYaml).toContain("api.watasu.ai");
     expect(renderYaml).toContain("value: 24.14.1");
+    expect(renderYaml).toContain("name: watasu-metadata");
+    expect(renderYaml).toContain("type: cron");
+    expect(renderYaml).toContain("name: watasu-metadata-retention");
+    expect(renderYaml).toContain("schedule: \"0 3 * * *\"");
+    expect(renderYaml).toContain("startCommand: pnpm --filter @watasu/hosted retention");
+    expect(renderYaml).toContain("fromDatabase:");
+    expect(renderYaml).toContain("property: connectionString");
+    expect(renderYaml).toContain("ipAllowList: []");
     expect(renderYaml).toContain("key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET");
     expect(renderYaml).toContain("sync: false");
     expect(renderYaml).not.toContain("WATASU_POSTGRES_URL: postgres://");
