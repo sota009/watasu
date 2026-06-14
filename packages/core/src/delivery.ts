@@ -1,0 +1,249 @@
+import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
+import { sha256Hash, type Sha256Hash } from "./hash.js";
+import { canonicalizeJson } from "./request-definition.js";
+import type { PublishMode } from "./publish.js";
+import type { PublishedRequestVersion } from "./request-version.js";
+import type {
+  AcceptedSubmission,
+  SubmissionEnvelope
+} from "./submission.js";
+
+export type { AcceptedSubmission, SubmissionEnvelope } from "./submission.js";
+
+export interface DeliveryRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface DeliveryResponse {
+  status: number;
+}
+
+export interface DeliveryClient {
+  post(request: DeliveryRequest): Promise<DeliveryResponse>;
+}
+
+export interface DeliveryLedger {
+  writeDeliveryAttempt(row: DeliveryLedgerRow): void;
+}
+
+export interface DeliveryLedgerRow {
+  request_id: string;
+  request_version: string;
+  idempotency_key: string;
+  submitted_at: string;
+  delivered_at: string;
+  delivery_status: "delivered" | "resubmit_later";
+  destination_url_hash: Sha256Hash;
+  encrypted_payload_hash: Sha256Hash;
+  webhook_status?: number | undefined;
+  error_code?: string | undefined;
+}
+
+export type DeliveryResult =
+  | {
+      ok: true;
+      status: "delivered";
+      ledger: DeliveryLedgerRow;
+    }
+  | {
+      ok: false;
+      status: "rejected" | "resubmit_later";
+      error: {
+        code: string;
+        message: string;
+      };
+      ledger?: DeliveryLedgerRow | undefined;
+    };
+
+export async function deliverAcceptedSubmission(input: {
+  mode: PublishMode;
+  published: PublishedRequestVersion;
+  envelope: SubmissionEnvelope;
+  submission: AcceptedSubmission;
+  client: DeliveryClient;
+  ledger: DeliveryLedger;
+  clock: () => Date;
+  signingSecret: string;
+}): Promise<DeliveryResult> {
+  const destinationUrl = new URL(input.published.definition.destination.url);
+  const urlError = validateDeliveryUrl(destinationUrl, input.mode);
+  if (urlError !== undefined) {
+    return {
+      ok: false,
+      status: "rejected",
+      error: urlError
+    };
+  }
+
+  const deliveredAt = input.clock().toISOString();
+  const body = buildDeliveryBody(input.envelope);
+  const headers = buildDeliveryHeaders({
+    body,
+    deliveredAt,
+    signingSecret: input.signingSecret,
+    submission: input.submission
+  });
+
+  try {
+    const response = await input.client.post({
+      url: destinationUrl.toString(),
+      headers,
+      body
+    });
+
+    if (response.status >= 200 && response.status < 300) {
+      const ledgerRow = createLedgerRow(input, deliveredAt, "delivered", response.status);
+      input.ledger.writeDeliveryAttempt(ledgerRow);
+      return {
+        ok: true,
+        status: "delivered",
+        ledger: ledgerRow
+      };
+    }
+
+    const ledgerRow = createLedgerRow(
+      input,
+      deliveredAt,
+      "resubmit_later",
+      response.status,
+      "webhook_delivery_failed"
+    );
+    input.ledger.writeDeliveryAttempt(ledgerRow);
+    return resubmitLater("webhook_delivery_failed", "Webhook delivery did not return 2xx.", ledgerRow);
+  } catch {
+    const ledgerRow = createLedgerRow(
+      input,
+      deliveredAt,
+      "resubmit_later",
+      undefined,
+      "webhook_delivery_failed"
+    );
+    input.ledger.writeDeliveryAttempt(ledgerRow);
+    return resubmitLater("webhook_delivery_failed", "Webhook delivery could not be completed.", ledgerRow);
+  }
+}
+
+function buildDeliveryBody(envelope: SubmissionEnvelope): string {
+  return canonicalizeJson({
+    envelope
+  });
+}
+
+function buildDeliveryHeaders(input: {
+  body: string;
+  deliveredAt: string;
+  signingSecret: string;
+  submission: AcceptedSubmission;
+}): Record<string, string> {
+  const bodyDigest = sha256Hash(input.body);
+  const signaturePayload = [
+    input.deliveredAt,
+    bodyDigest,
+    input.submission.request_id,
+    input.submission.request_version,
+    input.submission.idempotency_key
+  ].join("\n");
+  const signature = createHmac("sha256", input.signingSecret)
+    .update(signaturePayload)
+    .digest("base64url");
+
+  return {
+    "content-type": "application/json",
+    "x-watasu-request-id": input.submission.request_id,
+    "x-watasu-request-version": input.submission.request_version,
+    "x-watasu-idempotency-key": input.submission.idempotency_key,
+    "x-watasu-timestamp": input.deliveredAt,
+    "x-watasu-body-digest": bodyDigest,
+    "x-watasu-signature": `sha256=${signature}`
+  };
+}
+
+function createLedgerRow(
+  input: {
+    published: PublishedRequestVersion;
+    envelope: SubmissionEnvelope;
+    submission: AcceptedSubmission;
+  },
+  deliveredAt: string,
+  deliveryStatus: DeliveryLedgerRow["delivery_status"],
+  webhookStatus?: number | undefined,
+  errorCode?: string | undefined
+): DeliveryLedgerRow {
+  return {
+    request_id: input.submission.request_id,
+    request_version: input.submission.request_version,
+    idempotency_key: input.submission.idempotency_key,
+    submitted_at: input.submission.submitted_at,
+    delivered_at: deliveredAt,
+    delivery_status: deliveryStatus,
+    destination_url_hash: sha256Hash(input.published.definition.destination.url),
+    encrypted_payload_hash: input.envelope.encrypted_payload_hash as Sha256Hash,
+    webhook_status: webhookStatus,
+    error_code: errorCode
+  };
+}
+
+function validateDeliveryUrl(
+  destinationUrl: URL,
+  mode: PublishMode
+): { code: string; message: string } | undefined {
+  if (mode === "hosted" && destinationUrl.protocol !== "https:") {
+    return {
+      code: "unsafe_delivery_url",
+      message: "Hosted delivery requires an HTTPS webhook URL."
+    };
+  }
+
+  if (mode === "hosted" && isPrivateOrMetadataHost(destinationUrl.hostname)) {
+    return {
+      code: "unsafe_delivery_url",
+      message: "Hosted delivery cannot target private network or metadata service hosts."
+    };
+  }
+
+  return undefined;
+}
+
+function isPrivateOrMetadataHost(hostname: string): boolean {
+  const normalizedHost = hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  if (normalizedHost === "localhost") {
+    return true;
+  }
+
+  const ipVersion = isIP(normalizedHost);
+  if (ipVersion === 0) {
+    return false;
+  }
+
+  if (ipVersion === 6) {
+    return normalizedHost === "::1" || normalizedHost.startsWith("fc") || normalizedHost.startsWith("fd");
+  }
+
+  const [first = 0, second = 0] = normalizedHost.split(".").map((part) => Number(part));
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function resubmitLater(
+  code: string,
+  message: string,
+  ledger: DeliveryLedgerRow
+): DeliveryResult {
+  return {
+    ok: false,
+    status: "resubmit_later",
+    error: {
+      code,
+      message
+    },
+    ledger
+  };
+}
