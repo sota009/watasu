@@ -14,6 +14,10 @@ export {
   generateEncryptedEnvelopeSchema,
   generatePlaintextPayloadSchema
 } from "./schema.js";
+export {
+  buildAgentCard,
+  watasuEncryptedIntakeExtensionUri
+} from "./agent-card.js";
 export { publishRequestVersion } from "./publish.js";
 export type { Sha256Hash } from "./hash.js";
 export type {
@@ -34,3 +38,4 @@ export type {
   PublishRequestVersionResult,
   RequestVersionPublisher
 } from "./publish.js";
+export type { AgentCard } from "./agent-card.js";
