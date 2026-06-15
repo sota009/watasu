@@ -4,9 +4,82 @@ This is an agent-facing setup recipe. It is meant to be read from `/llms.txt`,
 `/llms-full.txt`, or a direct docs route by a service-side setup agent. It is
 not a primary human onboarding page.
 
-A service-side agent cannot complete the flow from "collect names and emails"
-alone. It needs the watasu docs, authorization, receiver details, key metadata,
-and a test plan.
+A service-side agent should support two paths: minimal interactive setup when
+the service owner starts with a short request, and the full setup recipe when
+all required inputs are already known.
+
+Do not turn setup into a long interview. For common low-risk event intake, ask
+one compact setup question, summarize the plan, then ask for one confirmation.
+
+## Minimal interactive setup
+
+Use this path when the service owner starts with a short request such as:
+
+```text
+I want to collect event attendee names and emails with watasu:
+https://docs.watasu.ai/
+```
+
+The service-side agent should first read:
+
+```text
+https://docs.watasu.ai/llms.txt
+https://docs.watasu.ai/llms-full.txt
+```
+
+Then ask exactly one setup question with at most four requested answers:
+
+```text
+Understood. I can set up a watasu intake for attendee names and emails.
+
+Please provide these four values:
+
+1. Event name:
+   Example: ExampleConf
+
+2. CSV destination:
+   Example: receiver-data/attendees.csv, Google Sheets, S3, or Cloudflare R2
+
+3. Participant-facing purpose:
+   Example: reception check-in and event updates
+
+4. Retention policy:
+   Example: delete within 30 days after the event
+
+If you do not specify otherwise, I will use:
+- fields: full_name and email
+- test data only: Alice Example / alice@example.test
+- a receiver-owned CSV output
+- no real participant data in tests
+```
+
+After the service owner answers, summarize and ask for one confirmation:
+
+```text
+I will create this watasu intake:
+
+- event: <EVENT_NAME>
+- fields: full_name, email
+- participant-facing purpose: <PURPOSE>
+- CSV destination: <CSV_DESTINATION>
+- retention: <RETENTION_POLICY>
+- test submission: Alice Example / alice@example.test
+
+I will create or configure:
+- watasu request definition
+- CSV receiver
+- Agent Card URL
+- participant-facing prompt
+- one fake test submission that writes one CSV row
+
+I will not use real participant data in tests.
+Proceed?
+```
+
+Only after confirmation should the agent execute the setup recipe. If the
+receiver deployment target, watasu authorization, or service key material is not
+available, stop and report that specific missing prerequisite. Do not continue
+asking open-ended questions.
 
 ## Required inputs
 
