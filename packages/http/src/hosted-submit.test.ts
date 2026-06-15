@@ -221,6 +221,61 @@ describe("hosted submit HTTP app", () => {
     expect(deliveryRequests).toHaveLength(0);
   });
 
+  test("test_hosted_submit_rejects_revoked_capability_before_delivery", async () => {
+    // Arrange
+    const { repository, published } = createRepository();
+    const deliveryRequests: DeliveryRequest[] = [];
+    const app = createHostedSubmitApp({
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: repository,
+      deliveryClient: {
+        async post(request) {
+          deliveryRequests.push(request);
+          return {
+            status: 204
+          };
+        }
+      },
+      ledger: {
+        writeDeliveryAttempt() {}
+      },
+      idempotencyStore: new InMemoryIdempotencyStore(),
+      rateLimiter: new InMemorySubmissionRateLimiter({
+        limit: 60,
+        windowMs: 60_000,
+        clock: () => new Date("2026-06-15T00:00:01.000Z")
+      }),
+      resolveDeliveryHost: async () => ["203.0.113.10"],
+      async resolveCapability({ capabilityUrl, published, tenantId }) {
+        expect(published.request_id).toBe("event-attendee-intake");
+        expect(tenantId).toBe("tenant-a");
+        return {
+          url: capabilityUrl,
+          revoked: true
+        };
+      },
+      clock: () => new Date("2026-06-15T00:00:01.000Z"),
+      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
+      tenantId: "tenant-a"
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      body: createA2aBody({ published })
+    }));
+
+    // Assert
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "capability_revoked"
+      }
+    });
+    expect(deliveryRequests).toHaveLength(0);
+  });
+
   test("test_hosted_submit_uses_sender_trust_resolver_before_verified_sender_signature_check", async () => {
     // Arrange
     const verifiedSenderDefinition: RequestDefinition = {
