@@ -240,12 +240,22 @@ cutover evidence は gitignored の `cutover-evidence/` に保存します。主
 
 ## Documentation map
 
+- [docs-site/](docs-site/): Rspress public docs source. `pnpm docs:build` で `llms.txt` / `llms-full.txt` つきの static site を生成します。
 - [docs/user-guide.ja.md](docs/user-guide.ja.md): 予備知識なしの利用者向けガイド
 - [docs/mvp-plan.md](docs/mvp-plan.md): current status、manual checks、production cutover evidence
 - [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
 - [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol / dependency baseline
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
+
+Public docs site:
+
+```bash
+pnpm docs:build
+pnpm docs:preview
+```
+
+推奨 hosting は Cloudflare Pages です。build command は `pnpm install --frozen-lockfile && pnpm docs:build`、output directory は `doc_build`、custom domain は `docs.watasu.ai` を使います。
 
 ## Security promise
 

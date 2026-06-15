@@ -234,12 +234,22 @@ Cutover evidence is written to the gitignored `cutover-evidence/` directory. Mai
 
 ## Documentation map
 
+- [docs-site/](docs-site/): Rspress public docs source. `pnpm docs:build` generates a static site with `llms.txt` and `llms-full.txt`.
 - [docs/user-guide.ja.md](docs/user-guide.ja.md): zero-background user guide
 - [docs/mvp-plan.md](docs/mvp-plan.md): current status, manual checks, production cutover evidence
 - [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
 - [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol and dependency baseline
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
+
+Public docs site:
+
+```bash
+pnpm docs:build
+pnpm docs:preview
+```
+
+Recommended hosting is Cloudflare Pages. Use build command `pnpm install --frozen-lockfile && pnpm docs:build`, output directory `doc_build`, and custom domain `docs.watasu.ai`.
 
 ## Security promise
 
