@@ -2,87 +2,105 @@
 
 [日本語版 README](README.ja.md)
 
-watasu is an agent-native intake MVP for service-side agents to define requests for personal data and publish encrypted intake endpoints that external user-side agents can read.
+watasu is an agent-native intake rail for publishing a machine-readable contract for personal-data intake and receiving encrypted submissions from external user-side agents.
 
-Instead of building human-facing forms, watasu makes "what is being sent, why it is needed, and where it goes" machine-readable as a request definition, schema, and Agent Card. It provides the foundation for delivering encrypted submissions, based on user consent, to a service-side webhook.
+Instead of building a human-facing form, a service publishes a request definition, JSON Schema, Agent Card, and A2A-compatible submit endpoint. watasu validates and forwards encrypted envelopes without decrypting payloads or keeping plaintext payload custody.
 
-## System Overview
+## Start here
 
-The core flow mirrors the product contract in [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): service-side agents use MCP or the CLI to validate and publish a request; external user-side agents discover the Agent Card, confirm with the user, encrypt the payload, and submit through watasu. watasu validates and forwards the encrypted envelope without decrypting or keeping payload custody.
+If you are new to watasu, start with the Japanese user guide: [docs/user-guide.ja.md](docs/user-guide.ja.md).
+
+This README is the project entry point. The user guide is the zero-background walkthrough. Product and engineering contracts live in [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md), [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md), and [docs/mvp-plan.md](docs/mvp-plan.md).
+
+## Current status
+
+As of 2026-06-15:
+
+| Surface | Status | Try it |
+| --- | --- | --- |
+| Local Protocol MVP | Ready | `pnpm demo:handoff` |
+| CLI | Ready | `pnpm --filter @watasu/cli watasu validate ...` |
+| Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
+| Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
+| Hosted MCP | Auth required | `/mcp` returns 401 without Bearer credentials |
+| Human dashboard UI | Not in scope | Not part of the MVP |
+| User-side personal vault / agent | Not in scope | Owned by another product or adapter |
+
+Latest verified evidence:
+
+- `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
+- test suite passed: 35 test files, 402 tests
+- `pnpm demo:handoff` returned `ok: true`
+- handoff evidence showed `ledger_contains_payload_body: false`
+- handoff evidence showed `response_contains_plaintext_payload: false`
+- `pnpm --silent cutover:verify` returned `decision: "go"` for `https://api.watasu.ai`
+- live `/health` returned `{"ok":true,"service":"watasu-hosted"}`
+- hosted MCP returned unauthenticated `401` with `WWW-Authenticate`, as intended
+
+## How it works
 
 ```mermaid
-sequenceDiagram
-    participant Dev as Service developer
-    participant SA as Service-side agent
-    participant W as watasu
-    participant UA as External user-side agent
-    participant User as User
-    participant R as Service-side receiver
+flowchart LR
+    Service["Service-side agent<br/>defines the request"] --> Contract["watasu<br/>request definition / schema / Agent Card"]
+    Contract --> UserAgent["User-side agent<br/>reads contract and asks the user"]
+    UserAgent --> Consent["User consent"]
+    Consent --> Encrypted["Encrypted payload<br/>created outside watasu"]
+    Encrypted --> Submit["watasu submit endpoint<br/>validates and delivers"]
+    Submit --> Receiver["Service receiver<br/>decrypts and acts"]
 
-    Dev->>SA: Create an intake endpoint for this service
-    SA->>W: MCP validate_request
-    W-->>SA: Validation result
-    SA->>Dev: Pre-publish summary
-    Dev->>SA: Approve
-    SA->>W: MCP publish_request
-    W-->>SA: Agent Card URL / schema / endpoint
-    UA->>W: Fetch Agent Card
-    W-->>UA: Request metadata / schema / public key info
-    UA->>User: Confirm what, why, and where
-    User->>UA: Consent
-    UA->>UA: Encrypt payload
-    UA->>W: A2A encrypted submission
-    W->>W: Validate envelope / hash / replay / rate limit
-    W->>R: Deliver encrypted envelope to webhook
-    R->>R: Verify signature, decrypt, validate schema
-    R-->>W: Delivery result
-    W-->>UA: delivered / rejected / resubmit_later
+    Contract -. "no plaintext payload custody" .-> Submit
 ```
 
-## Security Promise
+watasu owns the secure handoff rail:
 
-watasu's boundary is **no payload custody**.
+- validate request definitions
+- publish Agent Cards and schemas
+- validate A2A HTTP+JSON submissions
+- deliver encrypted envelopes to service receivers
+- keep delivery evidence metadata-only
 
-- watasu does not receive, decrypt, store, or log plaintext payloads.
-- watasu does not hold the service private key.
-- watasu does not retain encrypted payload bodies after a delivery attempt.
-- If webhook delivery fails, watasu is designed to avoid keeping a payload retry queue and instead return `resubmit_later` to the sender.
-- By default, watasu should avoid persistent custody even for metadata. Short-lived operational state may be kept for replay protection, rate limits, and sender-actionable delivery responses. Optional persistent ledgers must be metadata-only and explicitly enabled.
+watasu does not own:
 
-Because metadata can still be personal-related information, any optional persistent metadata is treated as subject to tenant, role, retention, and audit controls. watasu does not guarantee legal consent, identity verification, delegated authority, regulatory compliance, or DSAR handling. Those remain the responsibility of the service side or another product.
-
-## Workspace Layout
-
-```text
-docs/
-  prd-cli-mvp.md              Product requirements and scope
-  erd-cli-mvp.md              Engineering requirements, protocol, data model
-  protocol-baseline.md        Latest-info and dependency vetting record
-  mvp-plan.md                 MVP stages, manual checks, execution phases
-  loop-engineering.md         Codex loop template and verification rules
-infra/
-  postgres/                   Hosted PostgreSQL provisioning SQL artifacts
-packages/
-  core/                       Request validation, hashes, publish, schemas, A2A, delivery
-  cli/                        File-based watasu CLI wrapper
-  fixtures/                   Sample request definitions
-  http/                       Local HTTP demo server
-  mcp/                        MCP server package
-  hosted/                     Production Node/PostgreSQL runtime package
-scripts/                      Loop, review, PR, and secret-scan helpers
-```
+- human dashboard UI
+- generic form builder
+- user-side personal vault
+- user-side agent / consumer AI companion
+- legal consent, identity verification, delegated authority, regulatory compliance, or DSAR workflows
 
 ## Quick Start
 
 ```bash
 pnpm install
-pnpm typecheck
-pnpm test
 pnpm loop
 pnpm demo:handoff
 ```
 
-CLI examples:
+Expected `pnpm demo:handoff` highlights:
+
+```json
+{
+  "ok": true,
+  "sender": {
+    "payload_values_sent_to_watasu": false
+  },
+  "watasu": {
+    "submit_status": 202,
+    "delivery_status": "delivered",
+    "ledger_contains_payload_body": false,
+    "response_contains_plaintext_payload": false
+  }
+}
+```
+
+## CLI examples
+
+Sample request definition:
+
+```bash
+packages/fixtures/requests/event-attendee.yaml
+```
+
+Common checks:
 
 ```bash
 pnpm --filter @watasu/cli watasu validate packages/fixtures/requests/event-attendee.yaml
@@ -93,23 +111,23 @@ pnpm --filter @watasu/cli watasu ledger packages/fixtures/requests/event-attende
 pnpm --filter @watasu/cli watasu inspect-delivery packages/fixtures/requests/event-attendee.yaml --confirm
 ```
 
-To submit a local JSON payload through the sender fixture without printing payload values:
+Send a local JSON payload through the sender fixture without printing payload values:
 
 ```bash
 printf '{"full_name":"Alice Example","email":"alice@example.test"}' > /tmp/watasu-payload.json
 pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event-attendee.yaml --payload /tmp/watasu-payload.json --confirm
 ```
 
-## Local Demo
+`submit-fixture` is a local learning fixture. It is not a production submission flow.
 
-Build first, then start the local HTTP demo:
+## Local HTTP demo
 
 ```bash
 pnpm typecheck
 pnpm --filter @watasu/http demo
 ```
 
-Default server:
+Default local routes:
 
 - `http://127.0.0.1:8787/.well-known/agent-card.json`
 - `http://127.0.0.1:8787/schemas/plaintext.json`
@@ -125,17 +143,43 @@ curl http://127.0.0.1:8787/schemas/plaintext.json
 curl http://127.0.0.1:8787/schemas/envelope.json
 ```
 
-For `POST /submit`, the local demo validates the A2A HTTP+JSON protocol gate, checks the encrypted envelope against the published fixture, delivers to a receiver fixture, and records metadata-only ledger rows. Use `Content-Type: application/a2a+json`, `A2A-Version: 1.0`, and `A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1`.
+## Hosted private alpha
 
-For a no-server end-to-end handoff check, run:
+Production origin:
 
-```bash
-pnpm demo:handoff
+```text
+https://api.watasu.ai
 ```
 
-The handoff demo connects the local Agent Card, sender fixture, HTTP demo handler, receiver fixture, and metadata-only ledger in one process. Its JSON output should show `ok: true`, `ledger_contains_payload_body: false`, and `response_contains_plaintext_payload: false`.
+Public health check:
 
-## Verification Loop
+```bash
+curl https://api.watasu.ai/health
+```
+
+Expected:
+
+```json
+{"ok":true,"service":"watasu-hosted"}
+```
+
+Hosted MCP metadata:
+
+```bash
+curl https://api.watasu.ai/.well-known/oauth-protected-resource
+```
+
+Hosted MCP transport:
+
+```bash
+curl https://api.watasu.ai/mcp
+```
+
+Without a Bearer token, `401` is the correct result.
+
+Hosted publish and ledger operations run inside the private-alpha authenticated MCP / service identity boundary. This is not a public self-serve UI yet.
+
+## Verification
 
 Standard loop:
 
@@ -151,221 +195,62 @@ Dependency, release-gate, or supply-chain changes require:
 pnpm loop:full
 ```
 
-Targeted checks:
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm lint
-pnpm review:self
-pnpm exec vitest run packages/core/src/security-regression.test.ts
-pnpm --filter @watasu/http test
-```
-
-Hosted canary after deploy:
-
-```bash
-pnpm canary:hosted -- https://api.watasu.ai
-```
-
-The hosted canary uses a 10 second timeout per request by default. Override with `WATASU_CANARY_TIMEOUT_MS` up to 60000 when a slow deploy needs a longer bounded check. Successful output includes `checked_at`, `checked_origin`, `checked_timeout_ms`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_headers`, `checked_forbidden_fragments`, and `go_no_go` so the cutover record shows when the check ran, which origin was checked, which public routes stayed low-information, which bound was used, which public metadata method boundary was verified, which security headers and leak fragments were checked, and which follow-up evidence is still required before private-alpha exposure. It also checks the hosted MCP endpoint returns an unauthenticated `WWW-Authenticate` challenge and that the protected-resource metadata URL is reachable without exposing payload or secret fragments.
-
-To save the production cutover canary evidence under `cutover-evidence/canary.json`, run:
-
-```bash
-pnpm --silent cutover:canary
-```
-
-Hosted metadata retention dry run:
-
-```bash
-pnpm --filter @watasu/hosted retention -- --dry-run
-```
-
-Retention command output includes `checked_at`, `retention_days`, `tenant_id`, `scanned`, `deleted`, and `retained`. Dry-run output also includes `dry_run` and `would_delete`, so the pre-cutover record can prove the scheduled cleanup boundary without deleting rows or exposing payload fragments.
-
-To save the production cutover retention evidence under `cutover-evidence/retention.json`, run:
-
-```bash
-pnpm --silent cutover:retention
-```
-
-Render deploy preflight before account-side setup:
-
-```bash
-pnpm --silent deploy:preflight
-```
-
-The preflight checks the repo-side Render Blueprint, domain, runtime commands, secret-generation command, and remaining external actions without printing secret values or database URLs.
-
-Render account setup brief:
-
-```bash
-pnpm --silent render:brief
-```
-
-The brief prints the Render service names, database name, domain, secret command, status command, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
-
-Production cutover plan:
-
-```bash
-pnpm --silent cutover:plan
-```
-
-The cutover plan prints the before-Render commands, external account actions, after-deploy checks, required evidence, and stop conditions as secret-safe JSON.
-
-Record the cutover commit before connecting it to production evidence:
-
-```bash
-pnpm --silent cutover:prepare
-```
-
-The prepare command writes `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, and `cutover-evidence/smoke.json` without persisting secret-like assignment output.
-
-To refresh all repo-side cutover evidence, including matching CI evidence, use this before Render setup:
-
-```bash
-pnpm --silent cutover:repo
-```
-
-To see which cutover evidence is present, whether the recorded cutover head matches the current commit, what is missing, and the next repo-side commands:
+Production cutover evidence:
 
 ```bash
 pnpm --silent cutover:status
-```
-
-After the matching GitHub Actions run is green, save CI evidence:
-
-```bash
-pnpm --silent cutover:ci
-```
-
-After DNS/TLS and the hosted deploy are ready, save canary evidence:
-
-```bash
-pnpm --silent cutover:canary
-```
-
-After the deployed metadata database environment is ready, save retention dry-run evidence:
-
-```bash
-pnpm --silent cutover:retention
-```
-
-Production cutover evidence verification after deploy:
-
-```bash
 pnpm --silent cutover:verify
 ```
 
-The verifier reads `cutover-evidence/cutover-head.txt`, `cutover-evidence/preflight.json`, `cutover-evidence/smoke.json`, `cutover-evidence/canary.json`, `cutover-evidence/retention.json`, and `cutover-evidence/ci.json`. It requires that CI evidence matches the recorded cutover commit, rejects payload-body evidence or secret-like assignments, then returns a secret-safe go/no-go summary. Use `--dir <evidence-dir>` when checking a non-default evidence directory.
+Treat private-alpha exposure as ready only when `cutover:verify` returns `decision: "go"`.
 
-Hosted runtime smoke before deploy:
+Operator cutover commands:
 
 ```bash
+pnpm --silent deploy:preflight
+pnpm --silent render:brief
+pnpm --silent cutover:plan
+pnpm --silent cutover:prepare
+pnpm --silent cutover:repo
+pnpm --silent cutover:status
+pnpm --silent cutover:ci
+pnpm --silent cutover:canary
+pnpm --silent cutover:retention
+pnpm --silent cutover:verify
 pnpm --silent smoke:hosted
-```
-
-The smoke check loads the compiled hosted runtime, sends a closed-server `/health` request, and reports the expected runtime command without binding a network port.
-
-Generate a production service identity signing secret for Render:
-
-```bash
 pnpm --silent secret:identity --plain
 ```
 
-The command prints only a 32 byte base64url value. Use one generated value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`, generate a second distinct value for `WATASU_MCP_BEARER_TOKEN`, and enter both only in the Render web service secret prompt. Omit `--plain` when you want JSON metadata for scriptable checks.
+Cutover evidence is written to the gitignored `cutover-evidence/` directory. Main evidence files:
 
-`pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
+- `cutover-evidence/cutover-head.txt`
+- `cutover-evidence/preflight.json`
+- `cutover-evidence/smoke.json`
+- `cutover-evidence/ci.json`
+- `cutover-evidence/canary.json`
+- `cutover-evidence/retention.json`
 
-## Current MVP Status
+`pnpm --silent secret:identity --plain` prints only a 32 byte base64url secret value for Render. Use distinct values for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` and `WATASU_MCP_BEARER_TOKEN`, and enter real values only in the Render secret prompt. Do not put them in git, README, logs, or PR text.
 
-See `docs/mvp-plan.md` for the recommended next actions, including manual checks you can run locally.
+## Documentation map
 
-Local Protocol MVP is implemented and manually testable.
+- [docs/user-guide.ja.md](docs/user-guide.ja.md): zero-background user guide
+- [docs/mvp-plan.md](docs/mvp-plan.md): current status, manual checks, production cutover evidence
+- [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
+- [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
+- [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol and dependency baseline
+- [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 
-Currently implemented:
+## Security promise
 
-- pnpm workspace foundation for `@watasu/core`, `@watasu/cli`, `@watasu/fixtures`, and `@watasu/http`
-- request definition parsing and validation
-- sensitivity policy checks for high-risk and prohibited fields
-- canonical JSON and SHA-256 hash helpers
-- immutable in-memory request version publishing
-- hosted publish ownership checks for service keys, webhook origins, HTTPS, and unsafe destination hosts
-- in-memory service key and webhook origin ownership challenge lifecycle
-- live HTTPS webhook ownership challenge fetching with DNS unsafe-address preflight
-- DNS TXT webhook ownership challenge fetching
-- hosted production request body size limiting before app delegation
-- hosted publish HTTP adapter using server-side identity and ownership resolution
-- plaintext payload schema and encrypted envelope schema generation
-- A2A-compatible Agent Card generation
-- A2A HTTP+JSON protocol gate
-- submission envelope validation, replay/idempotency/rate-limit hooks, and payload hash checks
-- request definition validation rejects private JWK material so service key custody stays outside watasu
-- ES256 and Ed25519 EdDSA detached JWS sender signature verification for registered sender keys
-- `verified_sender` and `private_invite` reject missing signatures, unresolved sender public keys, and invite-binding mismatches before delivery
-- in-memory capability registry for revoke and rotate without mutating request versions
-- webhook delivery helper with signed headers, a fetch-based HTTP adapter, and metadata-only ledger rows
-- hosted webhook delivery re-checks DNS resolution before posting to reduce DNS rebinding / SSRF risk
-- delivery timeout classification that returns `resubmit_later` without retaining payload bodies
-- in-memory delivery circuit breaker for fail-fast `resubmit_later` after repeated webhook failures
-- in-memory delivery concurrency limiter for request and tenant caps
-- sender-actionable `resubmit_later` guidance with `Retry-After` and no payload retry queue
-- local HTTP demo wiring for injected delivery circuit breaker and concurrency limiter hooks
-- fetch delivery adapter disables automatic redirects; hosted delivery manually follows at most one SSRF-checked safe redirect
-- storage policy boundary for stateless-by-default delivery and opt-in metadata ledger writes
-- metadata ledger read authorization helper with tenant, role, and audit checks
-- hosted metadata ledger HTTP adapter that resolves service identity server-side
-- hosted production HTTP app that composes publish and metadata routes
-- hosted request route parsing that rejects unsafe encoded request IDs before app delegation
-- hosted request-specific Agent Card route for published request versions
-- hosted request-specific plaintext and encrypted envelope schema routes for published request versions
-- hosted A2A submit route for validating and delivering encrypted submissions without retaining payload bodies
-- hosted submit sender-trust resolver hook for `verified_sender` and `private_invite` authentication boundaries
-- hosted bootstrap tenant ownership handoff from publish to submit trust and delivery boundaries
-- hosted publish guard that rejects cross-tenant reuse of an existing `request_id`
-- low-information hosted `/health` endpoint for deployment health checks
-- hosted HTTP security headers for low-information API responses
-- low-information hosted server error responses when production app delegation fails
-- hosted production bootstrap app that shares trusted identity, ownership, and metadata wiring
-- hosted production Node HTTP server factory and runtime env parser
-- hosted production binary through `@watasu/hosted`
-- low-information hosted command errors for startup and retention failures
-- hosted signed service identity header resolver for deployment identity provider boundaries
-- trusted service identity resolver for mapping authenticated server context into hosted roles
-- hosted sender trust resolver for registered sender keys and private invite bindings
-- in-memory sender key registration, revocation, and rotation lifecycle
-- in-memory verified service public key registration, revocation, and rotation lifecycle
-- JSONL delivery metadata ledger store for opt-in local persistence
-- PostgreSQL-compatible delivery metadata ledger store for hosted persistence
-- PostgreSQL delivery metadata ledger schema SQL for hosted migration bootstrap, including same-idempotency retry attempt rows
-- PostgreSQL delivery metadata ledger migration runner for injected hosted query clients
-- PostgreSQL metadata ledger provisioning SQL artifact for hosted infrastructure setup
-- hosted PostgreSQL runtime config parser and migrated ledger store factory for injected pool clients
-- hosted Node/PostgreSQL runtime package with bounded pool config and query adapter
-- hosted signed-header identity provider runtime config for production entrypoints
-- hosted Postgres retention command for scheduled metadata cleanup
-- hosted Postgres retention dry-run mode for pre-cutover checks
-- metadata ledger retention helper for deleting expired delivery metadata without exposing payload bodies
-- hosted metadata retention job runner gated by auditor role
-- flattened JWE JSON payload encryption/decryption wrapper with fixed algorithm allowlist
-- MCP server package with a read-only request definition validation tool
-- MCP publish tool plus read tools and resources for Agent Card, plaintext schema, envelope schema, and metadata-only ledger rows
-- hosted MCP publish and ledger tools that delegate to the hosted production app
-- hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
-- hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
-- hosted MCP Streamable HTTP entrypoint guard for path, Origin, verified Bearer token scopes, and protocol version
-- Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
-- GitHub Actions CI gate for Render `checksPass`
-- hosted canary script for `/health`, unpublished Agent Card / submit routes, MCP auth metadata, leak fragments, security headers, HTTPS production origin URLs, and unsafe base URL rejection
-- sender and receiver fixtures for local A2A handoff checks
-- file-based CLI wrappers and a local HTTP demo
+watasu's boundary is **no payload custody**.
 
-Repo-side Hosted Production MVP library/runtime building blocks are now present, and the first deployment-facing slice exists for `api.watasu.ai` with a health-checkable web service, request-specific Agent Card and A2A submit routes for published request versions, Blueprint-managed PostgreSQL, and scheduled metadata retention. Render workspace/billing setup, DNS verification, TLS issuance, and real secret values remain deployment follow-up work.
+- watasu does not receive plaintext payloads
+- watasu does not decrypt payloads
+- watasu does not store plaintext payloads
+- watasu does not put payload values in logs, README, or PR text
+- watasu does not retain encrypted payload bodies after delivery attempts
+- watasu does not keep a payload retry queue
+- optional persistent ledgers must stay metadata-only
 
-Not in scope for the MVP:
-
-- dashboard UI or human form builder
-- user-side agent, personal vault, or consumer AI companion
-
-See `docs/prd-cli-mvp.md`, `docs/erd-cli-mvp.md`, and `docs/mvp-plan.md` for the deeper product and engineering contract.
+Passing tests is not a security proof. Security-boundary changes require the normal loop plus the relevant manual checks, secret scan, dependency audit, and gstack review.

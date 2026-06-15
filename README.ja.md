@@ -2,87 +2,111 @@
 
 [English README](README.md)
 
-watasu は、サービス側エージェントが個人データの要求定義を作り、外部の利用ユーザー側エージェントが読める暗号化 intake endpoint を公開するための agent-native intake MVP です。
+watasu は、サービス側が「個人データをどう受け取るか」を機械可読な contract として公開し、外部の利用ユーザー側 agent から encrypted submission を受け取るための agent-native intake rail です。
 
-人間向けフォームを作る代わりに、「何を送るのか」「なぜ必要なのか」「どこへ届くのか」を request definition、schema、Agent Card として機械可読にします。ユーザー同意にもとづく encrypted submission を、watasu が復号せずにサービス側 webhook へ配送する土台を提供します。
+フォーム画面を作る代わりに、request definition、JSON Schema、Agent Card、A2A-compatible submit endpoint を公開します。watasu は payload を復号せず、plaintext payload を保存せず、配送結果だけを metadata-only に扱います。
 
-## しくみの概要
+## はじめて使う人へ
 
-詳しいプロダクト要件は [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md)、実装契約は [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md) にあります。README では、全体の流れだけを短くまとめます。
+予備知識なしで触るなら、まず [docs/user-guide.ja.md](docs/user-guide.ja.md) を読んでください。図つきで、以下を順番に確認できます。
+
+- watasu が何を担当し、何を担当しないか
+- local demo で encrypted handoff を見る方法
+- CLI で request definition、schema、Agent Card、ledger を確認する方法
+- production private-alpha endpoint の生存確認
+- payload を watasu に預けないことの確認ポイント
+
+README は入口です。実際の利用手順は [利用者向けガイド](docs/user-guide.ja.md)、深い product / engineering contract は [PRD](docs/prd-cli-mvp.md)、[ERD](docs/erd-cli-mvp.md)、[MVP plan](docs/mvp-plan.md) に分けています。
+
+## いま使える状態
+
+2026-06-15 時点の current status:
+
+| Surface | Status | 使い方 |
+| --- | --- | --- |
+| Local Protocol MVP | Ready | `pnpm demo:handoff` |
+| CLI | Ready | `pnpm --filter @watasu/cli watasu validate ...` |
+| Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
+| Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
+| Hosted MCP | Auth required | `https://api.watasu.ai/mcp` は Bearer token なしで 401 |
+| Human dashboard UI | Not in scope | MVP では作らない |
+| User-side personal vault / agent | Not in scope | 別プロダクトまたは adapter が担当 |
+
+Latest verified evidence:
+
+- `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
+- test suite passed: 35 test files, 402 tests
+- `pnpm demo:handoff` returned `ok: true`
+- handoff evidence showed `ledger_contains_payload_body: false`
+- handoff evidence showed `response_contains_plaintext_payload: false`
+- `pnpm --silent cutover:verify` returned `decision: "go"` for `https://api.watasu.ai`
+- live `/health` returned `{"ok":true,"service":"watasu-hosted"}`
+- hosted MCP returned unauthenticated `401` with `WWW-Authenticate`, as intended
+
+## しくみ
 
 ```mermaid
-sequenceDiagram
-    participant Dev as サービス開発者
-    participant SA as サービス側エージェント
-    participant W as watasu
-    participant UA as 外部の利用ユーザー側エージェント
-    participant User as 利用ユーザー
-    participant R as サービス側 receiver
+flowchart LR
+    Service["Service-side agent<br/>要求を定義する"] --> Contract["watasu<br/>request definition / schema / Agent Card"]
+    Contract --> UserAgent["User-side agent<br/>内容を読んで利用者に確認"]
+    UserAgent --> Consent["User consent<br/>送る内容に同意"]
+    Consent --> Encrypted["Encrypted payload<br/>利用者側で暗号化"]
+    Encrypted --> Submit["watasu submit endpoint<br/>検証して配送"]
+    Submit --> Receiver["Service receiver<br/>復号して業務処理"]
 
-    Dev->>SA: このサービス用の受け口を作って
-    SA->>W: MCP validate_request
-    W-->>SA: validation result
-    SA->>Dev: publish 前 summary
-    Dev->>SA: 承認
-    SA->>W: MCP publish_request
-    W-->>SA: Agent Card URL / schema / endpoint
-    UA->>W: Agent Card を取得
-    W-->>UA: request metadata / schema / public key info
-    UA->>User: 何を、なぜ、どこへ渡すか確認
-    User->>UA: 同意
-    UA->>UA: payload を暗号化
-    UA->>W: A2A encrypted submission
-    W->>W: envelope / hash / replay / rate limit 検証
-    W->>R: encrypted envelope を webhook 配送
-    R->>R: 署名検証、復号、schema validation
-    R-->>W: delivery result
-    W-->>UA: delivered / rejected / resubmit_later
+    Contract -. "plaintext payload は持たない" .-> Submit
 ```
 
-## セキュリティの約束
+watasu が担当するのは、secure handoff rail です。
 
-watasu の境界は **no payload custody** です。
+- request definition を検証する
+- Agent Card と schema を公開する
+- A2A HTTP+JSON submission を検証する
+- encrypted envelope を service receiver に配送する
+- payload body を保持せず、metadata-only ledger に限定する
 
-- watasu は plaintext payload を受け取らず、復号せず、保存せず、log に出しません。
-- watasu は service private key を持ちません。
-- watasu は delivery attempt 後に encrypted payload body を保持しません。
-- webhook delivery が失敗した場合、payload retry queue を持たず、sender に `resubmit_later` を返す設計です。
-- 永続 ledger は default では使わず、有効化する場合も payload 値を含まない metadata-only ledger に限定します。
+watasu が担当しないもの:
 
-metadata も組み合わせると個人関連情報になり得ます。そのため optional persistent metadata には tenant、role、retention、audit の境界を適用します。watasu は法的同意、本人確認、代理権限、規制対応、DSAR を保証しません。それらはサービス側または別プロダクトの責務です。
-
-## ワークスペース構成
-
-```text
-docs/
-  prd-cli-mvp.md              プロダクト要件とスコープ
-  erd-cli-mvp.md              実装要件、protocol、data model
-  protocol-baseline.md        最新情報と依存確認の記録
-  mvp-plan.md                 MVP段階、手動確認、実行フェーズ
-  loop-engineering.md         Codex loop template と検証ルール
-infra/
-  postgres/                   Hosted PostgreSQL provisioning SQL artifacts
-packages/
-  core/                       request validation、hash、publish、schema、A2A、delivery
-  cli/                        file-based watasu CLI wrapper
-  fixtures/                   sample request definitions
-  http/                       local HTTP demo server
-  mcp/                        MCP server package
-  hosted/                     production Node/PostgreSQL runtime package
-scripts/                      loop、review、PR、secret-scan helpers
-```
+- 人間向け dashboard UI
+- 汎用 form builder
+- 利用ユーザー側の personal vault
+- 利用ユーザー側 agent / consumer AI companion
+- 法的同意、本人確認、代理権限、規制対応、DSAR の保証
 
 ## Quick Start
 
 ```bash
 pnpm install
-pnpm typecheck
-pnpm test
 pnpm loop
 pnpm demo:handoff
 ```
 
-CLI examples:
+期待する `pnpm demo:handoff` の要点:
+
+```json
+{
+  "ok": true,
+  "sender": {
+    "payload_values_sent_to_watasu": false
+  },
+  "watasu": {
+    "submit_status": 202,
+    "delivery_status": "delivered",
+    "ledger_contains_payload_body": false,
+    "response_contains_plaintext_payload": false
+  }
+}
+```
+
+## CLI examples
+
+サンプル request definition:
+
+```bash
+packages/fixtures/requests/event-attendee.yaml
+```
+
+よく使う確認コマンド:
 
 ```bash
 pnpm --filter @watasu/cli watasu validate packages/fixtures/requests/event-attendee.yaml
@@ -93,23 +117,23 @@ pnpm --filter @watasu/cli watasu ledger packages/fixtures/requests/event-attende
 pnpm --filter @watasu/cli watasu inspect-delivery packages/fixtures/requests/event-attendee.yaml --confirm
 ```
 
-payload 値を表示せずに local JSON payload を sender fixture 経由で送る例:
+local JSON payload を sender fixture 経由で送る例:
 
 ```bash
 printf '{"full_name":"Alice Example","email":"alice@example.test"}' > /tmp/watasu-payload.json
 pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event-attendee.yaml --payload /tmp/watasu-payload.json --confirm
 ```
 
-## Local Demo
+`submit-fixture` は学習用の local fixture です。production に payload を送る操作ではありません。
 
-最初に build / typecheck してから local HTTP demo を起動します。
+## Local HTTP demo
 
 ```bash
 pnpm typecheck
 pnpm --filter @watasu/http demo
 ```
 
-Default server:
+Default local routes:
 
 - `http://127.0.0.1:8787/.well-known/agent-card.json`
 - `http://127.0.0.1:8787/schemas/plaintext.json`
@@ -117,7 +141,7 @@ Default server:
 - `POST http://127.0.0.1:8787/submit`
 - `http://127.0.0.1:8787/ledger`
 
-Manual checks:
+別 terminal で確認:
 
 ```bash
 curl http://127.0.0.1:8787/.well-known/agent-card.json
@@ -125,19 +149,45 @@ curl http://127.0.0.1:8787/schemas/plaintext.json
 curl http://127.0.0.1:8787/schemas/envelope.json
 ```
 
-`POST /submit` は A2A HTTP+JSON protocol gate、encrypted envelope validation、receiver fixture への配送、metadata-only ledger 記録を確認します。`Content-Type: application/a2a+json`、`A2A-Version: 1.0`、`A2A-Extensions: https://watasu.dev/extensions/encrypted-intake/v1` を使います。
+## Hosted private alpha
 
-server なしの end-to-end handoff check:
+Production origin:
 
-```bash
-pnpm demo:handoff
+```text
+https://api.watasu.ai
 ```
 
-handoff demo は local Agent Card、sender fixture、HTTP demo handler、receiver fixture、metadata-only ledger を 1 process でつなぎます。JSON output では `ok: true`、`ledger_contains_payload_body: false`、`response_contains_plaintext_payload: false` になるはずです。
+Public health check:
 
-## Verification Loop
+```bash
+curl https://api.watasu.ai/health
+```
 
-標準ループ:
+Expected:
+
+```json
+{"ok":true,"service":"watasu-hosted"}
+```
+
+Hosted MCP metadata:
+
+```bash
+curl https://api.watasu.ai/.well-known/oauth-protected-resource
+```
+
+Hosted MCP transport:
+
+```bash
+curl https://api.watasu.ai/mcp
+```
+
+Bearer token なしでは `401` が正しい挙動です。
+
+Hosted publish / ledger 操作は private-alpha の authenticated MCP / service identity 境界の内側で使います。まだ一般公開の self-serve UI ではありません。
+
+## Verification loop
+
+標準 loop:
 
 ```bash
 pnpm loop
@@ -151,136 +201,62 @@ pnpm loop
 pnpm loop:full
 ```
 
-Targeted checks:
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm lint
-pnpm review:self
-pnpm exec vitest run packages/core/src/security-regression.test.ts
-pnpm --filter @watasu/http test
-```
-
-Hosted canary after deploy:
-
-```bash
-pnpm canary:hosted -- https://api.watasu.ai
-```
-
-成功時の output は `checked_at`、`checked_origin`、`checked_timeout_ms`、`checked_not_found_routes`、`checked_method_boundaries`、`checked_headers`、`checked_forbidden_fragments`、`go_no_go` を含みます。
-
-production cutover の canary evidence を `cutover-evidence/canary.json` に保存する場合:
-
-```bash
-pnpm --silent cutover:canary
-```
-
-Hosted metadata retention dry run:
-
-```bash
-pnpm --filter @watasu/hosted retention -- --dry-run
-```
-
-retention command output は `checked_at`、`retention_days`、`tenant_id`、`scanned`、`deleted`、`retained` を含みます。dry-run output は `dry_run` と `would_delete` も含みます。
-
-production cutover の retention evidence を `cutover-evidence/retention.json` に保存する場合:
-
-```bash
-pnpm --silent cutover:retention
-```
-
-Render deploy preflight before account-side setup:
-
-```bash
-pnpm --silent deploy:preflight
-```
-
-Render account setup brief:
-
-```bash
-pnpm --silent render:brief
-```
-
-brief は Render service name、database name、domain、secret command、status command、account-side actions、post-Render cutover commands を secret value や database URL なしで出します。
-
-Production cutover plan:
-
-```bash
-pnpm --silent cutover:plan
-```
-
-production evidence と紐づける cutover commit を記録します:
-
-```bash
-pnpm --silent cutover:prepare
-```
-
-prepare command は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json` を書き出し、secret-like assignment output は保存しません。
-
-matching CI evidence まで含めて repo-side cutover evidence をまとめて更新する場合。Render setup 前はこれを使います:
-
-```bash
-pnpm --silent cutover:repo
-```
-
-どの cutover evidence があり、記録済み cutover head が current commit と一致しているか、何が足りず、次にどの repo-side command を打つべきか確認する場合:
+Production cutover evidence:
 
 ```bash
 pnpm --silent cutover:status
-```
-
-対応する GitHub Actions run が green になったら CI evidence を保存します:
-
-```bash
-pnpm --silent cutover:ci
-```
-
-DNS/TLS と hosted deploy が ready になったら canary evidence を保存します:
-
-```bash
-pnpm --silent cutover:canary
-```
-
-deployed metadata database environment が ready になったら retention dry-run evidence を保存します:
-
-```bash
-pnpm --silent cutover:retention
-```
-
-Production cutover evidence verification after deploy:
-
-```bash
 pnpm --silent cutover:verify
 ```
 
-cutover verifier は `cutover-evidence/cutover-head.txt`、`cutover-evidence/preflight.json`、`cutover-evidence/smoke.json`、`cutover-evidence/canary.json`、`cutover-evidence/retention.json`、`cutover-evidence/ci.json` を読みます。CI evidence が記録済み cutover commit と一致することを必須にし、payload body evidence や secret-like assignment を拒否してから secret-safe な go/no-go summary を返します。default 以外の evidence directory を確認する場合は `--dir <evidence-dir>` を使います。
+`cutover:verify` が `decision: "go"` を返したときだけ、private-alpha exposure の go 証跡として扱います。
 
-Hosted runtime smoke before deploy:
+Operator cutover commands:
 
 ```bash
+pnpm --silent deploy:preflight
+pnpm --silent render:brief
+pnpm --silent cutover:plan
+pnpm --silent cutover:prepare
+pnpm --silent cutover:repo
+pnpm --silent cutover:status
+pnpm --silent cutover:ci
+pnpm --silent cutover:canary
+pnpm --silent cutover:retention
+pnpm --silent cutover:verify
 pnpm --silent smoke:hosted
-```
-
-Render に入れる production service identity signing secret を生成するコマンド:
-
-```bash
 pnpm --silent secret:identity --plain
 ```
 
-このコマンドは 32 byte base64url value だけを出します。`WATASU_SERVICE_IDENTITY_SIGNING_SECRET` 用に1回、`WATASU_MCP_BEARER_TOKEN` 用にもう1回、別々の値を生成してください。実値は Render の web service secret prompt にだけ入力し、git、README、log、PR text には残しません。
+cutover evidence は gitignored の `cutover-evidence/` に保存します。主な evidence files:
 
-`pnpm lint` は repository secret-scan helper を実行します。テストが通ることは安全性の証明ではありません。
+- `cutover-evidence/cutover-head.txt`
+- `cutover-evidence/preflight.json`
+- `cutover-evidence/smoke.json`
+- `cutover-evidence/ci.json`
+- `cutover-evidence/canary.json`
+- `cutover-evidence/retention.json`
 
-## Current MVP Status
+`pnpm --silent secret:identity --plain` は Render に入力する 32 byte base64url secret value だけを出します。`WATASU_SERVICE_IDENTITY_SIGNING_SECRET` と `WATASU_MCP_BEARER_TOKEN` には別々の値を使い、実値は Render secret prompt にだけ入力します。git、README、log、PR text には残しません。
 
-推奨される次の作業と手動確認は [docs/mvp-plan.md](docs/mvp-plan.md) を見てください。
+## Documentation map
 
-Local Protocol MVP は実装済みで、手元で manual test できます。Repo-side Hosted Production MVP の library/runtime building blocks は存在し、`api.watasu.ai` 用に health-check 可能な web service、published request version 用の request-specific Agent Card / A2A submit route、default hosted API security headers、Blueprint-managed PostgreSQL、scheduled metadata retention、GitHub Actions CI gate、HTTPS 必須の hosted canary まで最初の deployment-facing slice に入りました。Render workspace / billing setup、DNS verification、TLS issuance、real secret values は引き続き deployment follow-up work です。
+- [docs/user-guide.ja.md](docs/user-guide.ja.md): 予備知識なしの利用者向けガイド
+- [docs/mvp-plan.md](docs/mvp-plan.md): current status、manual checks、production cutover evidence
+- [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
+- [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
+- [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol / dependency baseline
+- [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 
-MVP で作らないもの:
+## Security promise
 
-- dashboard UI または human form builder
-- user-side agent、personal vault、consumer AI companion
+watasu の境界は **no payload custody** です。
 
-深い product / engineering contract は [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md)、[docs/erd-cli-mvp.md](docs/erd-cli-mvp.md)、[docs/mvp-plan.md](docs/mvp-plan.md) を参照してください。
+- plaintext payload を受け取らない
+- payload を復号しない
+- plaintext payload を保存しない
+- payload value を log / README / PR text に残さない
+- delivery attempt 後に encrypted payload body を保持しない
+- retry queue に payload body を積まず、失敗時は sender に `resubmit_later` を返す
+- optional persistent ledger は metadata-only に限定する
+
+テストが通ることは安全性の証明ではありません。セキュリティ境界に触れた変更では、`pnpm loop` に加えて、必要に応じて manual checks、secret scan、dependency audit、gstack review を実行します。

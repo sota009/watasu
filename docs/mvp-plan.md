@@ -64,7 +64,7 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: repo-side protocol/runtime building blocks complete as of 2026-06-15. First deployment-facing slice is present for `api.watasu.ai`: health-checkable web service, default hosted API security headers, Blueprint-managed PostgreSQL, and scheduled metadata retention. External Render account, DNS, TLS, and secret setup remain follow-up work.
+Status: private-alpha deployment evidence is complete as of 2026-06-15. The current cutover head `ac5734bec0cb1ce83edab280ded626b744c53e3e` has matching CI, deploy preflight, hosted smoke, hosted canary, and retention dry-run evidence. `pnpm --silent cutover:verify` returns `decision: "go"` for `https://api.watasu.ai`.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
@@ -84,11 +84,13 @@ Hosted production now has repo-side library and runtime artifacts for these trus
 Current verification evidence:
 
 ```bash
-pnpm loop:full
+pnpm loop
 pnpm demo:handoff
+pnpm --silent cutover:status
+pnpm --silent cutover:verify
 ```
 
-Both commands passed against the current implementation on 2026-06-15. The phase 2 through 6 behavior is covered by the current test suite and the listed manual checks below. A production binary, `render.yaml`, low-information `/health`, hosted security headers, hosted health canary, Blueprint-managed PostgreSQL, and retention cron wiring are now present for the first private-alpha deploy. Cloud account setup, DNS, TLS, and secret manager values remain deployment operations outside this repository.
+These commands passed against the current implementation on 2026-06-15. The current test suite has 35 passing test files and 402 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
 
 ### Deployment operations handoff
 
@@ -138,9 +140,10 @@ Current repo-side status:
 - Done: `pnpm --silent cutover:plan` reports before-Render commands, cutover evidence preparation, account-side actions, post-deploy checks, required evidence, and stop conditions as secret-safe JSON.
 - Done: `pnpm --silent cutover:verify` validates saved preflight, smoke, canary, retention, and CI-green JSON evidence from `cutover-evidence/` for the recorded cutover head before a private-alpha go decision.
 - Done: `pnpm --silent smoke:hosted` loads the compiled hosted runtime and verifies the low-information `/health` response without binding a network port.
-- Remaining: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks.
+- Done: production DNS verification, TLS issuance, real secret values, and post-deploy canary checks are complete for the current private-alpha deployment.
+- Remaining: publish a real private-alpha request through the authenticated hosted MCP boundary when the first design partner flow is ready.
 
-Product owner actions:
+Product owner actions for a fresh redeploy or future production cutover:
 
 1. Run `pnpm --silent render:brief`, then create or choose the Render workspace and enable billing for paid web service and paid PostgreSQL. Do not use a free database for hosted metadata.
 2. Connect the GitHub repository to Render with least necessary repository access.
@@ -174,13 +177,13 @@ Recommended production environment variables:
 Owner checklist for the first production cutover:
 
 ```text
-[ ] Render workspace selected and billing enabled.
-[ ] GitHub repository connected to Render.
-[ ] Paid Render Postgres database created in the same region as the web service.
-[ ] Secrets entered in Render, not committed to git.
+[x] Render workspace selected and billing enabled.
+[x] GitHub repository connected to Render.
+[x] Paid Render Postgres database created in the same region as the web service.
+[x] Secrets entered in Render, not committed to git.
 [x] Domain acquired and dedicated API subdomain chosen: `api.watasu.ai`.
-[ ] DNS record configured and Render domain verification passed.
-[ ] Production URL shared back with Codex for canary and published Agent Card checks.
+[x] DNS record configured and Render domain verification passed.
+[x] Production URL shared back with Codex for canary and hosted checks.
 [x] Repo-side production cutover plan command exists: `pnpm --silent cutover:plan`.
 [x] Repo-side production cutover prepare command exists: `pnpm --silent cutover:prepare`.
 [x] Repo-side production cutover CI evidence command exists: `pnpm --silent cutover:ci`.
@@ -192,12 +195,12 @@ Owner checklist for the first production cutover:
 [x] Repo-side Render deploy preflight command exists: `pnpm --silent deploy:preflight`.
 [x] Repo-side Render account setup brief command exists: `pnpm --silent render:brief`.
 [x] Repo-side hosted runtime smoke command exists: `pnpm --silent smoke:hosted`.
-[ ] `cutover-evidence/cutover-head.txt` records the exact deployed commit SHA.
-[ ] GitHub Actions CI is green on the deployed commit.
-[ ] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_headers`, `checked_forbidden_fragments`, `checked_timeout_ms`, and `go_no_go`.
-[ ] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
-[ ] `pnpm --silent cutover:verify` reports `decision=go`.
-[ ] Go/no-go decision made after canary and no-payload-custody checks.
+[x] `cutover-evidence/cutover-head.txt` records the exact deployed commit SHA.
+[x] GitHub Actions CI is green on the deployed commit.
+[x] `pnpm canary:hosted -- https://api.watasu.ai` passes and records `checked_at`, `checked_origin`, `checked_not_found_routes`, `checked_method_boundaries`, `checked_headers`, `checked_forbidden_fragments`, `checked_timeout_ms`, and `go_no_go`.
+[x] `pnpm --filter @watasu/hosted retention -- --dry-run` passes on the deployed environment and records `checked_at`, `retention_days`, `tenant_id`, and `would_delete`.
+[x] `pnpm --silent cutover:verify` reports `decision=go`.
+[x] Go/no-go decision made after canary and no-payload-custody checks.
 ```
 
 Do not put in the owner's manual checklist:
@@ -515,4 +518,4 @@ Ask for human review at these points:
 - Identity proof, KYC, or delegated authority.
 - Production retry queue that stores encrypted payload bodies inside watasu.
 - Custom crypto or HPKE-first design.
-- Push-button production exposure before Render account setup, DNS verification, real secrets, and post-deploy canary evidence exist.
+- Public self-serve production exposure beyond the current private-alpha hosted rail.
