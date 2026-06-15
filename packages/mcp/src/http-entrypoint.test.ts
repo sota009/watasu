@@ -43,6 +43,25 @@ function createEntrypoint(delegatedRequests: string[]) {
     allowedOrigins: ["https://app.example.com"],
     resourceMetadataUrl: "https://mcp.example.com/.well-known/oauth-protected-resource",
     scopes: ["watasu:publish", "watasu:ledger:read"],
+    authorizeBearerToken({ token, requiredScopes }) {
+      if (token === "valid-token") {
+        return {
+          ok: true,
+          scopes: [...requiredScopes]
+        };
+      }
+
+      if (token === "ledger-only-token") {
+        return {
+          ok: true,
+          scopes: ["watasu:ledger:read"]
+        };
+      }
+
+      return {
+        ok: false
+      };
+    },
     transport: {
       async handleRequest(request) {
         delegatedRequests.push(`${request.method ?? ""} ${request.url ?? ""}`);
@@ -111,7 +130,7 @@ describe("hosted MCP HTTP entrypoint", () => {
       method: "POST",
       url: "/mcp?ignored=true",
       headers: {
-        authorization: "Bearer token",
+        authorization: "Bearer valid-token",
         origin: "https://app.example.com",
         accept: "application/json, text/event-stream",
         "mcp-protocol-version": "2025-11-25"
@@ -120,5 +139,53 @@ describe("hosted MCP HTTP entrypoint", () => {
 
     // Assert
     expect(delegatedRequests).toEqual(["POST /mcp?ignored=true"]);
+  });
+
+  test("test_arbitrary_bearer_token_returns_401_without_delegating", async () => {
+    // Arrange
+    const delegatedRequests: string[] = [];
+    const entrypoint = createEntrypoint(delegatedRequests);
+    const response = new ResponseRecorder();
+
+    // Act
+    await entrypoint(createRequest({
+      method: "POST",
+      url: "/mcp",
+      headers: {
+        authorization: "Bearer arbitrary-token",
+        origin: "https://app.example.com",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-11-25"
+      }
+    }), response as unknown as ServerResponse);
+
+    // Assert
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toContain("\"code\":\"mcp_transport_auth_invalid\"");
+    expect(delegatedRequests).toEqual([]);
+  });
+
+  test("test_bearer_token_missing_required_scope_returns_403_without_delegating", async () => {
+    // Arrange
+    const delegatedRequests: string[] = [];
+    const entrypoint = createEntrypoint(delegatedRequests);
+    const response = new ResponseRecorder();
+
+    // Act
+    await entrypoint(createRequest({
+      method: "POST",
+      url: "/mcp",
+      headers: {
+        authorization: "Bearer ledger-only-token",
+        origin: "https://app.example.com",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-11-25"
+      }
+    }), response as unknown as ServerResponse);
+
+    // Assert
+    expect(response.statusCode).toBe(403);
+    expect(response.body).toContain("\"code\":\"mcp_transport_scope_required\"");
+    expect(delegatedRequests).toEqual([]);
   });
 });

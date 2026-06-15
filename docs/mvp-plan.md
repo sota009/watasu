@@ -148,7 +148,7 @@ Product owner actions:
 4. Let the Blueprint create the managed PostgreSQL database in the same region as the web service and retention cron.
 5. Run `pnpm --silent cutover:plan` to review the command order, required evidence, and stop conditions.
 6. Run `pnpm --silent cutover:repo` before entering account-side values, then `pnpm --silent cutover:status`. Stop if it cannot record the exact cutover commit, deploy preflight, hosted smoke, and CI evidence in the gitignored `cutover-evidence/` directory.
-7. Run `pnpm --silent secret:identity --plain`, then enter the generated value only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
+7. Run `pnpm --silent secret:identity --plain` twice, then enter distinct generated values for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` and `WATASU_MCP_BEARER_TOKEN` only in the Render web service secret prompt. Real secret values must be entered in Render only, never committed to git.
 8. Add or verify the custom domain in Render, copy the DNS record Render gives you, configure it with the DNS provider, then verify the domain in Render.
 9. Run `pnpm --silent cutover:ci`, `pnpm --silent cutover:canary`, `pnpm --silent cutover:retention`, then run `pnpm --silent cutover:verify`.
 10. Approve production exposure only after the health check, Agent Card URL, MCP endpoint, retention dry run, cutover verification, and no-payload-custody checks pass on the deployed URL.
@@ -160,6 +160,7 @@ Recommended production environment variables:
 | `WATASU_IDENTITY_PROVIDER=signed_headers` | Codex can put the non-secret default in config. | Current hosted identity provider. |
 | `WATASU_PUBLIC_BASE_URL=https://api.watasu.ai` | Codex can put the non-secret default in config. | Public origin for generated hosted URLs. Must stay HTTPS and must not include credentials, path, query, or fragment. |
 | `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` | Product owner creates the real secret in Render. | Generate it with `pnpm --silent secret:identity --plain`, enter it only in the web service, and rotate if exposed. Runtime rejects documented test or placeholder values, and the retention cron rejects this variable entirely. |
+| `WATASU_MCP_BEARER_TOKEN` | Product owner creates the real secret in Render. | Generate a distinct 32+ byte value with `pnpm --silent secret:identity --plain`, enter it only in the web service, and rotate if exposed. Runtime rejects missing, short, or documented placeholder values before mounting hosted MCP. |
 | `WATASU_SERVICE_IDENTITY_MAX_SKEW_SECONDS=60` | Codex can put the non-secret default in config. | Keeps signed service headers short-lived; runtime rejects values above 300 seconds. |
 | `WATASU_METADATA_LEDGER_STORE=disabled` for web, `postgres` for retention cron | Codex can put the non-secret defaults in config. | Keep web DB access default-off until hosted read/write wiring intentionally needs DB access. The web runtime rejects `WATASU_POSTGRES_URL` even when the store is disabled. |
 | `WATASU_POSTGRES_URL` | `render.yaml` wires from Render Postgres with `fromDatabase`. | Secret-equivalent. Never print in logs or PR text. |
@@ -248,7 +249,7 @@ Implementation:
 - Add hosted MCP tools that delegate publish and ledger reads to the hosted production app instead of local in-memory state.
 - Resolve hosted MCP service headers from authenticated transport context and reject unauthenticated hosted tool calls before hosted app delegation.
 - Add OAuth protected-resource metadata and `WWW-Authenticate` challenge helpers for hosted MCP HTTP deployment.
-- Add hosted MCP Streamable HTTP entrypoint guard for the selected platform adapter: endpoint path, Origin, Bearer auth, and protocol version checks before SDK transport delegation.
+- Add hosted MCP Streamable HTTP entrypoint guard for the selected platform adapter: endpoint path, Origin, verified Bearer token scopes, and protocol version checks before SDK transport delegation.
 - Require explicit confirmation for publish.
 - Keep MCP outputs machine-readable.
 - Never expose payload values through MCP.
@@ -273,7 +274,7 @@ Done when:
 - MCP ledger output is metadata-only.
 - hosted MCP tools do not call the hosted production app without authenticated transport service headers.
 - hosted MCP deployment metadata exposes authorization servers and scope hints without query-string tokens.
-- hosted MCP HTTP entrypoint rejects missing Bearer credentials and disallowed Origins before transport delegation.
+- hosted MCP HTTP entrypoint rejects missing, invalid, or under-scoped Bearer credentials and disallowed Origins before transport delegation.
 - tests prove MCP tool descriptions and request text are treated as data, not instructions.
 
 ### Phase 3: Capability revoke and rotate

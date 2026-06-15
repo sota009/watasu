@@ -311,7 +311,7 @@ describe("workspace foundation", () => {
       render_database: "watasu-metadata",
       secret_command: "pnpm --silent secret:identity --plain",
       status_command: "pnpm --silent cutover:status",
-      manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"],
+      manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET", "WATASU_MCP_BEARER_TOKEN"],
       dns_origin: "https://api.watasu.ai",
       before_render_commands: [
         "pnpm --silent cutover:repo",
@@ -401,6 +401,7 @@ describe("workspace foundation", () => {
     });
     expect(result.stdout).not.toContain("WATASU_POSTGRES_URL=");
     expect(result.stdout).not.toContain("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=");
+    expect(result.stdout).not.toContain("WATASU_MCP_BEARER_TOKEN=");
   });
 
   test("test_production_cutover_ci_writes_matching_head_evidence", () => {
@@ -1357,6 +1358,7 @@ describe("workspace foundation", () => {
     expect(webEnv.get("WATASU_PUBLIC_BASE_URL")).toMatchObject({ value: "https://api.watasu.ai" });
     expect(webEnv.get("WATASU_METADATA_LEDGER_STORE")).toMatchObject({ value: "disabled" });
     expect(webEnv.get("WATASU_SERVICE_IDENTITY_SIGNING_SECRET")).toMatchObject({ sync: false });
+    expect(webEnv.get("WATASU_MCP_BEARER_TOKEN")).toMatchObject({ sync: false });
     expect(webEnv.has("WATASU_POSTGRES_URL")).toBe(false);
     expect(webEnv.has("WATASU_RETENTION_TENANT_ID")).toBe(false);
 

@@ -123,7 +123,7 @@ function inputsFromEvidenceDir(path) {
 
 function readJsonEvidence(path) {
   const raw = readFileSync(path, "utf8");
-  if (raw.includes("WATASU_POSTGRES_URL=") || raw.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=")) {
+  if (raw.includes("WATASU_POSTGRES_URL=") || raw.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=") || raw.includes("WATASU_MCP_BEARER_TOKEN=")) {
     throw new Error(`${path} contains secret-like assignment output.`);
   }
   if (raw.includes("\"encrypted_payload\"") || raw.includes("\"payload_body\"") || raw.includes("\"plaintext_payload\"")) {

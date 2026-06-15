@@ -268,7 +268,7 @@ Render に入れる production service identity signing secret を生成する�
 pnpm --silent secret:identity --plain
 ```
 
-このコマンドは `WATASU_SERVICE_IDENTITY_SIGNING_SECRET` 用の 32 byte base64url value だけを出します。実値は Render の web service secret prompt にだけ入力し、git、README、log、PR text には残しません。
+このコマンドは 32 byte base64url value だけを出します。`WATASU_SERVICE_IDENTITY_SIGNING_SECRET` 用に1回、`WATASU_MCP_BEARER_TOKEN` 用にもう1回、別々の値を生成してください。実値は Render の web service secret prompt にだけ入力し、git、README、log、PR text には残しません。
 
 `pnpm lint` は repository secret-scan helper を実行します。テストが通ることは安全性の証明ではありません。
 

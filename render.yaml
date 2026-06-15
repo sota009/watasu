@@ -25,6 +25,8 @@ services:
         value: disabled
       - key: WATASU_SERVICE_IDENTITY_SIGNING_SECRET
         sync: false
+      - key: WATASU_MCP_BEARER_TOKEN
+        sync: false
   - type: cron
     name: watasu-metadata-retention
     runtime: node

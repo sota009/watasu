@@ -27,6 +27,7 @@ import {
   createHostedMcpHttpEntrypoint
 } from "@watasu/mcp";
 import type { Server } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import type {
   Pool,
   PoolConfig,
@@ -64,6 +65,10 @@ export type HostedIdentityProviderConfig =
       signingSecret: string;
       maxSkewSeconds: number;
     };
+
+export interface HostedMcpBearerTokenConfig {
+  bearerToken: string;
+}
 
 export interface HostedSignedHeaderIdentityProvider {
   resolvePrincipal(request: HostedProductionRequest): ReturnType<
@@ -108,10 +113,36 @@ export function loadHostedIdentityProviderConfig(
   };
 }
 
+export function loadHostedMcpBearerTokenConfig(
+  env: Record<string, string | undefined>
+): HostedMcpBearerTokenConfig {
+  const minimumHostedMcpBearerTokenBytes = 32;
+  const bearerToken = env["WATASU_MCP_BEARER_TOKEN"]?.trim();
+  if (bearerToken === undefined || bearerToken.length === 0) {
+    throw new Error("WATASU_MCP_BEARER_TOKEN is required for hosted MCP transport.");
+  }
+  if (Buffer.byteLength(bearerToken, "utf8") < minimumHostedMcpBearerTokenBytes) {
+    throw new Error("WATASU_MCP_BEARER_TOKEN must be at least 32 bytes.");
+  }
+  if (isDocumentedPlaceholderMcpBearerToken(bearerToken)) {
+    throw new Error("WATASU_MCP_BEARER_TOKEN must not use a documented test or placeholder value.");
+  }
+
+  return {
+    bearerToken
+  };
+}
+
 function isDocumentedPlaceholderSigningSecret(signingSecret: string): boolean {
   return signingSecret === "test-deployment-identity-secret-with-enough-entropy" ||
     signingSecret === "local-demo-signing-secret" ||
     signingSecret === "sample-secret-value";
+}
+
+function isDocumentedPlaceholderMcpBearerToken(bearerToken: string): boolean {
+  return bearerToken === "test-hosted-mcp-bearer-token-with-enough-entropy" ||
+    bearerToken === "local-demo-mcp-bearer-token" ||
+    bearerToken === "sample-mcp-bearer-token";
 }
 
 export function createSignedHeaderIdentityProviderFromEnv(input: {
@@ -207,6 +238,7 @@ export function createHostedProductionServerFromEnv(input: {
   }
 
   const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
+  const mcpBearerTokenConfig = loadHostedMcpBearerTokenConfig(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
     clock: input.now
@@ -234,7 +266,19 @@ export function createHostedProductionServerFromEnv(input: {
     endpointPath: "/mcp",
     allowedOrigins: [config.publicBaseUrl],
     resourceMetadataUrl: `${config.publicBaseUrl}/.well-known/oauth-protected-resource`,
-    scopes: ["watasu:publish", "watasu:ledger:read"]
+    scopes: ["watasu:publish", "watasu:ledger:read"],
+    authorizeBearerToken({ token, requiredScopes }) {
+      if (!timingSafeStringEqual(token, mcpBearerTokenConfig.bearerToken)) {
+        return {
+          ok: false
+        };
+      }
+
+      return {
+        ok: true,
+        scopes: [...requiredScopes]
+      };
+    }
   });
   const mcpProtectedResourceMetadata = buildMcpProtectedResourceMetadata({
     resource: `${config.publicBaseUrl}/mcp`,
@@ -292,6 +336,16 @@ export function createHostedProductionServerFromEnv(input: {
       });
     }
   };
+}
+
+function timingSafeStringEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 export function createPostgresPoolQueryClient(pool: {
