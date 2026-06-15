@@ -92,6 +92,15 @@ Expected `pnpm demo:handoff` highlights:
 }
 ```
 
+To run the receiver-owned CSV slice, use:
+
+```bash
+pnpm demo:receiver-csv
+```
+
+It appends accepted demo rows to `receiver-demo-output/collected-submissions.csv`.
+The `receiver-demo-output/` directory is ignored by Git.
+
 ## CLI examples
 
 Sample request definition:

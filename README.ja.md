@@ -98,6 +98,15 @@ pnpm demo:handoff
 }
 ```
 
+receiver 側がCSVへ追記するデモ slice は次で実行できます。
+
+```bash
+pnpm demo:receiver-csv
+```
+
+受信済みのdemo行は `receiver-demo-output/collected-submissions.csv` に追記されます。
+`receiver-demo-output/` は Git 追跡外です。
+
 ## CLI examples
 
 サンプル request definition:
