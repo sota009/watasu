@@ -3,6 +3,7 @@ import { pluginLlms } from "@rspress/plugin-llms";
 
 export default defineConfig({
   root: "docs-site",
+  themeDir: "theme",
   title: "watasu docs",
   description: "Agent-native encrypted intake rail for personal-data handoff.",
   lang: "ja",
