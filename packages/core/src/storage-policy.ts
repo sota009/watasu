@@ -6,6 +6,7 @@ import { sha256Hash } from "./hash.js";
 import type { Sha256Hash } from "./hash.js";
 import type {
   AsyncIdempotencyStore,
+  AsyncSubmissionRateLimiter,
   CapabilityRecord,
   CapabilityStatus,
   IdempotencyValidationClaim,
@@ -430,6 +431,114 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
       ]
     );
   }
+}
+
+export class PostgresFixedWindowRateLimiter implements AsyncSubmissionRateLimiter {
+  readonly #queryClient: PostgresQueryClient;
+  readonly #tenantId: string;
+  readonly #limit: number;
+  readonly #windowMs: number;
+  readonly #clock: () => Date;
+
+  constructor(input: {
+    queryClient: PostgresQueryClient;
+    tenantId: string;
+    limit: number;
+    windowMs: number;
+    clock: () => Date;
+  }) {
+    this.#queryClient = input.queryClient;
+    this.#tenantId = input.tenantId;
+    this.#limit = input.limit;
+    this.#windowMs = input.windowMs;
+    this.#clock = input.clock;
+  }
+
+  async consume(key: string): Promise<boolean> {
+    const windowStart = new Date(
+      Math.floor(this.#clock().getTime() / this.#windowMs) * this.#windowMs
+    ).toISOString();
+    const keyHash = sha256Hash(key);
+
+    await this.#queryClient.query(
+      `delete from watasu_rate_limit_counters
+      where tenant_id = $1
+        and rate_limit_key_hash = $2
+        and window_start < $3`,
+      [
+        this.#tenantId,
+        keyHash,
+        windowStart
+      ]
+    );
+
+    const result = await this.#queryClient.query(
+      `insert into watasu_rate_limit_counters (
+        tenant_id,
+        rate_limit_key_hash,
+        window_start,
+        hit_count
+      ) values ($1, $2, $3, $4)
+      on conflict (tenant_id, rate_limit_key_hash, window_start) do update set
+        hit_count = watasu_rate_limit_counters.hit_count + 1,
+        updated_at = now()
+      where watasu_rate_limit_counters.hit_count < $5
+      returning hit_count`,
+      [
+        this.#tenantId,
+        keyHash,
+        windowStart,
+        1,
+        this.#limit
+      ]
+    );
+
+    return result.rows.length > 0;
+  }
+}
+
+export function createPostgresFixedWindowRateLimiterSchemaSql(): string {
+  return `create table if not exists watasu_rate_limit_counters (
+  tenant_id text not null,
+  rate_limit_key_hash text not null,
+  window_start timestamptz not null,
+  hit_count integer not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, rate_limit_key_hash, window_start)
+);
+
+create index if not exists watasu_rate_limit_counters_window_idx
+  on watasu_rate_limit_counters (tenant_id, window_start);`;
+}
+
+export async function runPostgresFixedWindowRateLimiterMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresFixedWindowRateLimiterSchemaSql(), []);
+}
+
+export async function createMigratedPostgresFixedWindowRateLimiter(input: {
+  tenantId: string;
+  queryClient: PostgresQueryClient;
+  limit: number;
+  windowMs: number;
+  clock: () => Date;
+  runMigration?: boolean | undefined;
+}): Promise<PostgresFixedWindowRateLimiter> {
+  if (input.runMigration !== false) {
+    await runPostgresFixedWindowRateLimiterMigration({
+      queryClient: input.queryClient
+    });
+  }
+
+  return new PostgresFixedWindowRateLimiter({
+    tenantId: input.tenantId,
+    queryClient: input.queryClient,
+    limit: input.limit,
+    windowMs: input.windowMs,
+    clock: input.clock
+  });
 }
 
 export function createPostgresIdempotencyStoreSchemaSql(): string {
