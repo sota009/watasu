@@ -2,6 +2,14 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname } from "node:path";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import { canonicalizeJson } from "./request-definition.js";
+import { sha256Hash } from "./hash.js";
+import type { Sha256Hash } from "./hash.js";
+import type {
+  CapabilityRecord,
+  CapabilityStatus,
+  SubmissionCapability
+} from "./submission.js";
+import type { PublishedRequestVersion } from "./request-version.js";
 
 export type StoragePolicyMode = "stateless_default" | "metadata_ledger_enabled";
 
@@ -25,6 +33,26 @@ export interface PostgresQueryClient {
 export interface RetentionDeliveryLedgerStore {
   listDeliveryRows(): DeliveryLedgerRow[] | Promise<DeliveryLedgerRow[]>;
   deleteDeliveryRows(rows: DeliveryLedgerRow[]): void | Promise<void>;
+}
+
+export interface PersistentCapabilityRegistry {
+  issueCapability(input: {
+    published: PublishedRequestVersion;
+    url: string;
+    issuedAt?: string | undefined;
+  }): SubmissionCapability | Promise<SubmissionCapability>;
+  revokeCapability(
+    capability: Pick<SubmissionCapability, "url">,
+    revokedAt?: string | undefined
+  ): void | Promise<void>;
+  rotateCapability(input: {
+    published: PublishedRequestVersion;
+    previous: Pick<SubmissionCapability, "url">;
+    url: string;
+    rotatedAt?: string | undefined;
+  }): SubmissionCapability | Promise<SubmissionCapability>;
+  resolveCapability(url: string): SubmissionCapability | Promise<SubmissionCapability>;
+  listRecords(): CapabilityRecord[] | Promise<CapabilityRecord[]>;
 }
 
 export interface MetadataLedgerRetentionResult {
@@ -222,6 +250,174 @@ export class PostgresDeliveryLedgerStore implements PersistentDeliveryLedgerStor
   }
 }
 
+export class PostgresCapabilityRegistry implements PersistentCapabilityRegistry {
+  readonly #queryClient: PostgresQueryClient;
+  readonly #tenantId: string;
+
+  constructor(input: {
+    queryClient: PostgresQueryClient;
+    tenantId: string;
+  }) {
+    this.#queryClient = input.queryClient;
+    this.#tenantId = input.tenantId;
+  }
+
+  async issueCapability(input: {
+    published: PublishedRequestVersion;
+    url: string;
+    issuedAt?: string | undefined;
+  }): Promise<SubmissionCapability> {
+    const issuedAt = input.issuedAt ?? new Date().toISOString();
+    await this.#queryClient.query(
+      `insert into watasu_capabilities (
+        tenant_id,
+        request_id,
+        request_version,
+        capability_hash,
+        status,
+        issued_at,
+        revoked_at
+      ) values ($1, $2, $3, $4, $5, $6, $7)
+      on conflict (tenant_id, capability_hash) do update set
+        request_id = excluded.request_id,
+        request_version = excluded.request_version,
+        status = excluded.status,
+        issued_at = excluded.issued_at,
+        revoked_at = excluded.revoked_at`,
+      [
+        this.#tenantId,
+        input.published.request_id,
+        input.published.request_version,
+        sha256Hash(input.url),
+        "active",
+        issuedAt,
+        null
+      ]
+    );
+
+    return {
+      url: input.url,
+      revoked: false
+    };
+  }
+
+  async revokeCapability(
+    capability: Pick<SubmissionCapability, "url">,
+    revokedAt: string = new Date().toISOString()
+  ): Promise<void> {
+    await this.#queryClient.query(
+      `update watasu_capabilities
+      set status = $1,
+        revoked_at = $2
+      where tenant_id = $3
+        and capability_hash = $4`,
+      [
+        "revoked",
+        revokedAt,
+        this.#tenantId,
+        sha256Hash(capability.url)
+      ]
+    );
+  }
+
+  async rotateCapability(input: {
+    published: PublishedRequestVersion;
+    previous: Pick<SubmissionCapability, "url">;
+    url: string;
+    rotatedAt?: string | undefined;
+  }): Promise<SubmissionCapability> {
+    await this.revokeCapability(input.previous, input.rotatedAt);
+    return await this.issueCapability({
+      published: input.published,
+      url: input.url,
+      issuedAt: input.rotatedAt
+    });
+  }
+
+  async resolveCapability(url: string): Promise<SubmissionCapability> {
+    const result = await this.#queryClient.query(
+      `select status
+      from watasu_capabilities
+      where tenant_id = $1
+        and capability_hash = $2
+      limit 1`,
+      [
+        this.#tenantId,
+        sha256Hash(url)
+      ]
+    );
+    const row = result.rows[0] as { status?: unknown } | undefined;
+
+    return {
+      url,
+      revoked: row?.status !== "active"
+    };
+  }
+
+  async listRecords(): Promise<CapabilityRecord[]> {
+    const result = await this.#queryClient.query(
+      `select
+        request_id,
+        request_version,
+        capability_hash,
+        status,
+        issued_at,
+        revoked_at
+      from watasu_capabilities
+      where tenant_id = $1
+      order by issued_at asc`,
+      [
+        this.#tenantId
+      ]
+    );
+
+    return result.rows.map((row) => sanitizeCapabilityRecord(row));
+  }
+}
+
+export function createPostgresCapabilityRegistrySchemaSql(): string {
+  return `create table if not exists watasu_capabilities (
+  tenant_id text not null,
+  request_id text not null,
+  request_version text not null,
+  capability_hash text not null,
+  status text not null,
+  issued_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (tenant_id, capability_hash)
+);
+
+create index if not exists watasu_capabilities_request_idx
+  on watasu_capabilities (tenant_id, request_id, request_version);
+
+create index if not exists watasu_capabilities_status_idx
+  on watasu_capabilities (tenant_id, status);`;
+}
+
+export async function runPostgresCapabilityRegistryMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresCapabilityRegistrySchemaSql(), []);
+}
+
+export async function createMigratedPostgresCapabilityRegistry(input: {
+  tenantId: string;
+  queryClient: PostgresQueryClient;
+  runMigration?: boolean | undefined;
+}): Promise<PostgresCapabilityRegistry> {
+  if (input.runMigration !== false) {
+    await runPostgresCapabilityRegistryMigration({
+      queryClient: input.queryClient
+    });
+  }
+
+  return new PostgresCapabilityRegistry({
+    tenantId: input.tenantId,
+    queryClient: input.queryClient
+  });
+}
+
 export function createPostgresDeliveryLedgerSchemaSql(): string {
   return `create table if not exists watasu_delivery_ledger (
   tenant_id text not null,
@@ -305,6 +501,31 @@ function sanitizeDeliveryLedgerRow(row: DeliveryLedgerRow): DeliveryLedgerRow {
     webhook_status: row.webhook_status,
     error_code: row.error_code
   };
+}
+
+function sanitizeCapabilityRecord(row: unknown): CapabilityRecord {
+  const record = row as {
+    request_id?: unknown;
+    request_version?: unknown;
+    capability_hash?: unknown;
+    status?: unknown;
+    issued_at?: unknown;
+    revoked_at?: unknown;
+  };
+  const status: CapabilityStatus = record.status === "active" ? "active" : "revoked";
+  const capabilityRecord: CapabilityRecord = {
+    request_id: String(record.request_id ?? ""),
+    request_version: String(record.request_version ?? ""),
+    capability_hash: String(record.capability_hash ?? "") as Sha256Hash,
+    status,
+    issued_at: String(record.issued_at ?? "")
+  };
+
+  if (record.revoked_at !== undefined && record.revoked_at !== null) {
+    capabilityRecord.revoked_at = String(record.revoked_at);
+  }
+
+  return capabilityRecord;
 }
 
 export function createMetadataLedgerReader(input: {

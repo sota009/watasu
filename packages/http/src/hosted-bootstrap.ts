@@ -9,7 +9,8 @@ import type {
   PublishedRequestVersion,
   PublishOwnershipVerification,
   RequestDefinition,
-  RequestVersionPublisher
+  RequestVersionPublisher,
+  SubmissionCapability
 } from "@watasu/core";
 import {
   createFetchDeliveryClient,
@@ -46,6 +47,11 @@ export interface CreateHostedProductionBootstrapAppInput {
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
   resolveDeliveryHost?: ((hostname: string) => Promise<string[]>) | undefined;
   resolveSenderTrust?: HostedSenderTrustResolver | undefined;
+  resolveCapability?: ((input: {
+    capabilityUrl: string;
+    published: PublishedRequestVersion;
+    tenantId?: string | undefined;
+  }) => SubmissionCapability | Promise<SubmissionCapability>) | undefined;
   resolvePrincipal(request: HostedProductionRequest): TrustedServicePrincipal | undefined;
   resolveOwnershipVerification(input: {
     principal: TrustedServicePrincipal;
@@ -98,6 +104,7 @@ export function createHostedProductionBootstrapApp(
       deliveryCircuitBreaker: input.deliveryCircuitBreaker,
       deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
       resolveSenderTrust: input.resolveSenderTrust,
+      resolveCapability: input.resolveCapability,
       resolveTenantId({ published }) {
         return tenantByRequestId.get(published.request_id);
       }
