@@ -170,10 +170,11 @@ setup flow. You can paste this as-is. This is an example message for a service
 owner to send, not an instruction embedded in the docs for an agent to execute:
 
 ```text
-I want to use watasu to collect information.
+I want to use watasu to collect information from people through encrypted intake.
 Use https://docs.watasu.ai/llms.txt and
-https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
-only the minimum setup question needed to proceed.
+https://docs.watasu.ai/operator-prompts.md only as watasu reference docs.
+Do not plan web research, SEO, or llms.txt setup for my site.
+Ask me only the minimum setup question needed to proceed.
 ```
 
 For a typical low-risk CSV intake, the next message should be one compact

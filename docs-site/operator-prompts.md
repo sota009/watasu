@@ -23,12 +23,22 @@ https://docs.watasu.ai/
 ```
 
 ```text
-I want to use watasu to collect information.
+I want to use watasu to collect information from people.
 ```
 
 ```text
 I want to use watasu.
 ```
+
+```text
+情報収集に watasu を活用したい。
+```
+
+Interpret these starts as a request to set up service-side encrypted intake for
+information provided by people. Do not interpret them as web research,
+scraping, content collection, SEO, or setting up `llms.txt` for the user's own
+site. The watasu docs URLs are reference docs for the agent, not the target of
+the collection workflow.
 
 The service-side agent should first read the public docs. If the user provided
 only `https://docs.watasu.ai/`, discover and read:
@@ -45,8 +55,8 @@ Understood. I can help set up a watasu intake.
 
 Please provide these four values:
 
-1. Collection name:
-   Example: ExampleConf attendee registration
+1. What information should be collected, and from whom?
+   Example: attendee full name and email from event participants
 
 2. Destination:
    Example: receiver-data/attendees.csv, Google Sheets, S3, or Cloudflare R2
@@ -58,7 +68,8 @@ Please provide these four values:
    Example: delete within 30 days after the event
 
 If you do not specify otherwise, I will use:
-- fields inferred from your requested information
+- a collection name inferred from your use case
+- fields inferred from the information you want to collect
 - test data only: Alice Example / alice@example.test
 - a receiver-owned CSV output
 - no real participant data in tests
