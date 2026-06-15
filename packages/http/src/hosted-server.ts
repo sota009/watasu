@@ -111,8 +111,8 @@ export function loadHostedPostgresRuntimeConfig(
     throw new Error("WATASU_POSTGRES_URL is required when WATASU_METADATA_LEDGER_STORE=postgres.");
   }
   const ssl = parsePostgresSsl(env["WATASU_POSTGRES_SSL"]);
-  if (ssl === "disable" && !isLocalLoopbackPostgresUrl(databaseUrl)) {
-    throw new Error("WATASU_POSTGRES_SSL=disable is allowed only for local loopback database URLs.");
+  if (ssl === "disable" && !isLocalLoopbackOrRenderPrivatePostgresUrl(databaseUrl)) {
+    throw new Error("WATASU_POSTGRES_SSL=disable is allowed only for local loopback or Render private database URLs.");
   }
 
   return {
@@ -277,10 +277,10 @@ function parsePostgresSsl(value: string | undefined): "disable" | "require" {
   throw new Error("WATASU_POSTGRES_SSL must be require or disable.");
 }
 
-function isLocalLoopbackPostgresUrl(value: string): boolean {
+function isLocalLoopbackOrRenderPrivatePostgresUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return isLocalLoopbackHost(url.hostname);
+    return isLocalLoopbackHost(url.hostname) || isRenderPrivatePostgresHost(url.hostname);
   } catch {
     return false;
   }
@@ -291,6 +291,10 @@ function isLocalLoopbackHost(hostname: string): boolean {
   return normalizedHostname === "localhost" ||
     normalizedHostname === "127.0.0.1" ||
     normalizedHostname === "::1";
+}
+
+function isRenderPrivatePostgresHost(hostname: string): boolean {
+  return /^dpg-[a-z0-9-]+$/.test(hostname);
 }
 
 export function buildHostedProductionRequest(input: {

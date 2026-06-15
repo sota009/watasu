@@ -46,7 +46,7 @@ services:
           name: watasu-metadata
           property: connectionString
       - key: WATASU_POSTGRES_SSL
-        value: require
+        value: disable
       - key: WATASU_POSTGRES_POOL_MAX
         value: "2"
       - key: WATASU_POSTGRES_RUN_MIGRATIONS

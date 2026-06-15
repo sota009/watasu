@@ -1377,7 +1377,7 @@ describe("workspace foundation", () => {
     expect(retentionEnv.has("WATASU_SERVICE_IDENTITY_SIGNING_SECRET")).toBe(false);
     expect(retentionEnv.has("WATASU_IDENTITY_PROVIDER")).toBe(false);
     expect(retentionEnv.has("WATASU_PUBLIC_BASE_URL")).toBe(false);
-    expect(retentionEnv.get("WATASU_POSTGRES_SSL")).toMatchObject({ value: "require" });
+    expect(retentionEnv.get("WATASU_POSTGRES_SSL")).toMatchObject({ value: "disable" });
     expect(retentionEnv.get("WATASU_POSTGRES_URL")).toMatchObject({
       fromDatabase: {
         name: "watasu-metadata",
