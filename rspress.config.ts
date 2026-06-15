@@ -6,6 +6,7 @@ export default defineConfig({
   themeDir: "theme",
   title: "watasu docs",
   description: "Agent-native encrypted intake rail for personal-data handoff.",
+  icon: "/favicon.svg",
   lang: "en",
   plugins: [
     pluginLlms()
@@ -15,24 +16,16 @@ export default defineConfig({
     llmsUI: true,
     nav: [
       {
-        text: "Guide",
+        text: "How it works",
         link: "/guide"
       },
       {
-        text: "AI",
+        text: "For agents",
         link: "/ai-customers"
-      },
-      {
-        text: "Demo",
-        link: "/demo-flow"
       },
       {
         text: "Security",
         link: "/security"
-      },
-      {
-        text: "GitHub",
-        link: "https://github.com/sota009/watasu"
       }
     ],
     sidebar: {
@@ -45,16 +38,12 @@ export default defineConfig({
               link: "/"
             },
             {
-              text: "Getting started",
+              text: "How it works",
               link: "/guide"
             },
             {
-              text: "AI customers",
+              text: "For agents",
               link: "/ai-customers"
-            },
-            {
-              text: "Target demo flow",
-              link: "/demo-flow"
             }
           ]
         },
@@ -68,10 +57,6 @@ export default defineConfig({
             {
               text: "Security boundary",
               link: "/security"
-            },
-            {
-              text: "Deploy docs site",
-              link: "/deploy"
             }
           ]
         }
