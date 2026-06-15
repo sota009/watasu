@@ -1,13 +1,16 @@
 # Operator prompts
 
-Use this page when you want to hand a concrete watasu setup task to an agent.
-The prompts are intentionally explicit because a service-side agent cannot
-complete the flow from "collect names and emails" alone. It needs the watasu
-docs, authorization, receiver details, and a test plan.
+This is an agent-facing setup recipe. It is meant to be read from `/llms.txt`,
+`/llms-full.txt`, or a direct docs route by a service-side setup agent. It is
+not a primary human onboarding page.
 
-## Before you copy
+A service-side agent cannot complete the flow from "collect names and emails"
+alone. It needs the watasu docs, authorization, receiver details, key metadata,
+and a test plan.
 
-Fill these values before asking an agent to act:
+## Required inputs
+
+Resolve these values before publishing or deploying anything:
 
 | Placeholder | Meaning |
 | --- | --- |
@@ -20,14 +23,14 @@ Fill these values before asking an agent to act:
 | `<AUTH_CONTEXT>` | How the agent can use authorized watasu CLI, MCP, or API credentials |
 | `<SERVICE_PUBLIC_KEY>` | Public JWK or key reference published in the request definition |
 
-If any value is missing, the agent should stop and report what is missing
-instead of inventing production settings.
+If any value is missing, stop and report what is missing instead of inventing
+production settings.
 
-## Service-side setup prompt
+## Service-side setup recipe
 
-Copy this prompt into the service-side coding or operations agent. That agent
-must have access to the service repo, the receiver deployment target, and the
-authorized watasu tooling for your service.
+Use this recipe when operating as the service-side coding or operations agent.
+You must have access to the service repo, the receiver deployment target, and
+the authorized watasu tooling for the service.
 
 ```text
 You are the service-side setup agent for <EVENT_NAME>.
@@ -108,11 +111,11 @@ Do not put secrets, private keys, bearer tokens, or plaintext participant values
 in logs, docs, Agent Cards, schemas, PR text, or issue comments.
 ```
 
-## Participant prompt
+## Participant-facing prompt template
 
 After publish, replace `<AGENT_CARD_URL>` with the request-specific Agent Card
-URL returned by watasu. This is the prompt the service can include in email,
-Slack, a landing page, or a QR-code destination.
+URL returned by watasu. Produce this template as an output artifact that the
+service can include in email, Slack, a landing page, or a QR-code destination.
 
 ```text
 Register me for <EVENT_NAME>.
@@ -184,4 +187,3 @@ Test submission: accepted
 CSV rows: 1 fake test row
 Participant prompt: ready
 ```
-

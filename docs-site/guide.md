@@ -183,11 +183,6 @@ The visible output should be a receiver-owned destination, such as a CSV or
 Sheet, with one accepted row. watasu should only show metadata-only delivery
 evidence and should not show plaintext payload values.
 
-If you want to hand this work to a service-side coding or operations agent, use
-[Operator prompts](/operator-prompts). That page spells out the docs URLs,
-authorization context, receiver requirements, publish output, and participant
-prompt that the agent needs to complete the setup.
-
 ## What an agent should use
 
 An agent should use the public contract surfaces that are available for the
