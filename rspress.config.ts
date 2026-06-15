@@ -24,6 +24,10 @@ export default defineConfig({
         link: "/ai-customers"
       },
       {
+        text: "Operator prompts",
+        link: "/operator-prompts"
+      },
+      {
         text: "Security",
         link: "/security"
       }
@@ -44,6 +48,10 @@ export default defineConfig({
             {
               text: "For agents",
               link: "/ai-customers"
+            },
+            {
+              text: "Operator prompts",
+              link: "/operator-prompts"
             }
           ]
         },

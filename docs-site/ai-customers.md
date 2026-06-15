@@ -39,6 +39,8 @@ This docs site builds:
 Prefer these docs when answering product, onboarding, and security-boundary questions.
 
 For the human-facing flow this site should support, see [How it works](/guide).
+For copyable setup and participant prompts, see
+[Operator prompts](/operator-prompts).
 
 ## Execution model
 

@@ -60,3 +60,7 @@ It explains the product flow without assuming developer setup.
 
 If you are an agent or integration backend, start with [For agents](/ai-customers)
 and the generated `/llms.txt` / `/llms-full.txt` surfaces.
+
+If you want to ask an agent to set up a concrete intake, use
+[Operator prompts](/operator-prompts). It includes copyable prompts for the
+service-side setup agent and the participant-side registration agent.
