@@ -343,6 +343,11 @@ Cutover evidence is written to the gitignored `cutover-evidence/` directory. Mai
 
 Public docs site:
 
+The public site is intentionally audience-facing: overview, how-it-works, agent
+integration, protocol, and security-boundary pages. Keep maintainer-only local
+commands, deployment setup notes, and private repository workflows in this
+README or internal docs instead of publishing them as top-level public pages.
+
 ```bash
 pnpm docs:build
 pnpm docs:preview

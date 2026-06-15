@@ -7,10 +7,10 @@ hero:
   tagline: Publish a machine-readable request contract, receive encrypted submissions, and keep payload custody outside watasu.
   actions:
     - theme: brand
-      text: Start the guide
+      text: See how it works
       link: /guide
     - theme: alt
-      text: AI-readable entry
+      text: For agents
       link: /ai-customers
 features:
   - title: Machine-readable intake
@@ -18,69 +18,45 @@ features:
   - title: No payload custody
     details: watasu validates and forwards encrypted envelopes without receiving, decrypting, logging, or retaining plaintext payload values.
   - title: AI-readable docs
-    details: This site builds llms.txt and llms-full.txt so agents can discover the product, boundaries, and public surfaces without scraping repository internals.
-  - title: End-to-end demo target
-    details: The target demo flow starts with a natural-language request and ends with a receiver-owned CSV or Sheet row, while watasu keeps plaintext payload custody out of scope.
+    details: This site builds llms.txt and llms-full.txt so agents can discover the product, boundaries, and public surfaces.
+  - title: Visible receiver output
+    details: A good trial starts with a natural-language request and ends with a receiver-owned CSV or Sheet row, while watasu keeps plaintext payload custody out of scope.
 ---
-
-## Current status
-
-| Surface | Status |
-| --- | --- |
-| Local protocol demo | Ready |
-| CLI | Ready |
-| Local HTTP demo | Ready |
-| Hosted API | Private-alpha ready at `https://api.watasu.ai` |
-| Hosted MCP | Auth required |
-| Human dashboard UI | Not in MVP scope |
-| User-side personal vault / agent | Not in MVP scope |
 
 ## What watasu does
 
-```text
-Service-side agent
-  defines request
-      |
-      v
-watasu
-  publishes request definition, schemas, Agent Card
-      |
-      v
-User-side agent
-  asks the user, encrypts payload
-      |
-      v
-watasu submit endpoint
-  validates encrypted envelope, forwards it
-      |
-      v
-Service receiver
-  decrypts and acts
-```
+<div class="flow-diagram" aria-label="watasu handoff flow">
+  <div class="flow-step">
+    <span class="flow-label">Service agent</span>
+    <strong>Publishes a request contract</strong>
+    <p>Defines fields, consent text, schemas, and Agent Card metadata.</p>
+  </div>
+  <div class="flow-arrow">-></div>
+  <div class="flow-step">
+    <span class="flow-label">User-side agent</span>
+    <strong>Asks, confirms, encrypts</strong>
+    <p>Uses the public contract without giving watasu plaintext payload values.</p>
+  </div>
+  <div class="flow-arrow">-></div>
+  <div class="flow-step">
+    <span class="flow-label">watasu</span>
+    <strong>Validates and forwards</strong>
+    <p>Checks the encrypted envelope and records metadata-only evidence.</p>
+  </div>
+  <div class="flow-arrow">-></div>
+  <div class="flow-step">
+    <span class="flow-label">Receiver</span>
+    <strong>Decrypts and acts</strong>
+    <p>Owns private keys, destination writes, and business obligations.</p>
+  </div>
+</div>
 
 watasu is the secure handoff rail. It is not a form builder, user vault, or consumer AI companion.
 
-For the intended end-to-end demo, see [Target demo flow](/demo-flow).
+## Start here
 
-## Try it locally
+If you are evaluating watasu as a person, start with [How it works](/guide).
+It explains the product flow without assuming developer setup.
 
-```bash
-pnpm install
-pnpm demo:handoff
-```
-
-The important output fields are:
-
-```json
-{
-  "ok": true,
-  "sender": {
-    "payload_values_sent_to_watasu": false
-  },
-  "watasu": {
-    "delivery_status": "delivered",
-    "ledger_contains_payload_body": false,
-    "response_contains_plaintext_payload": false
-  }
-}
-```
+If you are an agent or integration backend, start with [For agents](/ai-customers)
+and the generated `/llms.txt` / `/llms-full.txt` surfaces.
