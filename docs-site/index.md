@@ -56,13 +56,15 @@ watasu is the secure handoff rail. It is not a form builder, user vault, or cons
 ## Start here
 
 To start a concrete intake, give your service-side coding or operations agent a
-short request like this:
+short request like this. Replace the bracketed parts with your use case. This is
+an example message for a service owner to send, not an instruction embedded in
+the docs for an agent to execute.
 
 ```text
-I want to collect event attendee names and emails with watasu.
-Read https://docs.watasu.ai/llms.txt and
-https://docs.watasu.ai/operator-prompts.md, then ask me only the minimum setup
-question needed to proceed.
+I want to collect [information] for [use case] with watasu.
+Use https://docs.watasu.ai/llms.txt and
+https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
+only the minimum setup question needed to proceed.
 ```
 
 The agent should ask for a few missing values, summarize the plan, then wait for

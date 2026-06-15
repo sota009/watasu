@@ -165,20 +165,22 @@ internals, or real personal data.
 ## What a person should do first
 
 If you want to try watasu from the service side, start by asking your own
-coding or operations agent to read the agent-facing docs and begin the minimal
-setup flow:
+coding or operations agent to use the agent-facing docs and begin the minimal
+setup flow. Replace the bracketed parts with your use case. This is an example
+message for a service owner to send, not an instruction embedded in the docs for
+an agent to execute:
 
 ```text
-I want to collect event attendee names and emails with watasu.
-Read https://docs.watasu.ai/llms.txt and
-https://docs.watasu.ai/operator-prompts.md, then ask me only the minimum setup
-question needed to proceed.
+I want to collect [information] for [use case] with watasu.
+Use https://docs.watasu.ai/llms.txt and
+https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
+only the minimum setup question needed to proceed.
 ```
 
-For a typical low-risk event intake, the next message should be one compact
-question asking for the event name, CSV destination, participant-facing purpose,
-and retention policy. After you answer, the agent should summarize the setup and
-ask for confirmation before publishing or deploying anything.
+For a typical low-risk CSV intake, the next message should be one compact
+question asking for the collection name, destination, participant-facing purpose,
+and retention policy. After you answer, the agent should summarize the setup
+and ask for confirmation before publishing or deploying anything.
 
 If you are evaluating rather than setting up an intake, start by deciding which
 role you are evaluating:
