@@ -27,21 +27,21 @@
 }
 
 :root.rp-dark {
-  --rp-c-brand: #ffffff;
-  --rp-c-brand-light: #f2f2f2;
-  --rp-c-brand-dark: #ffffff;
-  --rp-c-brand-tint: rgba(255, 255, 255, 0.08);
-  --rp-c-bg: #050505;
-  --rp-c-bg-soft: #101010;
-  --rp-c-bg-mute: #171717;
-  --rp-c-divider: rgba(255, 255, 255, 0.2);
-  --rp-c-divider-light: rgba(255, 255, 255, 0.12);
-  --rp-c-text-0: #ffffff;
-  --rp-c-text-1: #f2f2f2;
-  --rp-c-text-2: rgba(255, 255, 255, 0.66);
-  --rp-c-text-3: rgba(255, 255, 255, 0.46);
-  --rp-home-background-bg: #050505;
-  --rp-home-feature-bg: #050505;
+  --rp-c-brand: #111111;
+  --rp-c-brand-light: #333333;
+  --rp-c-brand-dark: #000000;
+  --rp-c-brand-tint: rgba(17, 17, 17, 0.06);
+  --rp-c-bg: #ffffff;
+  --rp-c-bg-soft: #f8f8f8;
+  --rp-c-bg-mute: #f1f1f1;
+  --rp-c-divider: rgba(17, 17, 17, 0.18);
+  --rp-c-divider-light: rgba(17, 17, 17, 0.1);
+  --rp-c-text-0: #000000;
+  --rp-c-text-1: #171717;
+  --rp-c-text-2: rgba(17, 17, 17, 0.62);
+  --rp-c-text-3: rgba(17, 17, 17, 0.42);
+  --rp-home-background-bg: #ffffff;
+  --rp-home-feature-bg: #ffffff;
 }
 
 body {
@@ -56,7 +56,7 @@ body {
 }
 
 .rp-dark .rp-nav {
-  background: rgba(5, 5, 5, 0.9) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
 }
 
 body:not(.notTopArrived) .rp-nav {
@@ -98,7 +98,7 @@ body:not(.notTopArrived) .rp-nav {
 }
 
 .rp-dark .rp-search-button {
-  background: rgba(5, 5, 5, 0.86);
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .rp-home-background {
@@ -188,7 +188,7 @@ body:not(.notTopArrived) .rp-nav {
 }
 
 .rp-dark .rp-button--alt {
-  background: #050505;
+  background: #ffffff;
 }
 
 .rp-button--alt:hover {
@@ -327,7 +327,7 @@ body:not(.notTopArrived) .rp-nav {
 
 .rp-dark .rp-doc-layout__sidebar,
 .rp-dark .rp-doc-layout__outline {
-  background: rgba(5, 5, 5, 0.94);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .rspress-doc h1 {

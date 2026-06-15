@@ -11,6 +11,7 @@ export default defineConfig({
     pluginLlms()
   ],
   themeConfig: {
+    darkMode: false,
     llmsUI: true,
     nav: [
       {
