@@ -1,6 +1,28 @@
 import { Layout as BaseLayout } from "@rspress/core/theme-original";
 import "./styles.css";
 
+const StartHere = () => (
+  <section className="watasu-start-here" aria-label="Start here">
+    <div className="watasu-start-here__panel">
+      <div className="watasu-start-here__copy">
+        <span className="watasu-start-here__eyebrow">Start here</span>
+        <h2>Give this to your service-side agent.</h2>
+        <p>
+          Replace the bracketed parts, then ask your coding or operations agent
+          to begin the minimal setup flow. The agent should ask one compact
+          setup question before it publishes anything.
+        </p>
+      </div>
+      <pre className="watasu-start-here__prompt">
+        <code>{`I want to collect [information] for [use case] with watasu.
+Use https://docs.watasu.ai/llms.txt and
+https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
+only the minimum setup question needed to proceed.`}</code>
+      </pre>
+    </div>
+  </section>
+);
+
 const FlowPreview = () => (
   <section className="watasu-flow-preview" aria-label="watasu protocol preview">
     <div className="watasu-flow-preview__panel">
@@ -34,6 +56,15 @@ const FlowPreview = () => (
   </section>
 );
 
-export const Layout = () => <BaseLayout afterHero={<FlowPreview />} />;
+export const Layout = () => (
+  <BaseLayout
+    afterHero={
+      <>
+        <StartHere />
+        <FlowPreview />
+      </>
+    }
+  />
+);
 
 export * from "@rspress/core/theme-original";
