@@ -165,6 +165,49 @@ describe("hosted production HTTP app", () => {
     expect(response.body).not.toContain("receiver.example.com/private");
   });
 
+  test("test_get_agent_card_route_awaits_async_request_version_list", async () => {
+    // Arrange
+    const requestVersions = new InMemoryRequestVersionRepository();
+    requestVersions.publish("event-attendee-intake", definition);
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle async agent card route");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("async agent card"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: {
+        async list(requestId) {
+          await Promise.resolve();
+
+          return requestVersions.list(requestId);
+        }
+      },
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle async agent card route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/agent-card.json"
+    }));
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(parseJson(response.body)).toMatchObject({
+      supportedInterfaces: [
+        {
+          url: "https://api.watasu.ai/requests/event-attendee-intake/submit"
+        }
+      ]
+    });
+  });
+
   test("test_get_agent_card_route_returns_not_found_for_unpublished_request", async () => {
     // Arrange
     const app = createHostedProductionApp({
@@ -259,6 +302,49 @@ describe("hosted production HTTP app", () => {
     });
     expect(plaintextResponse.body).not.toContain("receiver.example.com/private");
     expect(envelopeResponse.body).not.toContain("receiver.example.com/private");
+  });
+
+  test("test_get_schema_route_awaits_async_request_version_list", async () => {
+    // Arrange
+    const requestVersions = new InMemoryRequestVersionRepository();
+    const published = requestVersions.publish("event-attendee-intake", definition);
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle async schema route");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("async schema"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: {
+        async list(requestId) {
+          await Promise.resolve();
+
+          return requestVersions.list(requestId);
+        }
+      },
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle async schema route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/schemas/envelope.json"
+    }));
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(parseJson(response.body)).toMatchObject({
+      properties: {
+        schema_hash: {
+          const: published.hashes.schema_hash
+        }
+      }
+    });
   });
 
   test("test_get_schema_route_returns_not_found_for_unpublished_request", async () => {
