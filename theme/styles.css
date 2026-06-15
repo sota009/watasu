@@ -107,7 +107,7 @@ body:not(.notTopArrived) .rp-nav {
 }
 
 .rp-home-background {
-  height: 820px;
+  height: 720px;
   filter: none;
   background: var(--rp-home-background-bg);
 }
@@ -115,7 +115,7 @@ body:not(.notTopArrived) .rp-nav {
 .rp-home-hero {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 126px 32px 42px;
+  padding: 88px 32px 34px;
 }
 
 .rp-home-hero--no-image {
@@ -328,13 +328,18 @@ body:not(.notTopArrived) .rp-nav {
   line-height: 1.6;
 }
 
+.watasu-start-here__prompt-wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .watasu-start-here__prompt {
   min-width: 0;
   margin: 0;
   border: 1px solid var(--rp-c-divider-light);
   border-radius: 12px;
   background: var(--rp-c-bg-soft);
-  padding: 18px;
+  padding: 50px 18px 18px;
   white-space: pre-wrap;
 }
 
@@ -343,6 +348,26 @@ body:not(.notTopArrived) .rp-nav {
   font-size: 13px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.watasu-start-here__copy-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  min-width: 72px;
+  height: 30px;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 999px;
+  color: var(--rp-c-text-1);
+  background: var(--rp-c-bg);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.watasu-start-here__copy-button:hover {
+  border-color: var(--rp-c-text-0);
 }
 
 .watasu-flow-preview {
@@ -510,7 +535,7 @@ body:not(.notTopArrived) .rp-nav {
 
 @media (max-width: 768px) {
   .rp-home-hero {
-    padding: 86px 20px 32px;
+    padding: 66px 20px 28px;
   }
 
   .rp-home-hero__title {

@@ -1,27 +1,58 @@
 import { Layout as BaseLayout } from "@rspress/core/theme-original";
+import { useState } from "react";
 import "./styles.css";
 
-const StartHere = () => (
-  <section className="watasu-start-here" aria-label="Start here">
-    <div className="watasu-start-here__panel">
-      <div className="watasu-start-here__copy">
-        <span className="watasu-start-here__eyebrow">Start here</span>
-        <h2>Give this to your service-side agent.</h2>
-        <p>
-          Replace the bracketed parts, then ask your coding or operations agent
-          to begin the minimal setup flow. The agent should ask one compact
-          setup question before it publishes anything.
-        </p>
-      </div>
-      <pre className="watasu-start-here__prompt">
-        <code>{`I want to collect [information] for [use case] with watasu.
+const startPrompt = `I want to collect [information] for [use case] with watasu.
 Use https://docs.watasu.ai/llms.txt and
 https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
-only the minimum setup question needed to proceed.`}</code>
-      </pre>
-    </div>
-  </section>
-);
+only the minimum setup question needed to proceed.`;
+
+const StartHere = () => {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(startPrompt);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1600);
+    } catch {
+      setCopyState("failed");
+      window.setTimeout(() => setCopyState("idle"), 2200);
+    }
+  };
+
+  const buttonText =
+    copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy";
+
+  return (
+    <section className="watasu-start-here" aria-label="Start here">
+      <div className="watasu-start-here__panel">
+        <div className="watasu-start-here__copy">
+          <span className="watasu-start-here__eyebrow">Start here</span>
+          <h2>Give this to your service-side agent.</h2>
+          <p>
+            Replace the bracketed parts, then ask your coding or operations
+            agent to begin the minimal setup flow. The agent should ask one
+            compact setup question before it publishes anything.
+          </p>
+        </div>
+        <div className="watasu-start-here__prompt-wrap">
+          <button
+            type="button"
+            className="watasu-start-here__copy-button"
+            onClick={copyPrompt}
+            aria-label="Copy start prompt"
+          >
+            {buttonText}
+          </button>
+          <pre className="watasu-start-here__prompt">
+            <code>{startPrompt}</code>
+          </pre>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const FlowPreview = () => (
   <section className="watasu-flow-preview" aria-label="watasu protocol preview">
