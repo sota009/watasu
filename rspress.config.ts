@@ -6,7 +6,7 @@ export default defineConfig({
   themeDir: "theme",
   title: "watasu docs",
   description: "Agent-native encrypted intake rail for personal-data handoff.",
-  lang: "ja",
+  lang: "en",
   plugins: [
     pluginLlms()
   ],
