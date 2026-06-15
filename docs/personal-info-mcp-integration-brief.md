@@ -380,6 +380,15 @@ Done when:
 - A developer can run one command and see which fields would be sent.
 - No plaintext values appear in stdout, logs, or snapshots.
 
+Current implementation:
+
+- Package: `@watasu/personal-info-adapter`
+- Command: `pnpm --filter @watasu/personal-info-adapter dry-run ...`
+- The first slice uses a deterministic JSON value fixture as the adapter-side
+  read boundary. The actual `personal-info-mcp` client transport remains a next
+  slice so the no-plaintext-output and least-field-read behavior can be locked
+  down first.
+
 ### Slice 2: local encrypted submit to watasu HTTP demo
 
 Goal:
@@ -505,14 +514,27 @@ uv run pytest -v
 uv run mcp dev personal_info_mcp/server.py
 ```
 
-For the local integration once the adapter exists:
+For the local adapter dry run:
 
 ```bash
 pnpm --filter @watasu/http demo
 ```
 
-Then, in a second terminal, run the adapter dry run and encrypted submit commands
-defined by the adapter project.
+Then, in a second terminal:
+
+```bash
+pnpm --filter @watasu/personal-info-adapter dry-run \
+  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
+  --schema http://127.0.0.1:8787/schemas/plaintext.json \
+  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
+  --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json
+```
+
+Expected behavior:
+
+- stdout contains request metadata, destination origin, mapped field names, and
+  `"[REDACTED]"` placeholders only.
+- stdout must not contain the test fixture values.
 
 ## Open Questions
 
