@@ -1348,7 +1348,7 @@ describe("workspace foundation", () => {
       plan: "starter",
       region: "singapore",
       branch: "main",
-      buildCommand: "corepack enable && pnpm install --frozen-lockfile && pnpm typecheck",
+      buildCommand: "pnpm install --frozen-lockfile && pnpm typecheck",
       startCommand: "pnpm --filter @watasu/hosted start",
       autoDeployTrigger: "checksPass",
       healthCheckPath: "/health",
@@ -1369,7 +1369,7 @@ describe("workspace foundation", () => {
       region: "singapore",
       branch: "main",
       schedule: "0 3 * * *",
-      buildCommand: "corepack enable && pnpm install --frozen-lockfile && pnpm typecheck",
+      buildCommand: "pnpm install --frozen-lockfile && pnpm typecheck",
       startCommand: "pnpm --filter @watasu/hosted retention"
     });
     expect(retentionEnv.get("NODE_VERSION")).toMatchObject({ value: "24.14.1" });

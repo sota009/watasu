@@ -24,6 +24,11 @@ const requiredChecks = [
   },
   {
     file: "render.yaml",
+    description: "Render build commands avoid corepack enable because Render's pnpm shim can be read-only",
+    forbiddenPattern: /buildCommand:\s+.*corepack enable/
+  },
+  {
+    file: "render.yaml",
     description: "Render web service keeps the identity signing secret out of git",
     pattern: /key:\s+WATASU_SERVICE_IDENTITY_SIGNING_SECRET\s*\n\s*sync:\s+false/
   },
