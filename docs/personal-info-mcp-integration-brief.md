@@ -479,6 +479,9 @@ Current implementation:
 - The adapter maps hosted `auth_required` and `resubmit_later` submit responses
   to structured errors without echoing hosted response bodies or plaintext
   personal-info values.
+- `pnpm --silent hosted-submit:status` reports whether the operator has supplied
+  the private-alpha Agent Card URL, schema URL, service public JWK path, and
+  test-only personal-info values path without printing those values.
 - Live hosted submit still requires a published private-alpha request URL and
   test-only data for that request.
 
@@ -608,6 +611,8 @@ with:
 - Live hosted submit still needs a published private-alpha request URL, matching
   plaintext schema URL, service public JWK, and test-only personal-info values
   for that request.
+- Use `pnpm --silent hosted-submit:status` to confirm those operator inputs are
+  present before running the adapter submit command.
 
 ## References
 
