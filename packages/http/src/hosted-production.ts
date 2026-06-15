@@ -17,7 +17,8 @@ import type {
 import type {
   HostedSubmitApp,
   HostedSubmitRequest,
-  HostedSubmitResponse
+  HostedSubmitResponse,
+  HostedRequestVersionReader
 } from "./hosted-submit.js";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
@@ -33,9 +34,7 @@ export interface CreateHostedProductionAppInput {
   metadataApp: HostedMetadataApp;
   submitApp: HostedSubmitApp;
   publicBaseUrl: string;
-  requestVersions: {
-    list(requestId: string): PublishedRequestVersion[];
-  };
+  requestVersions: HostedRequestVersionReader;
 }
 
 export function createHostedProductionApp(input: CreateHostedProductionAppInput): HostedProductionApp {
@@ -58,7 +57,7 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 
       const schemaRequest = matchSchemaPath(request);
       if (schemaRequest !== undefined) {
-        const published = latestPublishedRequest(input.requestVersions.list(schemaRequest.requestId));
+        const published = latestPublishedRequest(await input.requestVersions.list(schemaRequest.requestId));
         if (published === undefined) {
           return publishedRequestNotFoundResponse();
         }
@@ -73,7 +72,7 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 
       const agentCardRequestId = matchAgentCardPath(request);
       if (agentCardRequestId !== undefined) {
-        const published = latestPublishedRequest(input.requestVersions.list(agentCardRequestId));
+        const published = latestPublishedRequest(await input.requestVersions.list(agentCardRequestId));
         if (published === undefined) {
           return publishedRequestNotFoundResponse();
         }

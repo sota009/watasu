@@ -10,7 +10,6 @@ import type {
   PublishedRequestVersion,
   PublishOwnershipVerification,
   RequestDefinition,
-  RequestVersionPublisher,
   SubmissionCapability
 } from "@watasu/core";
 import {
@@ -33,8 +32,8 @@ import { createHostedPublishApp } from "./hosted-publish.js";
 import { createHostedSubmitApp } from "./hosted-submit.js";
 
 export interface CreateHostedProductionBootstrapAppInput {
-  repository: RequestVersionPublisher & {
-    list(requestId: string): PublishedRequestVersion[];
+  repository: AsyncRequestVersionPublisher & {
+    list(requestId: string): PublishedRequestVersion[] | Promise<PublishedRequestVersion[]>;
   };
   ledgerReader: MetadataLedgerReader;
   publicBaseUrl: string;
@@ -73,8 +72,15 @@ export function createHostedProductionBootstrapApp(
     resolvePrincipal: input.resolvePrincipal
   });
   const publishRepository: AsyncRequestVersionPublisher = {
-    publish(requestId, definition) {
-      const published = input.repository.publish(requestId, definition);
+    async publish(requestId, definition) {
+      let published: PublishedRequestVersion;
+      try {
+        published = await input.repository.publish(requestId, definition);
+      } catch (error) {
+        pendingPublishTenants.delete(requestId);
+        throw error;
+      }
+
       const tenantId = pendingPublishTenants.get(requestId);
       if (tenantId !== undefined) {
         tenantByRequestId.set(requestId, tenantId);

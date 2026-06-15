@@ -39,11 +39,13 @@ export interface HostedSubmitApp {
   handle(request: HostedSubmitRequest): Promise<HostedSubmitResponse>;
 }
 
+export interface HostedRequestVersionReader {
+  list(requestId: string): PublishedRequestVersion[] | Promise<PublishedRequestVersion[]>;
+}
+
 export interface CreateHostedSubmitAppInput {
   publicBaseUrl: string;
-  requestVersions: {
-    list(requestId: string): PublishedRequestVersion[];
-  };
+  requestVersions: HostedRequestVersionReader;
   deliveryClient: DeliveryClient;
   ledger: DeliveryLedger;
   idempotencyStore: AsyncIdempotencyStore;
@@ -90,7 +92,7 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         });
       }
 
-      const published = latestPublishedRequest(input.requestVersions.list(requestId));
+      const published = latestPublishedRequest(await input.requestVersions.list(requestId));
       if (published === undefined) {
         return jsonResponse(404, {
           ok: false,

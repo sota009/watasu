@@ -172,6 +172,51 @@ describe("hosted submit HTTP app", () => {
     expect(response.body).not.toContain("base64url-ciphertext");
   });
 
+  test("test_hosted_submit_awaits_async_request_version_list_before_delivery", async () => {
+    // Arrange
+    const { repository, published } = createRepository();
+    const deliveryRequests: DeliveryRequest[] = [];
+    const app = createHostedSubmitApp({
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: {
+        async list(requestId) {
+          await Promise.resolve();
+
+          return repository.list(requestId);
+        }
+      },
+      deliveryClient: {
+        async post(request) {
+          deliveryRequests.push(request);
+          return {
+            status: 204
+          };
+        }
+      },
+      ledger: {
+        writeDeliveryAttempt() {}
+      },
+      idempotencyStore: new InMemoryIdempotencyStore(),
+      rateLimiter: new InMemorySubmissionRateLimiter({
+        limit: 60,
+        windowMs: 60_000,
+        clock: () => new Date("2026-06-15T00:00:01.000Z")
+      }),
+      resolveDeliveryHost: async () => ["203.0.113.10"],
+      clock: () => new Date("2026-06-15T00:00:01.000Z"),
+      signingSecret: "test-deployment-signing-secret-with-enough-entropy"
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      body: createA2aBody({ published })
+    }));
+
+    // Assert
+    expect(response.status).toBe(202);
+    expect(deliveryRequests).toHaveLength(1);
+  });
+
   test("test_hosted_submit_rejects_missing_a2a_content_type_before_delivery", async () => {
     // Arrange
     const { repository, published } = createRepository();
