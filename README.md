@@ -176,6 +176,10 @@ Hosted private-alpha usage uses the same adapter command shape with a private
 Agent Card URL and schema URL:
 
 ```bash
+pnpm --silent hosted-submit:status
+```
+
+```bash
 pnpm --filter @watasu/personal-info-adapter submit \
   --agent-card https://api.watasu.ai/requests/<request-id>/agent-card.json \
   --schema https://api.watasu.ai/requests/<request-id>/schemas/plaintext.json \
