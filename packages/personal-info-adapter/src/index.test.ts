@@ -803,6 +803,111 @@ describe("personal-info-mcp adapter dry run", () => {
     expect(JSON.stringify(submittedBodies)).not.toContain("submit.secret@example.test");
   });
 
+  test("test_submit_handles_auth_required_without_leaking_plaintext_values", async () => {
+    const reader = trackingReader({
+      full_name: "Auth Required Secret Name",
+      email: "auth.required@example.test"
+    });
+    const submittedBodies: unknown[] = [];
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      confirmation: confirmationFixture(),
+      idempotencyKey: "submit-test-auth-required",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async (_url, init) => {
+        submittedBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({
+          ok: false,
+          status: "auth_required",
+          error: {
+            code: "sender_signature_required",
+            message: "Auth Required Secret Name must not be echoed by the adapter."
+          }
+        }), {
+          status: 401,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "submit_auth_required"
+      }
+    });
+    expect(reader.reads).toEqual(["full_name", "email"]);
+    expect(`${JSON.stringify(result)}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "Auth Required Secret Name"
+    );
+    expect(`${JSON.stringify(result)}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "auth.required@example.test"
+    );
+  });
+
+  test("test_submit_handles_resubmit_later_without_retaining_payload_values", async () => {
+    const reader = trackingReader({
+      full_name: "Resubmit Later Secret Name",
+      email: "resubmit.later@example.test"
+    });
+    const submittedBodies: unknown[] = [];
+    let fetchCalls = 0;
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      confirmation: confirmationFixture(),
+      idempotencyKey: "submit-test-resubmit-later",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async (_url, init) => {
+        fetchCalls += 1;
+        submittedBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({
+          ok: false,
+          status: "resubmit_later",
+          retry_after_seconds: 30,
+          payload_policy: "sender_resubmits_payload"
+        }), {
+          status: 503,
+          headers: {
+            "content-type": "application/json",
+            "retry-after": "30"
+          }
+        });
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "submit_resubmit_later"
+      }
+    });
+    expect(fetchCalls).toBe(1);
+    expect(`${JSON.stringify(result)}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "Resubmit Later Secret Name"
+    );
+    expect(`${JSON.stringify(result)}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "resubmit.later@example.test"
+    );
+  });
+
   test("test_submit_requires_confirmation_before_personal_info_reads", async () => {
     const reader = trackingReader({
       full_name: "No Confirmation Secret Name",

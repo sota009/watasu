@@ -469,6 +469,19 @@ Done when:
 - Hosted submit is verified with test-only data.
 - Private-alpha boundaries are documented in the adapter README.
 
+Current implementation:
+
+- `https://api.watasu.ai/health` returned `{"ok":true,"service":"watasu-hosted"}`
+  on 2026-06-15.
+- Unauthenticated `https://api.watasu.ai/mcp` returned `401` with a
+  `WWW-Authenticate` Bearer challenge on 2026-06-15.
+- The adapter can point at private-alpha Agent Card and schema URLs.
+- The adapter maps hosted `auth_required` and `resubmit_later` submit responses
+  to structured errors without echoing hosted response bodies or plaintext
+  personal-info values.
+- Live hosted submit still requires a published private-alpha request URL and
+  test-only data for that request.
+
 ## Development Agent Prompt
 
 Use this prompt when assigning the first implementation slice to an agent:
