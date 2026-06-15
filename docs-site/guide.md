@@ -164,7 +164,24 @@ internals, or real personal data.
 
 ## What a person should do first
 
-Start by deciding which role you are evaluating:
+If you want to try watasu from the service side, start by asking your own
+coding or operations agent to read the agent-facing docs and begin the minimal
+setup flow:
+
+```text
+I want to collect event attendee names and emails with watasu.
+Read https://docs.watasu.ai/llms.txt and
+https://docs.watasu.ai/operator-prompts.md, then ask me only the minimum setup
+question needed to proceed.
+```
+
+For a typical low-risk event intake, the next message should be one compact
+question asking for the event name, CSV destination, participant-facing purpose,
+and retention policy. After you answer, the agent should summarize the setup and
+ask for confirmation before publishing or deploying anything.
+
+If you are evaluating rather than setting up an intake, start by deciding which
+role you are evaluating:
 
 | Role | Start with | Why |
 | --- | --- | --- |

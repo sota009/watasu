@@ -55,8 +55,21 @@ watasu is the secure handoff rail. It is not a form builder, user vault, or cons
 
 ## Start here
 
-If you are evaluating watasu as a person, start with [How it works](/guide).
-It explains the product flow without assuming developer setup.
+To start a concrete intake, give your service-side coding or operations agent a
+short request like this:
+
+```text
+I want to collect event attendee names and emails with watasu.
+Read https://docs.watasu.ai/llms.txt and
+https://docs.watasu.ai/operator-prompts.md, then ask me only the minimum setup
+question needed to proceed.
+```
+
+The agent should ask for a few missing values, summarize the plan, then wait for
+your confirmation before it publishes anything.
+
+If you are evaluating watasu as a person, read [How it works](/guide). It
+explains the product flow without assuming developer setup.
 
 If you are an agent or integration backend, start with [For agents](/ai-customers)
 and the generated `/llms.txt` / `/llms-full.txt` surfaces.
