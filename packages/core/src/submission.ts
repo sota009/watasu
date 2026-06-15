@@ -12,6 +12,7 @@ export interface SubmissionEnvelope {
   request_version: string;
   schema_hash: string;
   consent_receipt_hash: string;
+  consent_receipt?: ConsentReceiptMetadata | undefined;
   idempotency_key: string;
   submitted_at: string;
   service_key_id: string;
@@ -20,6 +21,14 @@ export interface SubmissionEnvelope {
   sender_key_id?: string | undefined;
   sender_signature?: string | undefined;
   invite_id?: string | undefined;
+}
+
+export interface ConsentReceiptMetadata {
+  request_version: string;
+  consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
+  confirmed_at: string;
 }
 
 export interface SubmissionCapability {
@@ -336,17 +345,70 @@ export function validateSubmissionEnvelopeMetadata(
     };
   }
 
-  if (envelope.consent_receipt_hash !== published.hashes.consent_text_hash) {
-    return {
-      code: "consent_receipt_hash_mismatch",
-      message: "Envelope consent_receipt_hash does not match the published consent text."
-    };
+  const consentReceiptError = validateConsentReceiptMetadata(envelope, published);
+  if (consentReceiptError !== undefined) {
+    return consentReceiptError;
   }
 
   if (hashEncryptedPayload(envelope.encrypted_payload) !== envelope.encrypted_payload_hash) {
     return {
       code: "encrypted_payload_hash_mismatch",
       message: "Envelope encrypted_payload_hash does not match encrypted_payload."
+    };
+  }
+
+  return undefined;
+}
+
+function validateConsentReceiptMetadata(
+  envelope: SubmissionEnvelope,
+  published: PublishedRequestVersion
+): SubmissionValidationError | undefined {
+  const receipt = envelope.consent_receipt;
+
+  if (receipt === undefined) {
+    if (envelope.consent_receipt_hash !== published.hashes.consent_text_hash) {
+      return {
+        code: "consent_receipt_hash_mismatch",
+        message: "Envelope consent_receipt_hash does not match the published consent text."
+      };
+    }
+
+    return undefined;
+  }
+
+  if (receipt.request_version !== published.request_version) {
+    return {
+      code: "consent_receipt_request_version_mismatch",
+      message: "Envelope consent_receipt request_version does not match the published request."
+    };
+  }
+
+  if (receipt.consent_text_hash !== published.hashes.consent_text_hash) {
+    return {
+      code: "consent_receipt_consent_text_mismatch",
+      message: "Envelope consent_receipt consent_text_hash does not match the published request."
+    };
+  }
+
+  if (receipt.field_purposes_hash !== published.hashes.field_purposes_hash) {
+    return {
+      code: "consent_receipt_field_purposes_mismatch",
+      message: "Envelope consent_receipt field_purposes_hash does not match the published request."
+    };
+  }
+
+  if (receipt.destination_policy_hash !== published.hashes.destination_policy_hash) {
+    return {
+      code: "consent_receipt_destination_policy_mismatch",
+      message: "Envelope consent_receipt destination_policy_hash does not match the published request."
+    };
+  }
+
+  if (sha256Hash(canonicalizeJson(receipt)) !== envelope.consent_receipt_hash) {
+    return {
+      code: "consent_receipt_hash_mismatch",
+      message: "Envelope consent_receipt_hash does not match consent_receipt metadata."
     };
   }
 

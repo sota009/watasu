@@ -41,14 +41,15 @@ const baseAgentCard: AgentCard = {
           request_version: "v1",
           schema_hash: "sha256:test-schema",
           consent_text_hash: "sha256:test-consent",
+          field_purposes_hash: "sha256:test-field-purposes",
           destination_policy_hash: "sha256:test-destination-policy",
           encryption: {
             required: true,
             algorithm: "JWE",
-              key_management: "ECDH-ES+A256KW",
-              content_encryption: "A256GCM",
-              service_key_id: "svc_test_key",
-              public_key_fingerprint: "sha256:gb_X5MLJsUDoRXHNxfpfk8DYF6Jz5DpPDBqO58Jwbo4"
+            key_management: "ECDH-ES+A256KW",
+            content_encryption: "A256GCM",
+            service_key_id: "svc_test_key",
+            public_key_fingerprint: "sha256:gb_X5MLJsUDoRXHNxfpfk8DYF6Jz5DpPDBqO58Jwbo4"
           },
           submission: {
             max_payload_bytes: 262_144,
@@ -117,6 +118,23 @@ function encryptedPayloadFixture(payload: Record<string, unknown>): Record<strin
     iv: "base64url-iv",
     ciphertext: `encrypted-${Object.keys(payload).sort().join("-")}`,
     tag: "base64url-tag"
+  };
+}
+
+function confirmationFixture(overrides: Partial<{
+  request_version: string;
+  consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
+  confirmed_at: string;
+}> = {}) {
+  return {
+    request_version: "v1",
+    consent_text_hash: "sha256:test-consent",
+    field_purposes_hash: "sha256:test-field-purposes",
+    destination_policy_hash: "sha256:test-destination-policy",
+    confirmed_at: "2026-06-15T00:00:00.000Z",
+    ...overrides
   };
 }
 
@@ -386,11 +404,13 @@ describe("personal-info-mcp adapter dry run", () => {
       valuesFile,
       "--public-jwk",
       publicJwkFile,
+      "--confirm",
       "--idempotency-key",
       "cli-submit-001",
       "--submitted-at",
       "2026-06-15T00:00:00.000Z"
     ], {
+      now: () => new Date("2026-06-15T00:00:00.000Z"),
       fetch: async (_url, init) => {
         submittedBodies.push(JSON.parse(String(init?.body)));
         return new Response(JSON.stringify({
@@ -419,12 +439,76 @@ describe("personal-info-mcp adapter dry run", () => {
         ledger_contains_payload_body: false
       }
     });
+    expect(submittedBodies[0]).toMatchObject({
+      message: {
+        parts: [
+          {
+            data: {
+              consent_receipt: {
+                request_version: "v1",
+                consent_text_hash: "sha256:test-consent",
+                field_purposes_hash: "sha256:test-field-purposes",
+                destination_policy_hash: "sha256:test-destination-policy",
+                confirmed_at: "2026-06-15T00:00:00.000Z"
+              },
+              consent_receipt_hash: expect.stringMatching(/^sha256:/)
+            }
+          }
+        ]
+      }
+    });
     expect(`${result.stdout}${result.stderr}${JSON.stringify(submittedBodies)}`).not.toContain(
       "CLI Submit Secret Name"
     );
     expect(`${result.stdout}${result.stderr}${JSON.stringify(submittedBodies)}`).not.toContain(
       "cli.submit.secret@example.test"
     );
+  });
+
+  test("test_cli_submit_requires_confirmation_before_personal_info_file_reads", async () => {
+    const agentCardFile = writeJsonFixture("agent-card.json", baseAgentCard);
+    const schemaFile = writeJsonFixture("schema.json", baseSchema);
+    const mappingFile = writeJsonFixture("mapping.json", {
+      full_name: "full_name",
+      email: "email"
+    });
+    const missingValuesFile = join(tmpdir(), "watasu-missing-personal-info-values.json");
+    const publicJwkFile = writeJsonFixture("public-jwk.json", {
+      kty: "EC",
+      x: "TiZ60tQ0Se3zeQGt6T98XN5abLKOS1fjOJu1ea-xHnU",
+      y: "p7AD2mCWCUYJGBLkcA-lc3A46USGO147crX12i1lLrA",
+      crv: "P-256"
+    });
+    let fetchCalls = 0;
+
+    const result = await runPersonalInfoAdapterCli([
+      "submit",
+      "--agent-card",
+      agentCardFile,
+      "--schema",
+      schemaFile,
+      "--mapping",
+      mappingFile,
+      "--personal-info-values",
+      missingValuesFile,
+      "--public-jwk",
+      publicJwkFile
+    ], {
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit",
+      error: {
+        code: "missing_confirmation"
+      }
+    });
+    expect(fetchCalls).toBe(0);
   });
 
   test("test_cli_submit_rejects_public_jwk_fingerprint_mismatch_before_personal_info_reads", async () => {
@@ -457,7 +541,8 @@ describe("personal-info-mcp adapter dry run", () => {
       "--personal-info-values",
       valuesFile,
       "--public-jwk",
-      wrongPublicJwkFile
+      wrongPublicJwkFile,
+      "--confirm"
     ], {
       fetch: async () => {
         fetchCalls += 1;
@@ -493,6 +578,7 @@ describe("personal-info-mcp adapter dry run", () => {
         email: "email"
       },
       personalInfo: reader,
+      confirmation: confirmationFixture(),
       idempotencyKey: "submit-test-001",
       submittedAt: "2026-06-15T00:00:00.000Z",
       encryptPayload: encryptedPayloadFixture,
@@ -527,8 +613,91 @@ describe("personal-info-mcp adapter dry run", () => {
       }
     });
     expect(reader.reads).toEqual(["full_name", "email"]);
+    expect(submittedBodies[0]).toMatchObject({
+      message: {
+        parts: [
+          {
+            data: {
+              consent_receipt: confirmationFixture(),
+              consent_receipt_hash: expect.stringMatching(/^sha256:/)
+            }
+          }
+        ]
+      }
+    });
     expect(JSON.stringify(submittedBodies)).not.toContain("Submit Secret Name");
     expect(JSON.stringify(submittedBodies)).not.toContain("submit.secret@example.test");
+  });
+
+  test("test_submit_requires_confirmation_before_personal_info_reads", async () => {
+    const reader = trackingReader({
+      full_name: "No Confirmation Secret Name",
+      email: "no.confirmation@example.test"
+    });
+    let fetchCalls = 0;
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      idempotencyKey: "submit-test-no-confirmation",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "missing_confirmation"
+      }
+    });
+    expect(reader.reads).toEqual([]);
+    expect(fetchCalls).toBe(0);
+  });
+
+  test("test_submit_rejects_stale_confirmation_before_personal_info_reads", async () => {
+    const reader = trackingReader({
+      full_name: "Stale Confirmation Secret Name",
+      email: "stale.confirmation@example.test"
+    });
+    let fetchCalls = 0;
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      confirmation: confirmationFixture({
+        destination_policy_hash: "sha256:old-destination-policy"
+      }),
+      idempotencyKey: "submit-test-stale-confirmation",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "confirmation_destination_policy_mismatch"
+      }
+    });
+    expect(reader.reads).toEqual([]);
+    expect(fetchCalls).toBe(0);
   });
 
   test("test_submit_rejects_request_version_mismatch_before_personal_info_reads", async () => {
@@ -546,6 +715,7 @@ describe("personal-info-mcp adapter dry run", () => {
         email: "email"
       },
       personalInfo: reader,
+      confirmation: confirmationFixture(),
       expectedRequestVersion: "v2",
       idempotencyKey: "submit-test-002",
       submittedAt: "2026-06-15T00:00:00.000Z",
@@ -581,6 +751,7 @@ describe("personal-info-mcp adapter dry run", () => {
         email: "email"
       },
       personalInfo: reader,
+      confirmation: confirmationFixture(),
       expectedSchemaHash: "sha256:different-schema",
       idempotencyKey: "submit-test-003",
       submittedAt: "2026-06-15T00:00:00.000Z",

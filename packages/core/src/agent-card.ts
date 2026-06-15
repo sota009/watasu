@@ -31,6 +31,7 @@ export interface AgentCard {
         request_version: string;
         schema_hash: string;
         consent_text_hash: string;
+        field_purposes_hash: string;
         destination_policy_hash: string;
         encryption: {
           required: true;
@@ -96,6 +97,7 @@ export function buildAgentCard(input: {
             request_version: published.request_version,
             schema_hash: published.hashes.schema_hash,
             consent_text_hash: published.hashes.consent_text_hash,
+            field_purposes_hash: published.hashes.field_purposes_hash,
             destination_policy_hash: published.hashes.destination_policy_hash,
             encryption: {
               required: true,

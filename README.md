@@ -163,12 +163,15 @@ pnpm --filter @watasu/personal-info-adapter submit \
   --schema http://127.0.0.1:8787/schemas/plaintext.json \
   --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
   --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json \
-  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json
+  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json \
+  --confirm
 ```
 
 The adapter constructs plaintext only in memory, encrypts before submit, and
-prints metadata-only submit evidence. Real `personal-info-mcp` transport wiring
-is intentionally a later slice.
+requires explicit confirmation before personal-info values can be read. It
+includes consent receipt metadata plus its hash in the envelope, then prints
+metadata-only submit evidence. Real `personal-info-mcp` transport wiring is
+intentionally a later slice.
 
 ## Local HTTP demo
 
