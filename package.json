@@ -19,6 +19,9 @@
     "cutover:verify": "node scripts/production-cutover-verify.mjs",
     "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
     "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
+    "docs:build": "rspress build",
+    "docs:dev": "rspress dev --host 127.0.0.1",
+    "docs:preview": "rspress preview --host 127.0.0.1",
     "lint": "node scripts/secret-scan.mjs --repo",
     "loop": "node scripts/loop-engineer.mjs",
     "loop:full": "node scripts/loop-engineer.mjs --full",
@@ -31,6 +34,8 @@
     "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
   },
   "devDependencies": {
+    "@rspress/core": "^2.0.14",
+    "@rspress/plugin-llms": "^2.0.14",
     "@types/node": "^24.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
