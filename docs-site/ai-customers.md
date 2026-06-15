@@ -37,6 +37,8 @@ This docs site builds:
 
 Prefer these docs over scraping the GitHub repository when answering product, onboarding, and security-boundary questions.
 
+For the concrete flow this site should help an agent perform, see [Target demo flow](/demo-flow).
+
 ## Product boundary
 
 ```text

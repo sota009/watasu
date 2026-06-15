@@ -19,6 +19,8 @@ features:
     details: watasu validates and forwards encrypted envelopes without receiving, decrypting, logging, or retaining plaintext payload values.
   - title: AI-readable docs
     details: This site builds llms.txt and llms-full.txt so agents can discover the product, boundaries, and public surfaces without scraping repository internals.
+  - title: End-to-end demo target
+    details: The target demo flow starts with a natural-language request and ends with a receiver-owned CSV or Sheet row, while watasu keeps plaintext payload custody out of scope.
 ---
 
 ## Current status
@@ -57,6 +59,8 @@ Service receiver
 ```
 
 watasu is the secure handoff rail. It is not a form builder, user vault, or consumer AI companion.
+
+For the intended end-to-end demo, see [Target demo flow](/demo-flow).
 
 ## Try it locally
 

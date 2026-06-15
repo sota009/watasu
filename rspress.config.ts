@@ -21,6 +21,10 @@ export default defineConfig({
         link: "/ai-customers"
       },
       {
+        text: "Demo",
+        link: "/demo-flow"
+      },
+      {
         text: "Security",
         link: "/security"
       },
@@ -45,6 +49,10 @@ export default defineConfig({
             {
               text: "AI customers",
               link: "/ai-customers"
+            },
+            {
+              text: "Target demo flow",
+              link: "/demo-flow"
             }
           ]
         },
