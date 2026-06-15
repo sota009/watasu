@@ -24,7 +24,10 @@ export {
   watasuA2aHttpJsonContentType,
   watasuA2aProtocolVersion
 } from "./a2a.js";
-export { publishRequestVersion } from "./publish.js";
+export {
+  publishRequestVersion,
+  publishRequestVersionAsync
+} from "./publish.js";
 export {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
@@ -95,6 +98,7 @@ export type {
   JsonSchemaProperty
 } from "./schema.js";
 export type {
+  AsyncRequestVersionPublisher,
   PublishOwnershipVerification,
   PublishedRequestVersionWithCapability,
   PublishMode,

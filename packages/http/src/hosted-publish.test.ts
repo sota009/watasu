@@ -223,6 +223,41 @@ describe("hosted publish HTTP app", () => {
     expect(repository.list("event-attendee-intake")).toHaveLength(1);
   });
 
+  test("test_post_publish_awaits_async_repository_before_returning_metadata", async () => {
+    // Arrange
+    const events: string[] = [];
+    const backingRepository = new InMemoryRequestVersionRepository();
+    const app = createHostedPublishApp({
+      repository: {
+        async publish(requestId, definition) {
+          await Promise.resolve();
+          events.push(`publish:${requestId}:${definition.name}`);
+          return backingRepository.publish(requestId, definition);
+        }
+      },
+      resolveServiceIdentity: () => ({
+        tenant_id: "tenant-a",
+        roles: ["publisher"]
+      }),
+      resolveOwnershipVerification: () => createOwnership()
+    });
+
+    // Act
+    const response = await app.handle(createRequest(createPublishBody()));
+
+    // Assert
+    expect(response.status).toBe(201);
+    expect(parseJson(response.body)).toMatchObject({
+      ok: true,
+      published: {
+        request_id: "event-attendee-intake",
+        request_version: "v1"
+      }
+    });
+    expect(events).toEqual(["publish:event-attendee-intake:event-attendee-intake"]);
+    expect(backingRepository.list("event-attendee-intake")).toHaveLength(1);
+  });
+
   test("test_post_publish_ignores_body_request_id_and_ownership_claims", async () => {
     // Arrange
     const repository = new InMemoryRequestVersionRepository();

@@ -1,10 +1,10 @@
 import {
-  publishRequestVersion,
+  publishRequestVersionAsync,
   validateRequestDefinitionInput,
+  type AsyncRequestVersionPublisher,
   type HostedServiceIdentity,
   type PublishOwnershipVerification,
-  type RequestDefinition,
-  type RequestVersionPublisher
+  type RequestDefinition
 } from "@watasu/core";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
@@ -26,7 +26,7 @@ export interface HostedPublishApp {
 }
 
 export interface CreateHostedPublishAppInput {
-  repository: RequestVersionPublisher;
+  repository: AsyncRequestVersionPublisher;
   resolveServiceIdentity(request: HostedPublishRequest): HostedServiceIdentity | undefined;
   authorizeRequestId?(input: {
     serviceIdentity: HostedServiceIdentity;
@@ -138,7 +138,7 @@ export function createHostedPublishApp(input: CreateHostedPublishAppInput): Host
         });
       }
 
-      const result = publishRequestVersion({
+      const result = await publishRequestVersionAsync({
         requestId,
         definition: definitionValidation.definition,
         confirmed: parsedBody.value.confirmed,
