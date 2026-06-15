@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -6,6 +6,7 @@ import { watasuEncryptedIntakeExtensionUri, type AgentCard, type JsonSchemaObjec
 import {
   createPersonalInfoAdapterDryRun,
   createPersonalInfoAdapterSubmit,
+  createPersonalInfoMcpStdioReader,
   runPersonalInfoAdapterCli,
   type PersonalInfoReader
 } from "./index.js";
@@ -110,6 +111,69 @@ function writeJsonFixture(name: string, value: unknown): string {
   const file = join(directory, name);
   writeFileSync(file, JSON.stringify(value));
   return file;
+}
+
+function writeMcpServerFixture(): { serverFile: string; callLogFile: string } {
+  const directory = mkdtempSync(join(tmpdir(), "watasu-personal-info-mcp-test-"));
+  const serverFile = join(directory, "personal-info-mcp-fixture.mjs");
+  const callLogFile = join(directory, "calls.jsonl");
+  writeFileSync(serverFile, `
+import { appendFileSync } from "node:fs";
+import { createInterface } from "node:readline";
+
+const values = {
+  full_name: "MCP Ada Lovelace",
+  email: "mcp.ada@example.test",
+  company: "MCP Analytical Engines"
+};
+const callLogFile = process.env.WATASU_TEST_MCP_CALL_LOG;
+const rl = createInterface({ input: process.stdin });
+
+function send(message) {
+  process.stdout.write(JSON.stringify(message) + "\\n");
+}
+
+rl.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: "2025-11-25",
+        capabilities: { tools: {} },
+        serverInfo: { name: "personal-info", version: "0.1.0" }
+      }
+    });
+    return;
+  }
+
+  if (message.method === "tools/call") {
+    const field = message.params.arguments.field;
+    appendFileSync(callLogFile, JSON.stringify({ tool: message.params.name, field }) + "\\n");
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        content: [{ type: "text", text: values[field] ?? "" }]
+      }
+    });
+  }
+});
+`);
+
+  return {
+    serverFile,
+    callLogFile
+  };
+}
+
+function readMcpCallLog(callLogFile: string): Array<{ tool: string; field: string }> {
+  return readFileSync(callLogFile, "utf8")
+    .trim()
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as { tool: string; field: string });
 }
 
 function encryptedPayloadFixture(payload: Record<string, unknown>): Record<string, unknown> {
@@ -279,6 +343,74 @@ describe("personal-info-mcp adapter dry run", () => {
     expect(reader.reads).toEqual(["full_name", "email"]);
   });
 
+  test("test_dry_run_can_read_required_values_from_personal_info_mcp_stdio", async () => {
+    const { serverFile, callLogFile } = writeMcpServerFixture();
+
+    const result = await createPersonalInfoAdapterDryRun({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email",
+        company: "company"
+      },
+      personalInfo: createPersonalInfoMcpStdioReader({
+        command: process.execPath,
+        args: [serverFile],
+        env: {
+          WATASU_TEST_MCP_CALL_LOG: callLogFile
+        }
+      })
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      summary: {
+        fields: [
+          {
+            watasu_field: "full_name",
+            personal_info_field: "full_name",
+            value: "[REDACTED]"
+          },
+          {
+            watasu_field: "email",
+            personal_info_field: "email",
+            value: "[REDACTED]"
+          }
+        ]
+      }
+    });
+    expect(readMcpCallLog(callLogFile)).toEqual([
+      { tool: "get_personal_info", field: "full_name" },
+      { tool: "get_personal_info", field: "email" }
+    ]);
+    expect(JSON.stringify(result)).not.toContain("MCP Ada Lovelace");
+    expect(JSON.stringify(result)).not.toContain("mcp.ada@example.test");
+  });
+
+  test("test_dry_run_returns_structured_error_when_personal_info_mcp_fails", async () => {
+    const result = await createPersonalInfoAdapterDryRun({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: createPersonalInfoMcpStdioReader({
+        command: "definitely-missing-personal-info-mcp-command",
+        timeoutMs: 100
+      })
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "personal_info_mcp_failed",
+        path: "$.personal_info.full_name"
+      }
+    });
+  });
+
   test("test_dry_run_stops_when_required_mapping_is_missing", async () => {
     const reader = trackingReader({
       full_name: "Ada Lovelace"
@@ -371,6 +503,48 @@ describe("personal-info-mcp adapter dry run", () => {
     });
     expect(`${result.stdout}${result.stderr}`).not.toContain("CLI Secret Name");
     expect(`${result.stdout}${result.stderr}`).not.toContain("cli.secret@example.test");
+  });
+
+  test("test_cli_dry_run_can_use_personal_info_mcp_stdio_without_fixture_values", async () => {
+    const { serverFile, callLogFile } = writeMcpServerFixture();
+    const agentCardFile = writeJsonFixture("agent-card.json", baseAgentCard);
+    const schemaFile = writeJsonFixture("schema.json", baseSchema);
+    const mappingFile = writeJsonFixture("mapping.json", {
+      full_name: "full_name",
+      email: "email"
+    });
+
+    const result = await runPersonalInfoAdapterCli([
+      "dry-run",
+      "--agent-card",
+      agentCardFile,
+      "--schema",
+      schemaFile,
+      "--mapping",
+      mappingFile,
+      "--personal-info-mcp-command",
+      process.execPath,
+      "--personal-info-mcp-arg",
+      "--no-warnings",
+      "--personal-info-mcp-arg",
+      serverFile
+    ], {
+      env: {
+        WATASU_TEST_MCP_CALL_LOG: callLogFile
+      }
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      command: "dry-run"
+    });
+    expect(readMcpCallLog(callLogFile)).toEqual([
+      { tool: "get_personal_info", field: "full_name" },
+      { tool: "get_personal_info", field: "email" }
+    ]);
+    expect(`${result.stdout}${result.stderr}`).not.toContain("MCP Ada Lovelace");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("mcp.ada@example.test");
   });
 
   test("test_cli_submit_outputs_redacted_summary_without_plaintext_values", async () => {

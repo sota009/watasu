@@ -384,10 +384,12 @@ Current implementation:
 
 - Package: `@watasu/personal-info-adapter`
 - Command: `pnpm --filter @watasu/personal-info-adapter dry-run ...`
-- The first slice uses a deterministic JSON value fixture as the adapter-side
-  read boundary. The actual `personal-info-mcp` client transport remains a next
-  slice so the no-plaintext-output and least-field-read behavior can be locked
-  down first.
+- The adapter can use a deterministic JSON value fixture or launch a configured
+  stdio MCP command as the personal-info source.
+- The stdio MCP reader initializes MCP `2025-11-25` and calls
+  `get_personal_info` once per mapped required field.
+- The no-plaintext-output and least-field-read behavior is covered for both the
+  local fixture boundary and the stdio MCP boundary.
 
 ### Slice 2: local encrypted submit to watasu HTTP demo
 
@@ -566,6 +568,16 @@ Expected behavior:
 - `plaintext_values_sent_to_watasu` remains false.
 - `ledger_contains_payload_body` remains false.
 - `response_contains_plaintext_payload` remains false.
+
+For real local `personal-info-mcp` reads, replace `--personal-info-values ...`
+with:
+
+```bash
+  --personal-info-mcp-command uvx \
+  --personal-info-mcp-arg --from \
+  --personal-info-mcp-arg git+https://github.com/KenTaniguchi-R/personal-info-mcp@v0.1.0 \
+  --personal-info-mcp-arg personal-info-mcp
+```
 
 ## Open Questions
 
