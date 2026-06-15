@@ -30,7 +30,7 @@ As of 2026-06-16 JST:
 Latest verified evidence:
 
 - `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 37 test files, 451 tests
+- test suite passed: 37 test files, 457 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`
@@ -274,7 +274,7 @@ Without a Bearer token, `401` is the correct result.
 
 Hosted publish and ledger operations run inside the private-alpha authenticated MCP / service identity boundary. This is not a public self-serve UI yet.
 
-The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Hosted publish can now await async request-version repositories, but a durable hosted request repository, live DB-backed runtime wiring, and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
+The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
 
 ## Verification
 
