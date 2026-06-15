@@ -14,6 +14,7 @@ import {
 } from "./index.js";
 
 const hostedIdentitySigningSecret = "unit-fixture-hosted-identity-secret-with-enough-entropy";
+const hostedMcpBearerToken = "unit-fixture-hosted-mcp-bearer-token-with-enough-entropy";
 
 describe("hosted production runtime package", () => {
   test("test_hosted_production_server_from_env_constructs_closed_server", () => {
@@ -21,6 +22,7 @@ describe("hosted production runtime package", () => {
     const runtime = createHostedProductionServerFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
         WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
@@ -43,6 +45,7 @@ describe("hosted production runtime package", () => {
     const runtime = createHostedProductionServerFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
         WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
@@ -81,6 +84,7 @@ describe("hosted production runtime package", () => {
     const runtime = createHostedProductionServerFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
         WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
@@ -126,6 +130,7 @@ describe("hosted production runtime package", () => {
     const runtime = createHostedProductionServerFromEnv({
       env: {
         WATASU_IDENTITY_PROVIDER: "signed_headers",
+        WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
         WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
         WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
         PORT: "10000"
@@ -165,6 +170,7 @@ describe("hosted production runtime package", () => {
       createHostedProductionServerFromEnv({
         env: {
           WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
           WATASU_PUBLIC_BASE_URL: "http://api.watasu.ai",
           WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
           PORT: "10000"
@@ -179,6 +185,7 @@ describe("hosted production runtime package", () => {
       createHostedProductionServerFromEnv({
         env: {
           WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
           WATASU_METADATA_LEDGER_STORE: "postgres",
           WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
           WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
@@ -195,6 +202,7 @@ describe("hosted production runtime package", () => {
       createHostedProductionServerFromEnv({
         env: {
           WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
           WATASU_METADATA_LEDGER_STORE: "disabled",
           WATASU_POSTGRES_URL: "postgres://db.example.com/watasu",
           WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
@@ -212,6 +220,20 @@ describe("hosted production runtime package", () => {
         WATASU_IDENTITY_PROVIDER: "signed_headers"
       })
     ).toThrow("WATASU_SERVICE_IDENTITY_SIGNING_SECRET is required when WATASU_IDENTITY_PROVIDER=signed_headers.");
+  });
+
+  test("test_hosted_production_server_from_env_requires_mcp_bearer_token", () => {
+    expect(() =>
+      createHostedProductionServerFromEnv({
+        env: {
+          WATASU_IDENTITY_PROVIDER: "signed_headers",
+          WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+          WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
+          PORT: "10000"
+        },
+        now: () => new Date("2026-06-15T00:00:00.000Z")
+      })
+    ).toThrow("WATASU_MCP_BEARER_TOKEN is required for hosted MCP transport.");
   });
 
   test("test_identity_provider_config_rejects_short_signing_secret", () => {

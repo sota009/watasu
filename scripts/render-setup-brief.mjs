@@ -26,7 +26,7 @@ process.stdout.write(`${JSON.stringify({
   blueprint_file: "render.yaml",
   secret_command: "pnpm --silent secret:identity --plain",
   status_command: "pnpm --silent cutover:status",
-  manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET"],
+  manual_secret_names: ["WATASU_SERVICE_IDENTITY_SIGNING_SECRET", "WATASU_MCP_BEARER_TOKEN"],
   render_managed_secret_names: ["WATASU_POSTGRES_URL"],
   external_actions: [
     "Enable Render workspace billing for the web service and paid PostgreSQL.",
@@ -34,6 +34,7 @@ process.stdout.write(`${JSON.stringify({
     "Run pnpm --silent cutover:status before and after Render setup.",
     "Create the Render Blueprint from render.yaml.",
     "Enter WATASU_SERVICE_IDENTITY_SIGNING_SECRET only in the Render web service secret prompt.",
+    "Enter WATASU_MCP_BEARER_TOKEN only in the Render web service secret prompt; use a distinct 32+ byte random value.",
     "Add api.watasu.ai as the Render custom domain, configure the DNS record Render gives you, then verify DNS/TLS in Render."
   ],
   before_render_commands: [

@@ -29,6 +29,11 @@ const requiredChecks = [
   },
   {
     file: "render.yaml",
+    description: "Render web service keeps the MCP bearer token out of git",
+    pattern: /key:\s+WATASU_MCP_BEARER_TOKEN\s*\n\s*sync:\s+false/
+  },
+  {
+    file: "render.yaml",
     description: "Render web service keeps database credentials out of the web runtime",
     forbiddenPattern: /name:\s+watasu-hosted[\s\S]*?key:\s+WATASU_POSTGRES_URL[\s\S]*?type:\s+cron/
   },

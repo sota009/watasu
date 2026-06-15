@@ -14,6 +14,10 @@ export interface CreateHostedMcpHttpEntrypointInput {
   allowedOrigins: readonly string[];
   resourceMetadataUrl: string;
   scopes: readonly string[];
+  authorizeBearerToken(input: {
+    token: string;
+    requiredScopes: readonly string[];
+  }): HostedMcpBearerAuthorizationResult | Promise<HostedMcpBearerAuthorizationResult>;
   transport?: HostedMcpHttpTransport | undefined;
 }
 
@@ -21,6 +25,15 @@ export type HostedMcpHttpEntrypoint = (
   request: IncomingMessage,
   response: ServerResponse
 ) => Promise<void>;
+
+export type HostedMcpBearerAuthorizationResult =
+  | {
+      ok: true;
+      scopes: readonly string[];
+    }
+  | {
+      ok: false;
+    };
 
 const supportedProtocolVersion = "2025-11-25";
 
@@ -79,6 +92,60 @@ export function createHostedMcpHttpEntrypoint(
         error: {
           code: "mcp_transport_auth_required",
           message: "Hosted MCP HTTP transport requires Authorization: Bearer credentials."
+        }
+      });
+      return;
+    }
+
+    const token = authorization.slice("Bearer ".length).trim();
+    if (token.length === 0) {
+      response.setHeader(
+        "WWW-Authenticate",
+        buildMcpUnauthorizedChallenge({
+          resourceMetadataUrl: input.resourceMetadataUrl,
+          scopes: input.scopes
+        })
+      );
+      writeJson(response, 401, {
+        ok: false,
+        error: {
+          code: "mcp_transport_auth_invalid",
+          message: "Hosted MCP HTTP transport requires a valid Bearer token."
+        }
+      });
+      return;
+    }
+
+    const authorizationResult = await input.authorizeBearerToken({
+      token,
+      requiredScopes: input.scopes
+    });
+    if (!authorizationResult.ok) {
+      response.setHeader(
+        "WWW-Authenticate",
+        buildMcpUnauthorizedChallenge({
+          resourceMetadataUrl: input.resourceMetadataUrl,
+          scopes: input.scopes
+        })
+      );
+      writeJson(response, 401, {
+        ok: false,
+        error: {
+          code: "mcp_transport_auth_invalid",
+          message: "Hosted MCP HTTP transport requires a valid Bearer token."
+        }
+      });
+      return;
+    }
+
+    const authorizedScopes = new Set(authorizationResult.scopes);
+    const missingScope = input.scopes.find((scope) => !authorizedScopes.has(scope));
+    if (missingScope !== undefined) {
+      writeJson(response, 403, {
+        ok: false,
+        error: {
+          code: "mcp_transport_scope_required",
+          message: "Hosted MCP HTTP transport Bearer token is missing a required scope."
         }
       });
       return;

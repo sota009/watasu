@@ -68,7 +68,7 @@ function runJson(command, args) {
 }
 
 function assertSecretSafe(value) {
-  if (value.includes("WATASU_POSTGRES_URL=") || value.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=")) {
+  if (value.includes("WATASU_POSTGRES_URL=") || value.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=") || value.includes("WATASU_MCP_BEARER_TOKEN=")) {
     throw new Error("cutover prepare refused to persist secret-like assignment output.");
   }
 }

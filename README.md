@@ -274,7 +274,7 @@ Generate a production service identity signing secret for Render:
 pnpm --silent secret:identity --plain
 ```
 
-The command prints only a 32 byte base64url value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`. Enter the generated value only in the Render web service secret prompt. Omit `--plain` when you want JSON metadata for scriptable checks.
+The command prints only a 32 byte base64url value. Use one generated value for `WATASU_SERVICE_IDENTITY_SIGNING_SECRET`, generate a second distinct value for `WATASU_MCP_BEARER_TOKEN`, and enter both only in the Render web service secret prompt. Omit `--plain` when you want JSON metadata for scriptable checks.
 
 `pnpm lint` currently runs the repository secret-scan helper. It is intentionally narrow: passing tests is not treated as a security proof.
 
@@ -354,7 +354,7 @@ Currently implemented:
 - hosted MCP publish and ledger tools that delegate to the hosted production app
 - hosted MCP transport service-header resolver that rejects unauthenticated hosted tool calls before app delegation
 - hosted MCP OAuth protected-resource metadata and WWW-Authenticate challenge helpers
-- hosted MCP Streamable HTTP entrypoint guard for path, Origin, Bearer auth, and protocol version
+- hosted MCP Streamable HTTP entrypoint guard for path, Origin, verified Bearer token scopes, and protocol version
 - Render Blueprint for the first `api.watasu.ai` web service, managed PostgreSQL database, and metadata retention cron
 - GitHub Actions CI gate for Render `checksPass`
 - hosted canary script for `/health`, unpublished Agent Card / submit routes, MCP auth metadata, leak fragments, security headers, HTTPS production origin URLs, and unsafe base URL rejection

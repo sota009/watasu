@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
 
 const smokeSigningSecret = "hosted-start-smoke-signing-secret-with-enough-entropy";
+const smokeMcpBearerToken = "hosted-start-smoke-mcp-bearer-token-with-enough-entropy";
 const checkedUrl = "http://127.0.0.1:1/health";
 const workspaceRoot = new URL("../", import.meta.url);
 
@@ -23,6 +24,7 @@ const runtime = createHostedProductionServerFromEnv({
     WATASU_IDENTITY_PROVIDER: "signed_headers",
     WATASU_PUBLIC_BASE_URL: "http://127.0.0.1:1",
     WATASU_SERVICE_IDENTITY_SIGNING_SECRET: smokeSigningSecret,
+    WATASU_MCP_BEARER_TOKEN: smokeMcpBearerToken,
     WATASU_METADATA_LEDGER_STORE: "disabled"
   },
   now: () => new Date()

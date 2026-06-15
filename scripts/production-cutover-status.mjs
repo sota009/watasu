@@ -129,7 +129,7 @@ function nextCommandsForMissingEvidence(missingEvidence) {
 
 function assertSecretSafeEvidence(path, name) {
   const raw = readFileSync(path, "utf8");
-  if (raw.includes("WATASU_POSTGRES_URL=") || raw.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=")) {
+  if (raw.includes("WATASU_POSTGRES_URL=") || raw.includes("WATASU_SERVICE_IDENTITY_SIGNING_SECRET=") || raw.includes("WATASU_MCP_BEARER_TOKEN=")) {
     throw new Error(`${name} evidence contains secret-like assignment output.`);
   }
   if (raw.includes("\"encrypted_payload\"") || raw.includes("\"payload_body\"") || raw.includes("\"plaintext_payload\"")) {
