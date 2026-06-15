@@ -312,9 +312,7 @@ describe("hosted production runtime package", () => {
   });
 
   test("test_parse_hosted_retention_args_accepts_dry_run_only", () => {
-    expect(parseHostedRetentionArgs(["node", "retention-bin.js"])).toEqual({
-      dryRun: false
-    });
+    expect(parseHostedRetentionArgs(["node", "retention-bin.js"])).toEqual({});
     expect(parseHostedRetentionArgs(["node", "retention-bin.js", "--dry-run"])).toEqual({
       dryRun: true
     });

@@ -57,7 +57,7 @@ export interface HostedRetentionJobConfig {
 }
 
 export interface HostedRetentionArgs {
-  dryRun: boolean;
+  dryRun?: true | undefined;
 }
 
 export type HostedIdentityProviderConfig =
@@ -190,9 +190,7 @@ export function loadHostedRetentionJobConfig(env: Record<string, string | undefi
 export function parseHostedRetentionArgs(argv: readonly string[]): HostedRetentionArgs {
   const args = argv.slice(2);
   if (args.length === 0) {
-    return {
-      dryRun: false
-    };
+    return {};
   }
 
   if (args.length === 1 && args[0] === "--dry-run") {
