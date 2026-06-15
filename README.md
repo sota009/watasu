@@ -208,8 +208,8 @@ pnpm --filter @watasu/personal-info-adapter submit \
 The adapter constructs plaintext only in memory, encrypts before submit, and
 requires explicit confirmation before personal-info values can be read. It
 includes consent receipt metadata plus its hash in the envelope, then prints
-metadata-only submit evidence. Real `personal-info-mcp` transport wiring is
-intentionally a later slice.
+metadata-only submit evidence. It can read personal-info values from either a
+test fixture file or a configured local `personal-info-mcp` stdio command.
 
 ## Local HTTP demo
 

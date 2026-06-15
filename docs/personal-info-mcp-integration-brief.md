@@ -592,26 +592,22 @@ with:
   --personal-info-mcp-arg personal-info-mcp
 ```
 
-## Open Questions
+## Resolved Defaults
 
-- Where should the adapter live: this repo, the user-side product repo, or a
-  separate integration repo?
-- Should the first adapter be a CLI, an MCP client workflow, or a small local
-  app?
-- How should field mapping be reviewed by the user before first use?
-- Should the adapter support authenticated Extended Agent Cards in the first
-  hosted slice, or only public/local Agent Cards?
-- Which service public key discovery format should be treated as canonical for
-  hosted private alpha?
+- Keep the adapter implementation in this repo until a user-side product repo is
+  ready to own release and distribution.
+- Start with CLI dry run and submit flows.
+- Use explicit mapping JSON so field mapping is reviewable before first use.
+- Support public/local Agent Cards and private-alpha Agent Card URLs first.
+- Use the service public JWK file supplied by the operator as the canonical
+  encryption key material for local verification; the Agent Card fingerprint is
+  the binding check.
 
-Recommended default:
+## Remaining External Dependency
 
-- Keep the adapter in the user-side product repo first.
-- Start with CLI dry run.
-- Use explicit mapping JSON.
-- Support local public Agent Card first.
-- Add hosted/private invite support only after the local encrypted submit is
-  proven.
+- Live hosted submit still needs a published private-alpha request URL, matching
+  plaintext schema URL, service public JWK, and test-only personal-info values
+  for that request.
 
 ## References
 
