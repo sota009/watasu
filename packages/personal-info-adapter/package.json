@@ -1,0 +1,20 @@
+{
+  "name": "@watasu/personal-info-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "watasu-personal-info-adapter": "./dist/bin.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "dry-run": "pnpm --dir ../.. typecheck && node dist/bin.js dry-run",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@watasu/core": "workspace:*"
+  }
+}

@@ -21,6 +21,7 @@ As of 2026-06-15:
 | Local Protocol MVP | Ready | `pnpm demo:handoff` |
 | CLI | Ready | `pnpm --filter @watasu/cli watasu validate ...` |
 | Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
+| personal-info adapter dry run | First slice ready | `pnpm --filter @watasu/personal-info-adapter dry-run ...` |
 | Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
 | Hosted MCP | Auth required | `/mcp` returns 401 without Bearer credentials |
 | Human dashboard UI | Not in scope | Not part of the MVP |
@@ -128,6 +129,32 @@ pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event
 ```
 
 `submit-fixture` is a local learning fixture. It is not a production submission flow.
+
+## personal-info adapter dry run
+
+The first `personal-info-mcp` integration slice lives in `@watasu/personal-info-adapter`.
+It reads a watasu Agent Card, plaintext schema, deterministic field mapping, and
+test-only personal-info values, then prints only a redacted dry-run summary.
+
+Start the local HTTP demo:
+
+```bash
+pnpm --filter @watasu/http demo
+```
+
+Then run the adapter in a second terminal:
+
+```bash
+pnpm --filter @watasu/personal-info-adapter dry-run \
+  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
+  --schema http://127.0.0.1:8787/schemas/plaintext.json \
+  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
+  --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json
+```
+
+The output must contain mapped field names and `"[REDACTED]"` placeholders, not
+the fixture values. Real `personal-info-mcp` transport wiring is intentionally a
+later slice.
 
 ## Local HTTP demo
 

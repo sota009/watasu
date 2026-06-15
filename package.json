@@ -32,7 +32,7 @@
     "secret:identity": "node scripts/generate-identity-secret.mjs",
     "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
     "test": "pnpm typecheck && vitest run",
-    "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
+    "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted packages/personal-info-adapter"
   },
   "devDependencies": {
     "@rspress/core": "^2.0.14",
