@@ -126,6 +126,8 @@ export interface PersonalInfoAdapterError {
     | "request_version_mismatch"
     | "schema_hash_mismatch"
     | "public_key_fingerprint_mismatch"
+    | "submit_auth_required"
+    | "submit_resubmit_later"
     | "submit_failed"
     | "invalid_submit_response"
     | "file_unreadable"
@@ -268,13 +270,10 @@ export async function createPersonalInfoAdapterSubmit(
   });
   const responseText = await response.text();
   if (!response.ok) {
+    const submitError = classifySubmitError(response.status, responseText);
     return {
       ok: false,
-      error: {
-        code: "submit_failed",
-        path: "$.submit",
-        message: `watasu submit endpoint rejected the encrypted envelope with HTTP ${response.status}.`
-      }
+      error: submitError
     };
   }
 
@@ -725,6 +724,33 @@ function validatePublicKeyFingerprint(
   }
 
   return { ok: true };
+}
+
+function classifySubmitError(status: number, responseText: string): PersonalInfoAdapterError {
+  const parsed = parseJsonValue(responseText);
+  const responseStatus = parsed.ok && isRecord(parsed.value) ? parsed.value.status : undefined;
+
+  if (status === 401 && responseStatus === "auth_required") {
+    return {
+      code: "submit_auth_required",
+      path: "$.submit",
+      message: "watasu submit endpoint requires sender authentication for this request."
+    };
+  }
+
+  if (status === 503 && responseStatus === "resubmit_later") {
+    return {
+      code: "submit_resubmit_later",
+      path: "$.submit",
+      message: "watasu submit endpoint asked the sender to resubmit the encrypted payload later."
+    };
+  }
+
+  return {
+    code: "submit_failed",
+    path: "$.submit",
+    message: `watasu submit endpoint rejected the encrypted envelope with HTTP ${status}.`
+  };
 }
 
 async function buildPlaintextPayload(input: {

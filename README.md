@@ -172,6 +172,27 @@ pnpm --filter @watasu/personal-info-adapter dry-run \
 The adapter calls `get_personal_info` once per mapped required field over MCP
 stdio. Pin the `personal-info-mcp` tag or commit before using real data.
 
+Hosted private-alpha usage uses the same adapter command shape with a private
+Agent Card URL and schema URL:
+
+```bash
+pnpm --filter @watasu/personal-info-adapter submit \
+  --agent-card https://api.watasu.ai/requests/<request-id>/agent-card.json \
+  --schema https://api.watasu.ai/requests/<request-id>/schemas/plaintext.json \
+  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
+  --personal-info-mcp-command uvx \
+  --personal-info-mcp-arg --from \
+  --personal-info-mcp-arg git+https://github.com/KenTaniguchi-R/personal-info-mcp@v0.1.0 \
+  --personal-info-mcp-arg personal-info-mcp \
+  --public-jwk /path/to/service-public-jwk.json \
+  --confirm
+```
+
+Private-alpha requests may return `auth_required` when sender signatures or
+invite bindings are required, or `resubmit_later` when watasu does not retain
+the encrypted payload for retry. The adapter reports those states without
+including plaintext values or the hosted response body in its error message.
+
 To submit an encrypted envelope to the local HTTP demo, run:
 
 ```bash
