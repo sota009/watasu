@@ -35,7 +35,7 @@ README は入口です。実際の利用手順は [利用者向けガイド](doc
 Latest verified evidence:
 
 - `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 37 test files, 451 tests
+- test suite passed: 37 test files, 457 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`
@@ -194,7 +194,7 @@ Bearer token なしでは `401` が正しい挙動です。
 
 Hosted publish / ledger 操作は private-alpha の authenticated MCP / service identity 境界の内側で使います。まだ一般公開の self-serve UI ではありません。
 
-Hosted private-alpha runtime は、まだ durable multi-tenant production service ではありません。live web process は explicit dependencies が注入されない限り published request versions と default replay / rate-limit state を memory に保持し、PostgreSQL は現時点では full web read/write custody ではなく retention dry-run evidence と durable capability / idempotency / rate-limit metadata primitives に使っています。Hosted publish は async request-version repositories を await できるようになりましたが、durable hosted request repository、DB-backed live runtime wiring、production capability administration はまだ production work です。実 private-alpha request の publish は design partner flow が決まってから行います。
+Hosted private-alpha runtime は、まだ durable multi-tenant production service ではありません。live web process は explicit dependencies が注入されない限り published request versions と default replay / rate-limit state を memory に保持し、PostgreSQL は現時点では full web read/write custody ではなく retention dry-run evidence と durable request-version / capability / idempotency / rate-limit metadata primitives に使っています。DB-backed live runtime wiring と production capability administration はまだ production work です。実 private-alpha request の publish は design partner flow が決まってから行います。
 
 ## Verification loop
 

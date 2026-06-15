@@ -11,24 +11,28 @@ import {
   createMigratedPostgresIdempotencyStore,
   createMigratedPostgresDeliveryLedgerStore,
   createMigratedPostgresFixedWindowRateLimiter,
+  createMigratedPostgresRequestVersionRepository,
   createPostgresDeliveryLedgerSchemaSql,
   createPostgresIdempotencyStoreSchemaSql,
   createPostgresFixedWindowRateLimiterSchemaSql,
+  createPostgresRequestVersionRepositorySchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
   PostgresIdempotencyStore,
   PostgresFixedWindowRateLimiter,
+  PostgresRequestVersionRepository,
   runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
   runPostgresIdempotencyStoreMigration,
   runPostgresFixedWindowRateLimiterMigration,
+  runPostgresRequestVersionRepositoryMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
 } from "./storage-policy.js";
-import type { PublishedRequestVersion } from "./request-version.js";
+import { createRequestVersionHashes, type PublishedRequestVersion } from "./request-version.js";
 
 function createLedgerRow(overrides: Partial<DeliveryLedgerRow> = {}): DeliveryLedgerRow {
   return {
@@ -1149,6 +1153,261 @@ describe("storage policy controlled delivery ledger", () => {
     expect(queries).toEqual([
       {
         text: createPostgresFixedWindowRateLimiterSchemaSql(),
+        values: []
+      }
+    ]);
+  });
+
+  test("test_postgres_request_version_repository_reuses_existing_version_by_hash", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const published = createPublishedRequest();
+    const repository = new PostgresRequestVersionRepository({
+      tenantId: "tenant-a",
+      clock: () => new Date("2026-06-14T12:30:00.000Z"),
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("where tenant_id = $1")
+              ? [
+                  {
+                    request_id: published.request_id,
+                    request_version: published.request_version,
+                    version_number: 1,
+                    definition_json: published.definition,
+                    hashes_json: published.hashes,
+                    published_at: published.published_at
+                  }
+                ]
+              : []
+          };
+        }
+      }
+    });
+
+    const result = await repository.publish(published.request_id, published.definition);
+
+    expect(result).toEqual(published);
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain("request_version_hash = $3");
+    expect(queries[0]?.values).toEqual([
+      "tenant-a",
+      "event-attendee-intake",
+      createRequestVersionHashes(published.definition).request_version_hash
+    ]);
+  });
+
+  test("test_postgres_request_version_repository_publishes_new_version_with_metadata_only_contract", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const definition = createPublishedRequest().definition;
+    const hashes = createRequestVersionHashes(definition);
+    const repository = new PostgresRequestVersionRepository({
+      tenantId: "tenant-a",
+      clock: () => new Date("2026-06-14T12:30:00.000Z"),
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          if (text.includes("watasu_request_version_counters")) {
+            return {
+              rows: [{ next_version_number: 2 }]
+            };
+          }
+
+          if (text.includes("insert into watasu_request_versions")) {
+            return {
+              rows: [
+                {
+                  request_id: "event-attendee-intake",
+                  request_version: "v2",
+                  version_number: 2,
+                  definition_json: definition,
+                  hashes_json: hashes,
+                  published_at: "2026-06-14T12:30:00.000Z"
+                }
+              ]
+            };
+          }
+
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    const result = await repository.publish("event-attendee-intake", definition);
+
+    expect(result).toEqual({
+      request_id: "event-attendee-intake",
+      request_version: "v2",
+      definition,
+      hashes,
+      published_at: "2026-06-14T12:30:00.000Z"
+    });
+    expect(queries[1]?.text).toContain("insert into watasu_request_version_counters");
+    expect(queries[1]?.text).toContain("returning next_version_number");
+    expect(queries[2]?.text).toContain("insert into watasu_request_versions");
+    expect(queries[2]?.text).toContain("on conflict");
+    expect(queries[2]?.values).toEqual([
+      "tenant-a",
+      "event-attendee-intake",
+      2,
+      "v2",
+      hashes.request_version_hash,
+      definition,
+      hashes,
+      "2026-06-14T12:30:00.000Z"
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("cap_secret_token");
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_postgres_request_version_repository_lists_versions_in_version_order", async () => {
+    const published = createPublishedRequest();
+    const repository = new PostgresRequestVersionRepository({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query() {
+          return {
+            rows: [
+              {
+                request_id: published.request_id,
+                request_version: "v1",
+                version_number: 1,
+                definition_json: published.definition,
+                hashes_json: published.hashes,
+                published_at: published.published_at
+              },
+              {
+                request_id: published.request_id,
+                request_version: "v2",
+                version_number: 2,
+                definition_json: {
+                  ...published.definition,
+                  consent: {
+                    text: "Updated consent text."
+                  }
+                },
+                hashes_json: createRequestVersionHashes({
+                  ...published.definition,
+                  consent: {
+                    text: "Updated consent text."
+                  }
+                }),
+                published_at: "2026-06-14T12:30:00.000Z"
+              }
+            ]
+          };
+        }
+      }
+    });
+
+    const result = await repository.list("event-attendee-intake");
+
+    expect(result.map((version) => version.request_version)).toEqual(["v1", "v2"]);
+  });
+
+  test("test_postgres_request_version_repository_schema_keeps_contract_without_payload_or_capability_token", () => {
+    const schemaSql = createPostgresRequestVersionRepositorySchemaSql();
+
+    expect(schemaSql).toContain("create table if not exists watasu_request_versions");
+    expect(schemaSql).toContain("create table if not exists watasu_request_version_counters");
+    expect(schemaSql).toContain("definition_json jsonb not null");
+    expect(schemaSql).toContain("hashes_json jsonb not null");
+    expect(schemaSql).toContain("unique (tenant_id, request_id, request_version_hash)");
+    expect(schemaSql).not.toContain("capability_token");
+    expect(schemaSql).not.toContain("encrypted_payload");
+    expect(schemaSql).not.toContain("plaintext_payload");
+  });
+
+  test("test_create_migrated_postgres_request_version_repository_runs_migration_before_publish", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const definition = createPublishedRequest().definition;
+    const hashes = createRequestVersionHashes(definition);
+    const repository = await createMigratedPostgresRequestVersionRepository({
+      tenantId: "tenant-a",
+      clock: () => new Date("2026-06-14T12:30:00.000Z"),
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          if (text.includes("watasu_request_version_counters")) {
+            return {
+              rows: [{ next_version_number: 1 }]
+            };
+          }
+
+          if (text.includes("insert into watasu_request_versions")) {
+            return {
+              rows: [
+                {
+                  request_id: "event-attendee-intake",
+                  request_version: "v1",
+                  version_number: 1,
+                  definition_json: definition,
+                  hashes_json: hashes,
+                  published_at: "2026-06-14T12:30:00.000Z"
+                }
+              ]
+            };
+          }
+
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    await repository.publish("event-attendee-intake", definition);
+
+    expect(queries[0]).toEqual({
+      text: createPostgresRequestVersionRepositorySchemaSql(),
+      values: []
+    });
+    expect(queries[1]?.values[0]).toBe("tenant-a");
+  });
+
+  test("test_postgres_request_version_repository_migration_runs_schema_sql_once", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+
+    await runPostgresRequestVersionRepositoryMigration({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    expect(queries).toEqual([
+      {
+        text: createPostgresRequestVersionRepositorySchemaSql(),
         values: []
       }
     ]);

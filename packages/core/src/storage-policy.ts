@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname } from "node:path";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import { canonicalizeJson } from "./request-definition.js";
+import type { RequestDefinition } from "./request-definition.js";
 import { sha256Hash } from "./hash.js";
 import type { Sha256Hash } from "./hash.js";
 import type {
@@ -13,6 +14,7 @@ import type {
   SubmissionCapability
 } from "./submission.js";
 import type { PublishedRequestVersion } from "./request-version.js";
+import { createRequestVersionHashes } from "./request-version.js";
 
 export type StoragePolicyMode = "stateless_default" | "metadata_ledger_enabled";
 
@@ -497,6 +499,186 @@ export class PostgresFixedWindowRateLimiter implements AsyncSubmissionRateLimite
   }
 }
 
+export class PostgresRequestVersionRepository {
+  readonly #queryClient: PostgresQueryClient;
+  readonly #tenantId: string;
+  readonly #clock: () => Date;
+
+  constructor(input: {
+    queryClient: PostgresQueryClient;
+    tenantId: string;
+    clock?: (() => Date) | undefined;
+  }) {
+    this.#queryClient = input.queryClient;
+    this.#tenantId = input.tenantId;
+    this.#clock = input.clock ?? (() => new Date());
+  }
+
+  async publish(requestId: string, definition: RequestDefinition): Promise<PublishedRequestVersion> {
+    const hashes = createRequestVersionHashes(definition);
+    const existing = await this.findByRequestVersionHash(requestId, hashes.request_version_hash);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const versionNumber = await this.nextVersionNumber(requestId);
+    const publishedAt = this.#clock().toISOString();
+    const requestVersion = `v${versionNumber}`;
+    const insertResult = await this.#queryClient.query(
+      `insert into watasu_request_versions (
+        tenant_id,
+        request_id,
+        version_number,
+        request_version,
+        request_version_hash,
+        definition_json,
+        hashes_json,
+        published_at
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+      on conflict (tenant_id, request_id, request_version_hash) do nothing
+      returning request_id, request_version, version_number, definition_json, hashes_json, published_at`,
+      [
+        this.#tenantId,
+        requestId,
+        versionNumber,
+        requestVersion,
+        hashes.request_version_hash,
+        structuredClone(definition),
+        hashes,
+        publishedAt
+      ]
+    );
+    const inserted = insertResult.rows[0];
+    if (inserted !== undefined) {
+      return sanitizePublishedRequestVersion(inserted);
+    }
+
+    const racedExisting = await this.findByRequestVersionHash(requestId, hashes.request_version_hash);
+    if (racedExisting !== undefined) {
+      return racedExisting;
+    }
+
+    throw new Error("Postgres request version publish did not return a row.");
+  }
+
+  async list(requestId: string): Promise<PublishedRequestVersion[]> {
+    const result = await this.#queryClient.query(
+      `select request_id, request_version, version_number, definition_json, hashes_json, published_at
+      from watasu_request_versions
+      where tenant_id = $1
+        and request_id = $2
+      order by version_number asc`,
+      [
+        this.#tenantId,
+        requestId
+      ]
+    );
+
+    return result.rows.map((row) => sanitizePublishedRequestVersion(row));
+  }
+
+  private async findByRequestVersionHash(
+    requestId: string,
+    requestVersionHash: Sha256Hash
+  ): Promise<PublishedRequestVersion | undefined> {
+    const result = await this.#queryClient.query(
+      `select request_id, request_version, version_number, definition_json, hashes_json, published_at
+      from watasu_request_versions
+      where tenant_id = $1
+        and request_id = $2
+        and request_version_hash = $3
+      limit 1`,
+      [
+        this.#tenantId,
+        requestId,
+        requestVersionHash
+      ]
+    );
+    const row = result.rows[0];
+
+    return row === undefined ? undefined : sanitizePublishedRequestVersion(row);
+  }
+
+  private async nextVersionNumber(requestId: string): Promise<number> {
+    const result = await this.#queryClient.query(
+      `insert into watasu_request_version_counters (
+        tenant_id,
+        request_id,
+        next_version_number
+      ) values ($1, $2, $3)
+      on conflict (tenant_id, request_id) do update set
+        next_version_number = watasu_request_version_counters.next_version_number + 1,
+        updated_at = now()
+      returning next_version_number`,
+      [
+        this.#tenantId,
+        requestId,
+        1
+      ]
+    );
+    const row = result.rows[0] as { next_version_number?: unknown } | undefined;
+    const nextVersionNumber = Number(row?.next_version_number);
+    if (!Number.isInteger(nextVersionNumber) || nextVersionNumber < 1) {
+      throw new Error("Postgres request version counter did not return a valid version number.");
+    }
+
+    return nextVersionNumber;
+  }
+}
+
+export function createPostgresRequestVersionRepositorySchemaSql(): string {
+  return `create table if not exists watasu_request_version_counters (
+  tenant_id text not null,
+  request_id text not null,
+  next_version_number integer not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, request_id)
+);
+
+create table if not exists watasu_request_versions (
+  tenant_id text not null,
+  request_id text not null,
+  version_number integer not null,
+  request_version text not null,
+  request_version_hash text not null,
+  definition_json jsonb not null,
+  hashes_json jsonb not null,
+  published_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  primary key (tenant_id, request_id, version_number),
+  unique (tenant_id, request_id, request_version_hash)
+);
+
+create index if not exists watasu_request_versions_request_idx
+  on watasu_request_versions (tenant_id, request_id, version_number);`;
+}
+
+export async function runPostgresRequestVersionRepositoryMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresRequestVersionRepositorySchemaSql(), []);
+}
+
+export async function createMigratedPostgresRequestVersionRepository(input: {
+  tenantId: string;
+  queryClient: PostgresQueryClient;
+  clock?: (() => Date) | undefined;
+  runMigration?: boolean | undefined;
+}): Promise<PostgresRequestVersionRepository> {
+  if (input.runMigration !== false) {
+    await runPostgresRequestVersionRepositoryMigration({
+      queryClient: input.queryClient
+    });
+  }
+
+  return new PostgresRequestVersionRepository({
+    tenantId: input.tenantId,
+    queryClient: input.queryClient,
+    clock: input.clock
+  });
+}
+
 export function createPostgresFixedWindowRateLimiterSchemaSql(): string {
   return `create table if not exists watasu_rate_limit_counters (
   tenant_id text not null,
@@ -735,6 +917,33 @@ function sanitizeCapabilityRecord(row: unknown): CapabilityRecord {
   }
 
   return capabilityRecord;
+}
+
+function sanitizePublishedRequestVersion(row: unknown): PublishedRequestVersion {
+  const record = row as {
+    request_id?: unknown;
+    request_version?: unknown;
+    definition_json?: unknown;
+    hashes_json?: unknown;
+    published_at?: unknown;
+  };
+
+  return deepFreeze({
+    request_id: String(record.request_id ?? ""),
+    request_version: String(record.request_version ?? ""),
+    definition: structuredClone(record.definition_json) as RequestDefinition,
+    hashes: structuredClone(record.hashes_json) as PublishedRequestVersion["hashes"],
+    published_at: String(record.published_at ?? "")
+  });
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    Object.freeze(value);
+    Object.values(value).forEach((nestedValue) => deepFreeze(nestedValue));
+  }
+
+  return value;
 }
 
 export function createMetadataLedgerReader(input: {
