@@ -14,7 +14,7 @@ This README is the project entry point. The user guide is the zero-background wa
 
 ## Current status
 
-As of 2026-06-15:
+As of 2026-06-16 JST:
 
 | Surface | Status | Try it |
 | --- | --- | --- |
@@ -30,7 +30,7 @@ As of 2026-06-15:
 Latest verified evidence:
 
 - `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 35 test files, 402 tests
+- test suite passed: 37 test files, 431 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`

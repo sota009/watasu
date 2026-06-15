@@ -68,21 +68,37 @@ User
 | Agent Card generation | Ready in CLI and local HTTP demo |
 | Sender fixture submission | Ready for local handoff smoke tests |
 | Receiver accepted response | Ready in local demo as metadata-only delivery evidence |
+| Receiver CSV append | Ready: `pnpm demo:receiver-csv` writes to `receiver-demo-output/collected-submissions.csv` |
 | Plaintext payload custody inside watasu | Intentionally not supported |
+
+## Receiver CSV demo
+
+The first user-visible destination is implemented as a local receiver-owned CSV
+append demo:
+
+```bash
+pnpm demo:receiver-csv
+```
+
+It writes accepted demo rows to:
+
+```text
+receiver-demo-output/collected-submissions.csv
+```
+
+The `receiver-demo-output/` directory is ignored by Git. The CSV belongs to the
+receiver demo, not to watasu's payload custody boundary.
 
 ## Next demo slice
 
-The next user-visible slice should add a receiver demo that writes accepted
-submissions to a simple destination:
+The next destination slice can add a receiver-owned external destination:
 
 | Destination | Recommended first scope |
 | --- | --- |
-| CSV | Local file append, deterministic headers, no external credentials |
-| Google Sheets | Later adapter, explicit credentials, explicit scopes, no secrets in docs or logs |
+| Google Sheets | Explicit credentials, explicit scopes, no secrets in docs or logs |
 
-Start with CSV because it proves the end-to-end product story without adding
-OAuth, spreadsheet permissions, or third-party API failure modes. After that,
-the same receiver boundary can grow a Google Sheets adapter.
+Google Sheets should stay outside watasu's payload custody boundary. The receiver
+adapter owns credentials, decrypted payload validation, and row append behavior.
 
 ## Boundary
 

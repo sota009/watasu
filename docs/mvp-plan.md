@@ -64,7 +64,7 @@ Expected results:
 
 ### Hosted Production MVP
 
-Status: private-alpha deployment evidence is complete as of 2026-06-15. The current cutover head `ac5734bec0cb1ce83edab280ded626b744c53e3e` has matching CI, deploy preflight, hosted smoke, hosted canary, and retention dry-run evidence. `pnpm --silent cutover:verify` returns `decision: "go"` for `https://api.watasu.ai`.
+Status: private-alpha deployment evidence is complete as of 2026-06-16 JST. The gitignored `cutover-evidence/` bundle has matching CI, deploy preflight, hosted smoke, hosted canary, and retention dry-run evidence for the checked head. `pnpm --silent cutover:status` reports whether that evidence still matches the current checkout, and `pnpm --silent cutover:verify` returns `decision: "go"` for `https://api.watasu.ai` when it does.
 
 Purpose: let multiple service-side agents use watasu safely over a hosted surface.
 
@@ -90,7 +90,7 @@ pnpm --silent cutover:status
 pnpm --silent cutover:verify
 ```
 
-These commands passed against the current implementation on 2026-06-15. The current test suite has 35 passing test files and 402 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
+These commands passed against the current implementation on 2026-06-16 JST. The current test suite has 37 passing test files and 431 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
 
 ### Deployment operations handoff
 

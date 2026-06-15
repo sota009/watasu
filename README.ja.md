@@ -20,7 +20,7 @@ README は入口です。実際の利用手順は [利用者向けガイド](doc
 
 ## いま使える状態
 
-2026-06-15 時点の current status:
+2026-06-16 JST 時点の current status:
 
 | Surface | Status | 使い方 |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ README は入口です。実際の利用手順は [利用者向けガイド](doc
 Latest verified evidence:
 
 - `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 35 test files, 402 tests
+- test suite passed: 37 test files, 431 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`
