@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dry-run": "pnpm --dir ../.. typecheck && node dist/bin.js dry-run",
+    "submit": "pnpm --dir ../.. typecheck && node dist/bin.js submit",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },

@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import { watasuEncryptedIntakeExtensionUri, type AgentCard, type JsonSchemaObject } from "@watasu/core";
 import {
   createPersonalInfoAdapterDryRun,
+  createPersonalInfoAdapterSubmit,
   runPersonalInfoAdapterCli,
   type PersonalInfoReader
 } from "./index.js";
@@ -44,10 +45,10 @@ const baseAgentCard: AgentCard = {
           encryption: {
             required: true,
             algorithm: "JWE",
-            key_management: "ECDH-ES+A256KW",
-            content_encryption: "A256GCM",
-            service_key_id: "svc_test_key",
-            public_key_fingerprint: "sha256:test-key"
+              key_management: "ECDH-ES+A256KW",
+              content_encryption: "A256GCM",
+              service_key_id: "svc_test_key",
+              public_key_fingerprint: "sha256:gb_X5MLJsUDoRXHNxfpfk8DYF6Jz5DpPDBqO58Jwbo4"
           },
           submission: {
             max_payload_bytes: 262_144,
@@ -108,6 +109,15 @@ function writeJsonFixture(name: string, value: unknown): string {
   const file = join(directory, name);
   writeFileSync(file, JSON.stringify(value));
   return file;
+}
+
+function encryptedPayloadFixture(payload: Record<string, unknown>): Record<string, unknown> {
+  return {
+    protected: "base64url-protected",
+    iv: "base64url-iv",
+    ciphertext: `encrypted-${Object.keys(payload).sort().join("-")}`,
+    tag: "base64url-tag"
+  };
 }
 
 describe("personal-info-mcp adapter dry run", () => {
@@ -343,5 +353,251 @@ describe("personal-info-mcp adapter dry run", () => {
     });
     expect(`${result.stdout}${result.stderr}`).not.toContain("CLI Secret Name");
     expect(`${result.stdout}${result.stderr}`).not.toContain("cli.secret@example.test");
+  });
+
+  test("test_cli_submit_outputs_redacted_summary_without_plaintext_values", async () => {
+    const agentCardFile = writeJsonFixture("agent-card.json", baseAgentCard);
+    const schemaFile = writeJsonFixture("schema.json", baseSchema);
+    const mappingFile = writeJsonFixture("mapping.json", {
+      full_name: "full_name",
+      email: "email"
+    });
+    const valuesFile = writeJsonFixture("personal-info-values.json", {
+      full_name: "CLI Submit Secret Name",
+      email: "cli.submit.secret@example.test"
+    });
+    const publicJwkFile = writeJsonFixture("public-jwk.json", {
+      kty: "EC",
+      x: "TiZ60tQ0Se3zeQGt6T98XN5abLKOS1fjOJu1ea-xHnU",
+      y: "p7AD2mCWCUYJGBLkcA-lc3A46USGO147crX12i1lLrA",
+      crv: "P-256"
+    });
+    const submittedBodies: unknown[] = [];
+
+    const result = await runPersonalInfoAdapterCli([
+      "submit",
+      "--agent-card",
+      agentCardFile,
+      "--schema",
+      schemaFile,
+      "--mapping",
+      mappingFile,
+      "--personal-info-values",
+      valuesFile,
+      "--public-jwk",
+      publicJwkFile,
+      "--idempotency-key",
+      "cli-submit-001",
+      "--submitted-at",
+      "2026-06-15T00:00:00.000Z"
+    ], {
+      fetch: async (_url, init) => {
+        submittedBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({
+          ok: true,
+          status: "delivered",
+          ledger: {
+            delivery_status: "delivered"
+          }
+        }), {
+          status: 202,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: true,
+      command: "submit",
+      status: "delivered",
+      summary: {
+        plaintext_values_sent_to_watasu: false,
+        response_contains_plaintext_payload: false,
+        ledger_contains_payload_body: false
+      }
+    });
+    expect(`${result.stdout}${result.stderr}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "CLI Submit Secret Name"
+    );
+    expect(`${result.stdout}${result.stderr}${JSON.stringify(submittedBodies)}`).not.toContain(
+      "cli.submit.secret@example.test"
+    );
+  });
+
+  test("test_cli_submit_rejects_public_jwk_fingerprint_mismatch_before_personal_info_reads", async () => {
+    const agentCardFile = writeJsonFixture("agent-card.json", baseAgentCard);
+    const schemaFile = writeJsonFixture("schema.json", baseSchema);
+    const mappingFile = writeJsonFixture("mapping.json", {
+      full_name: "full_name",
+      email: "email"
+    });
+    const valuesFile = writeJsonFixture("personal-info-values.json", {
+      full_name: "Wrong Key Secret Name",
+      email: "wrong.key@example.test"
+    });
+    const wrongPublicJwkFile = writeJsonFixture("wrong-public-jwk.json", {
+      kty: "EC",
+      x: "AiZ60tQ0Se3zeQGt6T98XN5abLKOS1fjOJu1ea-xHnU",
+      y: "p7AD2mCWCUYJGBLkcA-lc3A46USGO147crX12i1lLrA",
+      crv: "P-256"
+    });
+    let fetchCalls = 0;
+
+    const result = await runPersonalInfoAdapterCli([
+      "submit",
+      "--agent-card",
+      agentCardFile,
+      "--schema",
+      schemaFile,
+      "--mapping",
+      mappingFile,
+      "--personal-info-values",
+      valuesFile,
+      "--public-jwk",
+      wrongPublicJwkFile
+    ], {
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      ok: false,
+      command: "submit",
+      error: {
+        code: "public_key_fingerprint_mismatch"
+      }
+    });
+    expect(fetchCalls).toBe(0);
+    expect(`${result.stdout}${result.stderr}`).not.toContain("Wrong Key Secret Name");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("wrong.key@example.test");
+  });
+
+  test("test_submit_posts_encrypted_envelope_and_returns_delivered_status", async () => {
+    const reader = trackingReader({
+      full_name: "Submit Secret Name",
+      email: "submit.secret@example.test"
+    });
+    const submittedBodies: unknown[] = [];
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      idempotencyKey: "submit-test-001",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async (_url, init) => {
+        submittedBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({
+          ok: true,
+          status: "delivered",
+          ledger: {
+            request_id: "event-attendee-intake",
+            request_version: "v1",
+            delivery_status: "delivered",
+            encrypted_payload_hash: "sha256:test"
+          }
+        }), {
+          status: 202,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "delivered",
+      summary: {
+        request_id: "event-attendee-intake",
+        request_version: "v1",
+        plaintext_values_sent_to_watasu: false,
+        response_contains_plaintext_payload: false
+      }
+    });
+    expect(reader.reads).toEqual(["full_name", "email"]);
+    expect(JSON.stringify(submittedBodies)).not.toContain("Submit Secret Name");
+    expect(JSON.stringify(submittedBodies)).not.toContain("submit.secret@example.test");
+  });
+
+  test("test_submit_rejects_request_version_mismatch_before_personal_info_reads", async () => {
+    const reader = trackingReader({
+      full_name: "Version Secret Name",
+      email: "version.secret@example.test"
+    });
+    let fetchCalls = 0;
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      expectedRequestVersion: "v2",
+      idempotencyKey: "submit-test-002",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "request_version_mismatch"
+      }
+    });
+    expect(reader.reads).toEqual([]);
+    expect(fetchCalls).toBe(0);
+  });
+
+  test("test_submit_rejects_schema_hash_mismatch_before_personal_info_reads", async () => {
+    const reader = trackingReader({
+      full_name: "Schema Secret Name",
+      email: "schema.secret@example.test"
+    });
+    let fetchCalls = 0;
+
+    const result = await createPersonalInfoAdapterSubmit({
+      agentCard: baseAgentCard,
+      plaintextSchema: baseSchema,
+      fieldMapping: {
+        full_name: "full_name",
+        email: "email"
+      },
+      personalInfo: reader,
+      expectedSchemaHash: "sha256:different-schema",
+      idempotencyKey: "submit-test-003",
+      submittedAt: "2026-06-15T00:00:00.000Z",
+      encryptPayload: encryptedPayloadFixture,
+      fetch: async () => {
+        fetchCalls += 1;
+        return new Response("{}");
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "schema_hash_mismatch"
+      }
+    });
+    expect(reader.reads).toEqual([]);
+    expect(fetchCalls).toBe(0);
   });
 });
