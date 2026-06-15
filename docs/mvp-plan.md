@@ -169,6 +169,7 @@ Recommended production environment variables:
 | `WATASU_POSTGRES_RUN_MIGRATIONS=true` | Codex can put the non-secret default in config. | Keep true for the first deploy unless migrations move to a dedicated job. |
 | `WATASU_RETENTION_TENANT_ID=watasu-private-alpha` | Codex can put the non-secret private-alpha tenant in config. | Retention cron scope. Move to per-tenant scheduling when multi-tenant operations need separate windows. |
 | `WATASU_METADATA_RETENTION_DAYS=90` | Codex can put the non-secret default in config. | Matches the fixture default and can be lowered per request policy later. |
+| `WATASU_RETENTION_DRY_RUN=true` | Codex can put the non-secret private-alpha default in config. | Keep hosted retention in evidence-only mode until the cutover is verified and deletion is explicitly approved. Set to `false` only after production deletion is intentionally enabled. |
 
 Owner checklist for the first production cutover:
 

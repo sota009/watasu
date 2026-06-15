@@ -282,7 +282,19 @@ describe("hosted production runtime package", () => {
 
     expect(config).toEqual({
       tenantId: "tenant-a",
-      retentionDays: 14
+      retentionDays: 14,
+      dryRunDefault: false
+    });
+  });
+
+  test("test_retention_job_config_reads_dry_run_default", () => {
+    const config = loadHostedRetentionJobConfig({
+      WATASU_RETENTION_TENANT_ID: "tenant-a",
+      WATASU_RETENTION_DRY_RUN: "true"
+    });
+
+    expect(config).toMatchObject({
+      dryRunDefault: true
     });
   });
 

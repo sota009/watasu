@@ -1385,6 +1385,10 @@ describe("workspace foundation", () => {
       }
     });
     expect(retentionEnv.get("WATASU_POSTGRES_POOL_MAX")).toMatchObject({ value: "2" });
+    expect(retentionEnv.get("WATASU_POSTGRES_RUN_MIGRATIONS")).toMatchObject({ value: "true" });
+    expect(retentionEnv.get("WATASU_RETENTION_TENANT_ID")).toMatchObject({ value: "watasu-private-alpha" });
+    expect(retentionEnv.get("WATASU_METADATA_RETENTION_DAYS")).toMatchObject({ value: "90" });
+    expect(retentionEnv.get("WATASU_RETENTION_DRY_RUN")).toMatchObject({ value: "true" });
 
     expect(database).toMatchObject({
       region: "singapore",

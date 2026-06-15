@@ -53,6 +53,7 @@ export interface HostedProductionServerRuntime {
 export interface HostedRetentionJobConfig {
   tenantId: string;
   retentionDays: number;
+  dryRunDefault: boolean;
 }
 
 export interface HostedRetentionArgs {
@@ -178,6 +179,10 @@ export function loadHostedRetentionJobConfig(env: Record<string, string | undefi
     retentionDays: parsePositiveIntegerEnv(env["WATASU_METADATA_RETENTION_DAYS"], {
       defaultValue: 90,
       name: "WATASU_METADATA_RETENTION_DAYS"
+    }),
+    dryRunDefault: parseBooleanEnv(env["WATASU_RETENTION_DRY_RUN"], {
+      defaultValue: false,
+      name: "WATASU_RETENTION_DRY_RUN"
     })
   };
 }
@@ -383,6 +388,25 @@ function parseStrictPositiveInteger(value: string): number | undefined {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseBooleanEnv(value: string | undefined, input: {
+  defaultValue: boolean;
+  name: string;
+}): boolean {
+  if (value === undefined) {
+    return input.defaultValue;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  throw new Error(`${input.name} must be true or false.`);
+}
+
 export function createNodePostgresPoolConfig(input: Extract<
   HostedPostgresRuntimeConfig,
   { mode: "postgres" }
@@ -458,7 +482,7 @@ export async function runHostedPostgresRetentionJobFromEnv(input: {
   try {
     const now = input.now();
     const result = await runHostedMetadataLedgerRetentionJob({
-      dryRun: input.dryRun,
+      dryRun: input.dryRun ?? config.dryRunDefault,
       serviceIdentity: {
         tenant_id: config.tenantId,
         roles: ["auditor"]
