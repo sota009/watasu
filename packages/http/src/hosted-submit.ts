@@ -3,17 +3,17 @@ import {
   deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
   sha256Hash,
-  validateSubmissionEnvelope,
+  validateSubmissionEnvelopeAsync,
   validateSubmissionEnvelopeMetadata,
+  type AsyncIdempotencyStore,
+  type AsyncSubmissionRateLimiter,
   type DeliveryCircuitBreaker,
   type DeliveryClient,
   type DeliveryConcurrencyLimiter,
   type DeliveryLedger,
-  type IdempotencyStore,
   type PublishedRequestVersion,
   type Sha256Hash,
   type SubmissionCapability,
-  type SubmissionRateLimiter,
   type SubmissionEnvelope
 } from "@watasu/core";
 import type {
@@ -46,8 +46,8 @@ export interface CreateHostedSubmitAppInput {
   };
   deliveryClient: DeliveryClient;
   ledger: DeliveryLedger;
-  idempotencyStore: IdempotencyStore;
-  rateLimiter: SubmissionRateLimiter;
+  idempotencyStore: AsyncIdempotencyStore;
+  rateLimiter: AsyncSubmissionRateLimiter;
   resolveDeliveryHost?: ((hostname: string) => Promise<string[]>) | undefined;
   clock: () => Date;
   signingSecret: string;
@@ -168,7 +168,7 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         published,
         tenantId
       });
-      const validationResult = validateSubmissionEnvelope(gateResult.envelopeCandidate, {
+      const validationResult = await validateSubmissionEnvelopeAsync(gateResult.envelopeCandidate, {
         published,
         capability,
         idempotencyStore: input.idempotencyStore,
@@ -202,7 +202,9 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
       });
       if (!deliveryResult.ok) {
         if (deliveryResult.status === "resubmit_later") {
-          input.idempotencyStore.releaseValidation(createIdempotencyClaimKey(validationResult.submission));
+          await input.idempotencyStore.releaseValidation(
+            createIdempotencyClaimKey(validationResult.submission)
+          );
         }
 
         return jsonResponse(

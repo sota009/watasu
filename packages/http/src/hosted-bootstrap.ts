@@ -1,10 +1,10 @@
 import type {
+  AsyncIdempotencyStore,
+  AsyncSubmissionRateLimiter,
   DeliveryClient,
   DeliveryCircuitBreaker,
   DeliveryConcurrencyLimiter,
   DeliveryLedger,
-  IdempotencyStore,
-  SubmissionRateLimiter,
   MetadataLedgerReader,
   PublishedRequestVersion,
   PublishOwnershipVerification,
@@ -39,8 +39,8 @@ export interface CreateHostedProductionBootstrapAppInput {
   publicBaseUrl: string;
   deliveryClient?: DeliveryClient | undefined;
   deliveryLedger?: DeliveryLedger | undefined;
-  idempotencyStore?: IdempotencyStore | undefined;
-  rateLimiter?: SubmissionRateLimiter | undefined;
+  idempotencyStore?: AsyncIdempotencyStore | undefined;
+  rateLimiter?: AsyncSubmissionRateLimiter | undefined;
   clock?: (() => Date) | undefined;
   deliverySigningSecret: string;
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;

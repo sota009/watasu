@@ -11,6 +11,8 @@ import {
   InMemorySubmissionRateLimiter,
   buildSenderSignaturePayload,
   validateSubmissionEnvelope,
+  validateSubmissionEnvelopeAsync,
+  type AsyncSubmissionValidationContext,
   type SubmissionEnvelope,
   type SubmissionValidationContext
 } from "./submission.js";
@@ -447,6 +449,44 @@ describe("submission envelope validation", () => {
       ok: true,
       status: "accepted"
     });
+  });
+
+  test("test_async_validation_awaits_rate_limit_and_idempotency_store", async () => {
+    const published = createPublished();
+    const envelope = createEnvelope(published);
+    const events: string[] = [];
+    const context: AsyncSubmissionValidationContext = {
+      ...createContext(published),
+      rateLimiter: {
+        async consume(key) {
+          await Promise.resolve();
+          events.push(`rate:${key}`);
+          return true;
+        }
+      },
+      idempotencyStore: {
+        async claimValidation(recordKey, claim) {
+          await Promise.resolve();
+          events.push(`claim:${recordKey}:${claim.status}`);
+          return true;
+        },
+        async releaseValidation(recordKey) {
+          await Promise.resolve();
+          events.push(`release:${recordKey}`);
+        }
+      }
+    };
+
+    const result = await validateSubmissionEnvelopeAsync(envelope, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "accepted"
+    });
+    expect(events).toEqual([
+      `rate:event-attendee-intake:v1:${sha256Hash("https://example.com/.well-known/watasu/cap/abc")}`,
+      "claim:event-attendee-intake:v1:submit-001:validation_accepted"
+    ]);
   });
 
   test("test_revoked_capability_url_is_rejected", () => {
