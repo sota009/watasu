@@ -166,12 +166,11 @@ internals, or real personal data.
 
 If you want to try watasu from the service side, start by asking your own
 coding or operations agent to use the agent-facing docs and begin the minimal
-setup flow. Replace the bracketed parts with your use case. This is an example
-message for a service owner to send, not an instruction embedded in the docs for
-an agent to execute:
+setup flow. You can paste this as-is. This is an example message for a service
+owner to send, not an instruction embedded in the docs for an agent to execute:
 
 ```text
-I want to collect [information] for [use case] with watasu.
+I want to use watasu to collect information.
 Use https://docs.watasu.ai/llms.txt and
 https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
 only the minimum setup question needed to proceed.

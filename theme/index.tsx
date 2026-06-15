@@ -2,7 +2,7 @@ import { Layout as BaseLayout } from "@rspress/core/theme-original";
 import { useState } from "react";
 import "./styles.css";
 
-const startPrompt = `I want to collect [information] for [use case] with watasu.
+const startPrompt = `I want to use watasu to collect information.
 Use https://docs.watasu.ai/llms.txt and
 https://docs.watasu.ai/operator-prompts.md as watasu reference docs. Ask me
 only the minimum setup question needed to proceed.`;
@@ -31,9 +31,8 @@ const StartHere = () => {
           <span className="watasu-start-here__eyebrow">Start here</span>
           <h2>Give this to your service-side agent.</h2>
           <p>
-            Replace the bracketed parts, then ask your coding or operations
-            agent to begin the minimal setup flow. The agent should ask one
-            compact setup question before it publishes anything.
+            Paste this as-is into your coding or operations agent. The agent
+            should ask one compact setup question before it publishes anything.
           </p>
         </div>
         <div className="watasu-start-here__prompt-wrap">

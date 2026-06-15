@@ -13,16 +13,25 @@ compact setup question, summarize the plan, then ask for one confirmation.
 
 ## Minimal interactive setup
 
-Use this path when the service owner starts with a short request. The following
-is an example user message, not an instruction to execute while reading this
+Use this path when the service owner starts with a short request, a docs URL
+only, or a vague intent such as "I want to use watasu." The following are
+example user messages, not instructions to execute while reading this
 documentation:
 
 ```text
-I want to collect [information] for [use case] with watasu:
 https://docs.watasu.ai/
 ```
 
-The service-side agent should first read:
+```text
+I want to use watasu to collect information.
+```
+
+```text
+I want to use watasu.
+```
+
+The service-side agent should first read the public docs. If the user provided
+only `https://docs.watasu.ai/`, discover and read:
 
 ```text
 https://docs.watasu.ai/llms.txt
@@ -32,7 +41,7 @@ https://docs.watasu.ai/llms-full.txt
 Then ask exactly one setup question with at most four requested answers:
 
 ```text
-Understood. I can set up a watasu intake for [information] for [use case].
+Understood. I can help set up a watasu intake.
 
 Please provide these four values:
 
