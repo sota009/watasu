@@ -102,45 +102,67 @@ Proceed?
 
 Only after confirmation should the agent execute the setup recipe.
 
-If implementation prerequisites are unavailable, do not start another question
+If implementation capabilities are unavailable, do not start another question
 round asking the service owner for webhook URLs, public keys, KMS details, or
-other low-level infrastructure values. Instead, report one concise blocker:
-which capability is missing, why it is needed, and what environment or access
-would let the agent continue. If the agent has access to the service repo and a
-local/demo path is acceptable, prefer creating a receiver-owned CSV demo path
-and test key material rather than asking the service owner to design the
+other low-level infrastructure values. These are agent/platform implementation
+capabilities, not normal human setup questions. Instead, report one concise
+blocker: which capability is missing, why it is needed, and what environment or
+access would let the agent continue. If the agent has access to the service repo
+and a local/demo path is acceptable, prefer creating a receiver-owned CSV demo
+path and test key material rather than asking the service owner to design the
 receiver by hand.
 
 Do not continue asking open-ended questions.
 
-## Required inputs
+## Required answers from the service owner
 
-Resolve these values before publishing or deploying anything:
+For the minimal interactive path, ask the service owner only for these product
+answers:
 
 | Placeholder | Meaning |
 | --- | --- |
 | `<COLLECTION_NAME>` | Human-readable collection name, such as `ExampleConf attendee registration` |
 | `<USE_CASE>` | Service use case, such as event registration, waitlist, inquiry intake, or onboarding |
-| `<REQUEST_ID>` | Stable request id, such as `exampleconf-attendee` |
 | `<FIELDS>` | Requested field ids and formats, such as `full_name` and `email` |
 | `<CONSENT_TEXT>` | Participant-facing consent text |
 | `<RETENTION_POLICY>` | Receiver-side deletion or retention policy |
-| `<TEST_PAYLOAD>` | Fake test values that match the requested fields |
-| `<RECEIVER_URL>` | Service-owned webhook URL that watasu can deliver to |
 | `<CSV_DESTINATION>` | Where the receiver writes or stores the CSV |
+
+The agent may infer `<COLLECTION_NAME>`, `<USE_CASE>`, `<FIELDS>`, and
+`<CONSENT_TEXT>` from the user's answer when the intent is clear. Ask for a
+correction in the confirmation summary rather than starting another interview.
+
+## Agent/platform implementation capabilities
+
+These values may be required for a real hosted publish or production delivery,
+but they should be provisioned by the agent, service repo, platform template,
+or deployment environment whenever possible. Do not ask the service owner to
+hand-design them during the first setup flow.
+
+| Capability | Why it exists |
+| --- | --- |
+| `<REQUEST_ID>` | Stable machine id derived from the collection name |
+| `<TEST_PAYLOAD>` | Fake test values generated from the requested fields |
+| `<RECEIVER_URL>` | Service-owned delivery endpoint generated or discovered by the receiver deployment |
 | `<WATASU_BASE_URL>` | Hosted watasu API base URL, such as `https://api.watasu.ai` |
 | `<WATASU_DOCS_URL>` | Public docs URL, such as `https://docs.watasu.ai` |
 | `<AUTH_CONTEXT>` | How the agent can use authorized watasu CLI, MCP, or API credentials |
 | `<SERVICE_PUBLIC_KEY>` | Public JWK or key reference published in the request definition |
 
-If any value is missing, stop and report what is missing instead of inventing
-production settings.
+If a capability is missing, prefer a local/demo implementation path first. If a
+real hosted publish cannot proceed, stop with a blocker report rather than
+asking for low-level secrets or key material in chat.
 
 ## Service-side setup recipe
 
 Use this recipe when operating as the service-side coding or operations agent.
 You must have access to the service repo, the receiver deployment target, and
 the authorized watasu tooling for the service.
+
+The placeholders in this recipe are execution inputs for the agent or platform.
+If they are not already available, do not ask the service owner to supply them
+one by one. Use a local/demo receiver path when possible, or report a blocker
+with the missing capability.
 
 ```text
 You are the service-side setup agent for <COLLECTION_NAME>.
@@ -203,8 +225,9 @@ Tasks:
     <TEST_PAYLOAD>
 17. Verify that one accepted row appears in the receiver-owned CSV.
 
-Stop and report a blocker if any of these are unavailable. Do not turn this
-list into a follow-up questionnaire for the service owner:
+Stop and report a blocker if any of these capabilities are unavailable and no
+local/demo fallback is acceptable. Do not turn this list into a follow-up
+questionnaire for the service owner:
 - watasu docs URLs
 - authorized watasu publish credentials or tool access
 - receiver deployment target
