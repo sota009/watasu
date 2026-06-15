@@ -62,16 +62,16 @@ Expected results:
 - Delivery ledger rows may contain `encrypted_payload_hash`, but not `encrypted_payload` or JWE body fields.
 - Missing `.watasu-local`, `logs`, or `tmp` paths are fine when no persistent local output exists.
 
-### Hosted Production MVP
+### Hosted Private Alpha
 
-Status: private-alpha deployment evidence is complete as of 2026-06-16 JST. The gitignored `cutover-evidence/` bundle has matching CI, deploy preflight, hosted smoke, hosted canary, and retention dry-run evidence for the checked head. `pnpm --silent cutover:status` reports whether that evidence still matches the current checkout, and `pnpm --silent cutover:verify` returns `decision: "go"` for `https://api.watasu.ai` when it does.
+Status: private-alpha deployment evidence is complete as of 2026-06-16 JST, but this is not yet the full durable Hosted Production MVP described in the PRD. The gitignored `cutover-evidence/` bundle has matching CI, deploy preflight, hosted smoke, hosted canary, and retention dry-run evidence for the checked head. `pnpm --silent cutover:status` reports whether that evidence still matches the current checkout, and `pnpm --silent cutover:verify` returns `decision: "go"` for `https://api.watasu.ai` when it does.
 
-Purpose: let multiple service-side agents use watasu safely over a hosted surface.
+Purpose: prove the hosted private-alpha shell, authentication boundary, deployment safety, and no-payload-custody checks before a real design-partner request is published.
 
-Hosted production now has repo-side library and runtime artifacts for these trust boundaries:
+The repository now has library or runtime artifacts for these hosted trust boundaries:
 
 - MCP publish and read resources, not just validation
-- capability URL revoke and rotate
+- capability URL revoke and rotate semantics, with hosted submit able to use an injected capability resolver
 - service public key ownership verification
 - webhook domain ownership verification
 - hosted sender authentication for `verified_sender` and `private_invite`
@@ -90,7 +90,15 @@ pnpm --silent cutover:status
 pnpm --silent cutover:verify
 ```
 
-These commands passed against the current implementation on 2026-06-16 JST. The current test suite has 37 passing test files and 431 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
+These commands passed against the current implementation on 2026-06-16 JST. The current test suite has 37 passing test files and 432 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
+
+Current hosted private-alpha limits:
+
+- The live web runtime composes `InMemoryRequestVersionRepository`, an in-memory ownership challenge registry, in-memory idempotency/rate-limit defaults, and a no-op delivery ledger unless explicit dependencies are injected by tests or future runtime wiring.
+- The web runtime intentionally rejects `WATASU_METADATA_LEDGER_STORE=postgres`; PostgreSQL is wired for retention dry-run evidence, not web read/write custody.
+- Capability revoke/rotate is implemented in the core model and can now be enforced by hosted submit through an injected resolver, but production capability administration is not yet wired to a durable hosted store.
+- A real private-alpha request still needs to be published through the authenticated hosted MCP boundary when the first design partner flow is ready.
+- Durable hosted repositories, persisted replay/rate-limit state, production capability administration, and multi-tenant operational runbooks remain Hosted Production MVP work.
 
 ### Deployment operations handoff
 
@@ -230,7 +238,7 @@ Goal: make completion language honest.
 Manual checks:
 
 ```bash
-rg -n "Local Protocol MVP|Hosted Production MVP|mvp-plan" README.md docs
+rg -n "Local Protocol MVP|Hosted Private Alpha|Hosted Production MVP|mvp-plan" README.md docs
 pnpm loop
 ```
 

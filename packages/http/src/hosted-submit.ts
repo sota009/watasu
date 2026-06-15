@@ -12,6 +12,7 @@ import {
   type IdempotencyStore,
   type PublishedRequestVersion,
   type Sha256Hash,
+  type SubmissionCapability,
   type SubmissionRateLimiter,
   type SubmissionEnvelope
 } from "@watasu/core";
@@ -53,6 +54,11 @@ export interface CreateHostedSubmitAppInput {
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
   resolveSenderTrust?: HostedSenderTrustResolver | undefined;
+  resolveCapability?: ((input: {
+    capabilityUrl: string;
+    published: PublishedRequestVersion;
+    tenantId?: string | undefined;
+  }) => SubmissionCapability | Promise<SubmissionCapability>) | undefined;
   tenantId?: string | undefined;
   resolveTenantId?: ((input: {
     request: HostedSubmitRequest;
@@ -156,12 +162,15 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         envelope: gateResult.envelopeCandidate,
         now: input.clock()
       });
+      const capability = await resolveCapability({
+        resolver: input.resolveCapability,
+        capabilityUrl,
+        published,
+        tenantId
+      });
       const validationResult = validateSubmissionEnvelope(gateResult.envelopeCandidate, {
         published,
-        capability: {
-          url: capabilityUrl,
-          revoked: false
-        },
+        capability,
         idempotencyStore: input.idempotencyStore,
         rateLimiter: input.rateLimiter,
         clock: input.clock,
@@ -219,6 +228,24 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         ledger: deliveryResult.ledger
       });
     }
+  };
+}
+
+async function resolveCapability(input: {
+  resolver: CreateHostedSubmitAppInput["resolveCapability"];
+  capabilityUrl: string;
+  published: PublishedRequestVersion;
+  tenantId?: string | undefined;
+}): Promise<SubmissionCapability> {
+  const resolved = await input.resolver?.({
+    capabilityUrl: input.capabilityUrl,
+    published: input.published,
+    tenantId: input.tenantId
+  });
+
+  return resolved ?? {
+    url: input.capabilityUrl,
+    revoked: false
   };
 }
 
