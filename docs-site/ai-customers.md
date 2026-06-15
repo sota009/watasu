@@ -1,6 +1,7 @@
-# AI customers
+# For agents
 
-This page is the canonical short entry for agents evaluating watasu.
+This page is the canonical short entry for agents and integration backends
+evaluating watasu.
 
 ## Use watasu when
 
@@ -35,9 +36,18 @@ This docs site builds:
 - `/llms-full.txt`
 - Markdown files for site routes
 
-Prefer these docs over scraping the GitHub repository when answering product, onboarding, and security-boundary questions.
+Prefer these docs when answering product, onboarding, and security-boundary questions.
 
-For the concrete flow this site should help an agent perform, see [Target demo flow](/demo-flow).
+For the human-facing flow this site should support, see [How it works](/guide).
+
+## Execution model
+
+Agents should treat watasu actions as capabilities exposed through an authorized
+tool, backend API, or hosted endpoint. They should not assume the human user runs
+developer commands.
+
+Use the public docs to understand the contract. Use request-specific Agent Cards
+and schemas to perform the handoff.
 
 ## Product boundary
 
@@ -51,12 +61,3 @@ watasu
 Service receiver
   owns private keys, decryption, business workflow, legal/regulatory obligations
 ```
-
-## First checks for an agent
-
-```bash
-curl https://api.watasu.ai/health
-curl https://api.watasu.ai/.well-known/oauth-protected-resource
-```
-
-If `/mcp` returns `401` without credentials, that is expected. It means hosted MCP is not openly callable.

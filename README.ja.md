@@ -262,6 +262,11 @@ cutover evidence は gitignored の `cutover-evidence/` に保存します。主
 
 Public docs site:
 
+Public site は audience-facing に絞ります。overview、how-it-works、agent
+integration、protocol、security-boundary を置き、maintainer-only の local
+commands、deployment setup notes、private repository workflows は public site
+の top-level page ではなく、この README や internal docs に置きます。
+
 ```bash
 pnpm docs:build
 pnpm docs:preview

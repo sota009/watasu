@@ -1,13 +1,42 @@
-# Getting started
+# How it works
 
-This guide starts from zero and shows the smallest useful watasu loop.
+This is the human-facing starting point. It explains what happens in a watasu
+handoff without assuming that you run developer commands yourself.
 
-## How it works
+## The short version
 
-watasu replaces a human form URL with an agent-readable contract URL.
+watasu lets a service publish a machine-readable request contract. A user-side
+agent can read that contract, ask the user for the requested information,
+encrypt the payload, and submit it through watasu. watasu validates and forwards
+the encrypted envelope while keeping plaintext payload custody out of scope.
 
-The service side first defines what it needs in a request definition. For
-example, an event service can ask for only the attendee fields it needs:
+<div class="handoff-map" aria-label="Human-facing watasu flow">
+  <div>
+    <span>1</span>
+    <strong>Service publishes a contract</strong>
+    <p>The request describes fields, consent text, schemas, endpoints, and encryption metadata.</p>
+  </div>
+  <div>
+    <span>2</span>
+    <strong>Agent reads the contract</strong>
+    <p>The agent uses docs, llms files, and request-specific Agent Cards.</p>
+  </div>
+  <div>
+    <span>3</span>
+    <strong>User confirms the handoff</strong>
+    <p>The user-side experience owns the consent prompt and personal context.</p>
+  </div>
+  <div>
+    <span>4</span>
+    <strong>watasu forwards safely</strong>
+    <p>watasu checks the encrypted envelope and records delivery evidence without plaintext payload values.</p>
+  </div>
+</div>
+
+## Concrete handoff example
+
+Think of watasu as replacing a human form URL with an agent-readable contract
+URL. The service side first defines what it needs in a request definition:
 
 ```yaml
 name: event-attendee-intake
@@ -33,8 +62,8 @@ encryption:
 trust_profile: verified_sender
 ```
 
-When that request is validated and published, watasu turns it into three things
-that another agent can read:
+When that request is validated and published, watasu turns it into the surfaces
+another agent can read:
 
 ```text
 Agent Card URL   -> what this intake endpoint accepts and where to submit
@@ -42,7 +71,7 @@ schema URL       -> the plaintext payload shape the user must approve
 submit endpoint  -> the A2A HTTP+JSON route for the encrypted envelope
 ```
 
-In the local demo, those URLs are:
+In the local demo, those surfaces look like this:
 
 ```text
 GET  http://127.0.0.1:8787/.well-known/agent-card.json
@@ -64,7 +93,7 @@ those URLs, shows the requested fields and consent text to the user, collects or
 maps the approved values from the user's own context, encrypts the payload
 outside watasu, then submits an A2A message to the submit endpoint.
 
-The submit request is shaped like this at the protocol boundary:
+At the protocol boundary, the submit request uses the A2A HTTP+JSON route:
 
 ```http
 POST /submit
@@ -133,80 +162,44 @@ apply, and which endpoint receives the encrypted envelope. It can be shared with
 the user-side agent without exposing webhook secrets, private keys, receiver
 internals, or real personal data.
 
-## What you need
+## What a person should do first
 
-- Node.js 22 or newer
-- pnpm 10.31.0 or newer
-- This repository cloned locally
+Start by deciding which role you are evaluating:
 
-## 1. Run the handoff demo
+| Role | Start with | Why |
+| --- | --- | --- |
+| Agent or integration backend | [For agents](./ai-customers) | Lists public discovery surfaces and machine-readable docs. |
+| Security reviewer | [Security boundary](./security) | Explains what watasu does not decrypt, store, or own. |
 
-```bash
-pnpm install
-pnpm demo:handoff
-```
+## What you can try
 
-You should see `ok: true`, `delivery_status: "delivered"`, and no payload body in the ledger.
-
-## 2. Inspect the sample request
-
-The sample request lives at:
-
-```bash
-packages/fixtures/requests/event-attendee.yaml
-```
-
-It asks for a full name and email address for an event attendee. It is intentionally small so you can inspect every output.
-
-## 3. Validate the request
-
-```bash
-pnpm --filter @watasu/cli watasu validate packages/fixtures/requests/event-attendee.yaml
-```
-
-Expected shape:
-
-```json
-{
-  "ok": true,
-  "command": "validate",
-  "request": {
-    "name": "event-attendee-intake",
-    "field_count": 2
-  }
-}
-```
-
-## 4. Generate schemas and Agent Card
-
-```bash
-pnpm --filter @watasu/cli watasu schema packages/fixtures/requests/event-attendee.yaml
-pnpm --filter @watasu/cli watasu agent-card packages/fixtures/requests/event-attendee.yaml --confirm
-```
-
-The schema describes payload shape. The Agent Card tells an agent where to submit, which hashes to bind, and which encrypted-intake extension to use.
-
-## 5. Run the local HTTP demo
-
-```bash
-pnpm typecheck
-pnpm --filter @watasu/http demo
-```
-
-In another terminal:
-
-```bash
-curl http://127.0.0.1:8787/.well-known/agent-card.json
-curl http://127.0.0.1:8787/schemas/plaintext.json
-curl http://127.0.0.1:8787/schemas/envelope.json
-```
-
-## What you built
-
-You verified the local loop:
+The simplest demo path is:
 
 ```text
-request definition -> schema -> Agent Card -> encrypted submit -> delivery -> metadata-only ledger
+ask an agent -> agent reads the contract -> user confirms -> encrypted submit -> receiver-owned CSV or Sheet row
 ```
 
-Next, read [AI customers](./ai-customers) if your caller is an agent, or [Security boundary](./security) if you are checking whether watasu can safely handle sensitive intake workflows.
+The visible output should be a receiver-owned destination, such as a CSV or
+Sheet, with one accepted row. watasu should only show metadata-only delivery
+evidence and should not show plaintext payload values.
+
+## What an agent should use
+
+An agent should use the public contract surfaces that are available for the
+workflow it is performing:
+
+- This docs site and its generated `/llms.txt` and `/llms-full.txt` files.
+- Request-specific Agent Cards.
+- Request-specific plaintext and envelope schemas.
+- Hosted API endpoints when the workflow is authorized.
+
+## What watasu does not do
+
+watasu does not provide the user-side personal vault, consumer dashboard,
+legal-consent system, or decrypted-payload viewer in the MVP. Those belong to
+the user-side product and receiver-side service.
+
+## Access posture
+
+Public docs can explain the protocol and discovery surfaces, but request-specific
+submit, publish, MCP, and ledger routes may require authorization.
