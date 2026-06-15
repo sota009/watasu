@@ -322,6 +322,95 @@ describe("hosted production bootstrap app", () => {
     ]);
   });
 
+  test("test_bootstrap_passes_principal_tenant_to_capability_resolver_for_submit", async () => {
+    const repository = new InMemoryRequestVersionRepository();
+    const capabilityInputs: unknown[] = [];
+    const deliveryRequests: unknown[] = [];
+    const publicCapabilityDefinition: RequestDefinition = {
+      ...definition,
+      trust_profile: "public_capability"
+    };
+    const app = createHostedProductionBootstrapApp({
+      repository,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      deliveryClient: {
+        async post(request) {
+          deliveryRequests.push(request);
+          return {
+            status: 204
+          };
+        }
+      },
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: () => ({
+        tenant_id: "tenant-a",
+        roles: ["publisher"]
+      }),
+      resolveOwnershipVerification: () => createOwnership(),
+      resolveCapability(input) {
+        capabilityInputs.push(input);
+        return {
+          url: input.capabilityUrl,
+          revoked: true
+        };
+      },
+      clock: () => new Date("2026-06-15T00:00:01.000Z")
+    });
+
+    const publishResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      body: {
+        definition: publicCapabilityDefinition,
+        confirmed: true
+      }
+    }));
+    const published = repository.list("event-attendee-intake")[0];
+    if (published === undefined) {
+      throw new Error("expected published request version");
+    }
+    const submitResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/submit",
+      headers: {
+        "content-type": "application/a2a+json",
+        "a2a-version": "1.0",
+        "a2a-extensions": "https://watasu.dev/extensions/encrypted-intake/v1"
+      },
+      body: createA2aSubmissionBody({
+        published
+      })
+    }));
+
+    expect(publishResponse.status).toBe(201);
+    expect(submitResponse.status).toBe(400);
+    expect(parseJson(submitResponse.body)).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "capability_revoked"
+      }
+    });
+    expect(capabilityInputs).toMatchObject([
+      {
+        tenantId: "tenant-a",
+        capabilityUrl: "https://api.watasu.ai/requests/event-attendee-intake/submit",
+        published: {
+          request_id: "event-attendee-intake",
+          request_version: "v1"
+        }
+      }
+    ]);
+    expect(deliveryRequests).toHaveLength(0);
+  });
+
   test("test_bootstrap_rejects_cross_tenant_request_id_republish", async () => {
     const repository = new InMemoryRequestVersionRepository();
     let tenantId = "tenant-a";

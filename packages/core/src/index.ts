@@ -46,11 +46,15 @@ export {
 } from "./jwe.js";
 export {
   createMetadataLedgerReader,
+  createMigratedPostgresCapabilityRegistry,
   createMigratedPostgresDeliveryLedgerStore,
+  createPostgresCapabilityRegistrySchemaSql,
   createPostgresDeliveryLedgerSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
+  runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
@@ -140,6 +144,7 @@ export type {
   MetadataLedgerReader,
   MetadataLedgerReadResult,
   MetadataLedgerRetentionResult,
+  PersistentCapabilityRegistry,
   PersistentDeliveryLedgerStore,
   PostgresQueryClient,
   RetentionDeliveryLedgerStore,

@@ -90,15 +90,15 @@ pnpm --silent cutover:status
 pnpm --silent cutover:verify
 ```
 
-These commands passed against the current implementation on 2026-06-16 JST. The current test suite has 37 passing test files and 432 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
+These commands passed against the current implementation on 2026-06-16 JST. The current test suite has 37 passing test files and 437 passing tests. The hosted endpoint `https://api.watasu.ai/health` returns `{"ok":true,"service":"watasu-hosted"}`. The hosted MCP endpoint rejects unauthenticated calls with `401` and `WWW-Authenticate`, while `/.well-known/oauth-protected-resource` exposes only MCP resource metadata.
 
 Current hosted private-alpha limits:
 
 - The live web runtime composes `InMemoryRequestVersionRepository`, an in-memory ownership challenge registry, in-memory idempotency/rate-limit defaults, and a no-op delivery ledger unless explicit dependencies are injected by tests or future runtime wiring.
-- The web runtime intentionally rejects `WATASU_METADATA_LEDGER_STORE=postgres`; PostgreSQL is wired for retention dry-run evidence, not web read/write custody.
-- Capability revoke/rotate is implemented in the core model and can now be enforced by hosted submit through an injected resolver, but production capability administration is not yet wired to a durable hosted store.
+- The web runtime intentionally rejects `WATASU_METADATA_LEDGER_STORE=postgres`; PostgreSQL is wired for retention dry-run evidence and durable capability metadata primitives, not full web read/write custody.
+- Capability revoke/rotate is implemented in the core model, can be enforced by hosted submit through an injected resolver, and now has a PostgreSQL-compatible metadata store that saves hashes only. Production capability administration is not yet wired to the live hosted runtime.
 - A real private-alpha request still needs to be published through the authenticated hosted MCP boundary when the first design partner flow is ready.
-- Durable hosted repositories, persisted replay/rate-limit state, production capability administration, and multi-tenant operational runbooks remain Hosted Production MVP work.
+- Durable hosted request repositories, persisted replay/rate-limit state, production capability administration, and multi-tenant operational runbooks remain Hosted Production MVP work.
 
 ### Deployment operations handoff
 
@@ -291,7 +291,7 @@ Done when:
 
 ### Phase 3: Capability revoke and rotate
 
-Status: done for the in-memory core capability registry.
+Status: done for the in-memory core capability registry, hosted submit resolver hook, and PostgreSQL-compatible metadata registry primitives.
 
 Goal: leaked capability URLs can be stopped without mutating the request version.
 

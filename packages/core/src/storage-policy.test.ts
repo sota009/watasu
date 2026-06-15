@@ -6,16 +6,21 @@ import { sha256Hash } from "./hash.js";
 import type { DeliveryLedger, DeliveryLedgerRow } from "./delivery.js";
 import {
   createMetadataLedgerReader,
+  createMigratedPostgresCapabilityRegistry,
+  createPostgresCapabilityRegistrySchemaSql,
   createMigratedPostgresDeliveryLedgerStore,
   createPostgresDeliveryLedgerSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
+  PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
+  runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
 } from "./storage-policy.js";
+import type { PublishedRequestVersion } from "./request-version.js";
 
 function createLedgerRow(overrides: Partial<DeliveryLedgerRow> = {}): DeliveryLedgerRow {
   return {
@@ -40,6 +45,55 @@ function createMemoryLedger(): DeliveryLedger & { rows: DeliveryLedgerRow[] } {
     writeDeliveryAttempt(row) {
       rows.push(row);
     }
+  };
+}
+
+function createPublishedRequest(): PublishedRequestVersion {
+  return {
+    request_id: "event-attendee-intake",
+    request_version: "v1",
+    definition: {
+      name: "event-attendee-intake",
+      schema_version: "2026-06-14",
+      description: "Collect attendee details for ExampleConf.",
+      fields: [],
+      consent: {
+        text: "ExampleConf uses this information only for event operations."
+      },
+      destination: {
+        type: "webhook",
+        url: "https://receiver.example.com/watasu/intake"
+      },
+      retention: {
+        destination_policy: "Delete within 30 days after the event."
+      },
+      encryption: {
+        mode: "required",
+        algorithm: "JWE",
+        key_management: "ECDH-ES+A256KW",
+        content_encryption: "A256GCM",
+        service_key_id: "jwk-thumbprint:sha256:example",
+        public_key_jwk: {
+          kty: "EC",
+          crv: "P-256",
+          x: "base64url-x",
+          y: "base64url-y"
+        }
+      },
+      metadata_retention: {
+        days: 90
+      },
+      trust_profile: "public_capability"
+    },
+    hashes: {
+      request_version_hash: sha256Hash("request-version"),
+      schema_hash: sha256Hash("schema"),
+      consent_text_hash: sha256Hash("consent"),
+      field_purposes_hash: sha256Hash("field-purposes"),
+      destination_policy_hash: sha256Hash("destination-policy"),
+      public_key_fingerprint: sha256Hash("public-key")
+    },
+    published_at: "2026-06-14T12:00:00.000Z"
   };
 }
 
@@ -657,6 +711,137 @@ describe("storage policy controlled delivery ledger", () => {
     expect(writes).toEqual([
       "operational:submit-001",
       "persistent:submit-001"
+    ]);
+  });
+
+  test("test_postgres_capability_registry_stores_hash_only_and_resolves_revocation", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const capabilityUrl = "https://api.watasu.ai/requests/event-attendee-intake/submit?capability=secret-token";
+    const store = new PostgresCapabilityRegistry({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("select")
+              ? [
+                  {
+                    request_id: "event-attendee-intake",
+                    request_version: "v1",
+                    capability_hash: sha256Hash(capabilityUrl),
+                    status: "revoked",
+                    issued_at: "2026-06-14T12:00:00.000Z",
+                    revoked_at: "2026-06-14T12:05:00.000Z"
+                  }
+                ]
+              : []
+          };
+        }
+      }
+    });
+
+    const issued = await store.issueCapability({
+      published: createPublishedRequest(),
+      url: capabilityUrl,
+      issuedAt: "2026-06-14T12:00:00.000Z"
+    });
+    await store.revokeCapability(issued, "2026-06-14T12:05:00.000Z");
+    const resolved = await store.resolveCapability(capabilityUrl);
+
+    expect(issued).toEqual({
+      url: capabilityUrl,
+      revoked: false
+    });
+    expect(resolved).toEqual({
+      url: capabilityUrl,
+      revoked: true
+    });
+    expect(queries[0]?.text).toContain("insert into watasu_capabilities");
+    expect(queries[0]?.values).toContain(sha256Hash(capabilityUrl));
+    expect(queries[1]?.text).toContain("update watasu_capabilities");
+    expect(queries[2]?.text).toContain("select");
+    expect(JSON.stringify(queries)).not.toContain("secret-token");
+    expect(JSON.stringify(queries)).not.toContain(capabilityUrl);
+  });
+
+  test("test_postgres_capability_registry_schema_is_tokenless_metadata", () => {
+    const schemaSql = createPostgresCapabilityRegistrySchemaSql();
+
+    expect(schemaSql).toContain("create table if not exists watasu_capabilities");
+    expect(schemaSql).toContain("tenant_id text not null");
+    expect(schemaSql).toContain("capability_hash text not null");
+    expect(schemaSql).toContain("status text not null");
+    expect(schemaSql).toContain("primary key (tenant_id, capability_hash)");
+    expect(schemaSql).toContain("create index if not exists watasu_capabilities_request_idx");
+    expect(schemaSql).not.toContain("capability_url");
+    expect(schemaSql).not.toContain("token");
+    expect(schemaSql).not.toContain("encrypted_payload");
+  });
+
+  test("test_create_migrated_postgres_capability_registry_runs_migration_before_issue", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = await createMigratedPostgresCapabilityRegistry({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    await store.issueCapability({
+      published: createPublishedRequest(),
+      url: "https://api.watasu.ai/requests/event-attendee-intake/submit",
+      issuedAt: "2026-06-14T12:00:00.000Z"
+    });
+
+    expect(queries[0]).toEqual({
+      text: createPostgresCapabilityRegistrySchemaSql(),
+      values: []
+    });
+    expect(queries[1]?.values[0]).toBe("tenant-a");
+  });
+
+  test("test_postgres_capability_registry_migration_runs_schema_sql_once", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+
+    await runPostgresCapabilityRegistryMigration({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    expect(queries).toEqual([
+      {
+        text: createPostgresCapabilityRegistrySchemaSql(),
+        values: []
+      }
     ]);
   });
 });
