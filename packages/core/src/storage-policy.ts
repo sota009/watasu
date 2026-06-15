@@ -5,8 +5,10 @@ import { canonicalizeJson } from "./request-definition.js";
 import { sha256Hash } from "./hash.js";
 import type { Sha256Hash } from "./hash.js";
 import type {
+  AsyncIdempotencyStore,
   CapabilityRecord,
   CapabilityStatus,
+  IdempotencyValidationClaim,
   SubmissionCapability
 } from "./submission.js";
 import type { PublishedRequestVersion } from "./request-version.js";
@@ -373,6 +375,104 @@ export class PostgresCapabilityRegistry implements PersistentCapabilityRegistry 
 
     return result.rows.map((row) => sanitizeCapabilityRecord(row));
   }
+}
+
+export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
+  readonly #queryClient: PostgresQueryClient;
+  readonly #tenantId: string;
+
+  constructor(input: {
+    queryClient: PostgresQueryClient;
+    tenantId: string;
+  }) {
+    this.#queryClient = input.queryClient;
+    this.#tenantId = input.tenantId;
+  }
+
+  async claimValidation(
+    recordKey: string,
+    claim: IdempotencyValidationClaim
+  ): Promise<boolean> {
+    const result = await this.#queryClient.query(
+      `insert into watasu_idempotency_claims (
+        tenant_id,
+        request_id,
+        request_version,
+        idempotency_key_hash,
+        submitted_at,
+        claimed_at,
+        status
+      ) values ($1, $2, $3, $4, $5, $6, $7)
+      on conflict (tenant_id, request_id, request_version, idempotency_key_hash) do nothing
+      returning idempotency_key_hash`,
+      [
+        this.#tenantId,
+        claim.request_id,
+        claim.request_version,
+        sha256Hash(recordKey),
+        claim.submitted_at,
+        claim.claimed_at,
+        claim.status
+      ]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  async releaseValidation(recordKey: string): Promise<void> {
+    await this.#queryClient.query(
+      `delete from watasu_idempotency_claims
+      where tenant_id = $1
+        and idempotency_key_hash = $2`,
+      [
+        this.#tenantId,
+        sha256Hash(recordKey)
+      ]
+    );
+  }
+}
+
+export function createPostgresIdempotencyStoreSchemaSql(): string {
+  return `create table if not exists watasu_idempotency_claims (
+  tenant_id text not null,
+  request_id text not null,
+  request_version text not null,
+  idempotency_key_hash text not null,
+  submitted_at timestamptz not null,
+  claimed_at timestamptz not null,
+  status text not null,
+  created_at timestamptz not null default now(),
+  primary key (tenant_id, request_id, request_version, idempotency_key_hash)
+);
+
+create index if not exists watasu_idempotency_claims_request_idx
+  on watasu_idempotency_claims (tenant_id, request_id, request_version);
+
+create index if not exists watasu_idempotency_claims_claimed_at_idx
+  on watasu_idempotency_claims (tenant_id, claimed_at);`;
+}
+
+export async function runPostgresIdempotencyStoreMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresIdempotencyStoreSchemaSql(), []);
+}
+
+export async function createMigratedPostgresIdempotencyStore(input: {
+  tenantId: string;
+  queryClient: PostgresQueryClient;
+  runMigration?: boolean | undefined;
+}): Promise<PostgresIdempotencyStore> {
+  if (input.runMigration !== false) {
+    await runPostgresIdempotencyStoreMigration({
+      queryClient: input.queryClient
+    });
+  }
+
+  return new PostgresIdempotencyStore({
+    tenantId: input.tenantId,
+    queryClient: input.queryClient
+  });
 }
 
 export function createPostgresCapabilityRegistrySchemaSql(): string {

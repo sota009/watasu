@@ -8,14 +8,18 @@ import {
   createMetadataLedgerReader,
   createMigratedPostgresCapabilityRegistry,
   createPostgresCapabilityRegistrySchemaSql,
+  createMigratedPostgresIdempotencyStore,
   createMigratedPostgresDeliveryLedgerStore,
   createPostgresDeliveryLedgerSchemaSql,
+  createPostgresIdempotencyStoreSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
+  PostgresIdempotencyStore,
   runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
+  runPostgresIdempotencyStoreMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
@@ -840,6 +844,172 @@ describe("storage policy controlled delivery ledger", () => {
     expect(queries).toEqual([
       {
         text: createPostgresCapabilityRegistrySchemaSql(),
+        values: []
+      }
+    ]);
+  });
+
+  test("test_postgres_idempotency_store_claims_hash_only_validation_metadata", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = new PostgresIdempotencyStore({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: [
+              {
+                idempotency_key_hash: sha256Hash("event-attendee-intake:v1:submit-001")
+              }
+            ]
+          };
+        }
+      }
+    });
+
+    const claimed = await store.claimValidation("event-attendee-intake:v1:submit-001", {
+      request_id: "event-attendee-intake",
+      request_version: "v1",
+      idempotency_key: "submit-001",
+      submitted_at: "2026-06-14T11:59:00.000Z",
+      claimed_at: "2026-06-14T12:00:00.000Z",
+      status: "validation_accepted"
+    });
+
+    expect(claimed).toBe(true);
+    expect(queries[0]?.text).toContain("insert into watasu_idempotency_claims");
+    expect(queries[0]?.text).toContain("on conflict");
+    expect(queries[0]?.values).toEqual([
+      "tenant-a",
+      "event-attendee-intake",
+      "v1",
+      sha256Hash("event-attendee-intake:v1:submit-001"),
+      "2026-06-14T11:59:00.000Z",
+      "2026-06-14T12:00:00.000Z",
+      "validation_accepted"
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("submit-001");
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_postgres_idempotency_store_rejects_existing_claim_and_releases_by_hash", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = new PostgresIdempotencyStore({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("insert") ? [] : []
+          };
+        }
+      }
+    });
+
+    const claimed = await store.claimValidation("event-attendee-intake:v1:submit-001", {
+      request_id: "event-attendee-intake",
+      request_version: "v1",
+      idempotency_key: "submit-001",
+      submitted_at: "2026-06-14T11:59:00.000Z",
+      claimed_at: "2026-06-14T12:00:00.000Z",
+      status: "validation_accepted"
+    });
+    await store.releaseValidation("event-attendee-intake:v1:submit-001");
+
+    expect(claimed).toBe(false);
+    expect(queries[1]?.text).toContain("delete from watasu_idempotency_claims");
+    expect(queries[1]?.values).toEqual([
+      "tenant-a",
+      sha256Hash("event-attendee-intake:v1:submit-001")
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("submit-001");
+  });
+
+  test("test_postgres_idempotency_store_schema_is_hash_only_metadata", () => {
+    const schemaSql = createPostgresIdempotencyStoreSchemaSql();
+
+    expect(schemaSql).toContain("create table if not exists watasu_idempotency_claims");
+    expect(schemaSql).toContain("tenant_id text not null");
+    expect(schemaSql).toContain("idempotency_key_hash text not null");
+    expect(schemaSql).toContain("status text not null");
+    expect(schemaSql).toContain("primary key (tenant_id, request_id, request_version, idempotency_key_hash)");
+    expect(schemaSql).toContain("create index if not exists watasu_idempotency_claims_request_idx");
+    expect(schemaSql).not.toContain("idempotency_key text");
+    expect(schemaSql).not.toContain("encrypted_payload");
+    expect(schemaSql).not.toContain("payload_body");
+  });
+
+  test("test_create_migrated_postgres_idempotency_store_runs_migration_before_claim", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const store = await createMigratedPostgresIdempotencyStore({
+      tenantId: "tenant-a",
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("insert") ? [{ idempotency_key_hash: "sha256:any" }] : []
+          };
+        }
+      }
+    });
+
+    await store.claimValidation("event-attendee-intake:v1:submit-001", {
+      request_id: "event-attendee-intake",
+      request_version: "v1",
+      idempotency_key: "submit-001",
+      submitted_at: "2026-06-14T11:59:00.000Z",
+      claimed_at: "2026-06-14T12:00:00.000Z",
+      status: "validation_accepted"
+    });
+
+    expect(queries[0]).toEqual({
+      text: createPostgresIdempotencyStoreSchemaSql(),
+      values: []
+    });
+    expect(queries[1]?.values[0]).toBe("tenant-a");
+  });
+
+  test("test_postgres_idempotency_store_migration_runs_schema_sql_once", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+
+    await runPostgresIdempotencyStoreMigration({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    expect(queries).toEqual([
+      {
+        text: createPostgresIdempotencyStoreSchemaSql(),
         values: []
       }
     ]);

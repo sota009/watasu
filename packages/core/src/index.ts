@@ -32,6 +32,7 @@ export {
   buildSenderSignaturePayload,
   createIdempotencyClaimKey,
   validateSubmissionEnvelope,
+  validateSubmissionEnvelopeAsync,
   validateSubmissionEnvelopeMetadata
 } from "./submission.js";
 export {
@@ -48,14 +49,18 @@ export {
   createMetadataLedgerReader,
   createMigratedPostgresCapabilityRegistry,
   createMigratedPostgresDeliveryLedgerStore,
+  createMigratedPostgresIdempotencyStore,
   createPostgresCapabilityRegistrySchemaSql,
   createPostgresDeliveryLedgerSchemaSql,
+  createPostgresIdempotencyStoreSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
+  PostgresIdempotencyStore,
   runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
+  runPostgresIdempotencyStoreMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
 } from "./storage-policy.js";
@@ -101,6 +106,9 @@ export type {
 } from "./a2a.js";
 export type {
   AcceptedSubmission,
+  AsyncIdempotencyStore,
+  AsyncSubmissionRateLimiter,
+  AsyncSubmissionValidationContext,
   CapabilityRecord,
   CapabilityStatus,
   IdempotencyValidationClaim,

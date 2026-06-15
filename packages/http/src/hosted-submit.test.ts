@@ -276,6 +276,70 @@ describe("hosted submit HTTP app", () => {
     expect(deliveryRequests).toHaveLength(0);
   });
 
+  test("test_hosted_submit_awaits_async_idempotency_replay_rejection_before_delivery", async () => {
+    // Arrange
+    const { repository, published } = createRepository();
+    const deliveryRequests: DeliveryRequest[] = [];
+    const events: string[] = [];
+    const app = createHostedSubmitApp({
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: repository,
+      deliveryClient: {
+        async post(request) {
+          deliveryRequests.push(request);
+          return {
+            status: 204
+          };
+        }
+      },
+      ledger: {
+        writeDeliveryAttempt() {}
+      },
+      idempotencyStore: {
+        async claimValidation(recordKey, claim) {
+          await Promise.resolve();
+          events.push(`${recordKey}:${claim.status}`);
+          return false;
+        },
+        async releaseValidation(recordKey) {
+          await Promise.resolve();
+          events.push(`release:${recordKey}`);
+        }
+      },
+      rateLimiter: {
+        async consume(key) {
+          await Promise.resolve();
+          events.push(`rate:${key}`);
+          return true;
+        }
+      },
+      resolveDeliveryHost: async () => ["203.0.113.10"],
+      clock: () => new Date("2026-06-15T00:00:01.000Z"),
+      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
+      tenantId: "tenant-a"
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      body: createA2aBody({ published })
+    }));
+
+    // Assert
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      status: "rejected",
+      error: {
+        code: "idempotency_key_replayed"
+      }
+    });
+    expect(events).toEqual([
+      `rate:event-attendee-intake:v1:${sha256Hash("https://api.watasu.ai/requests/event-attendee-intake/submit")}`,
+      "event-attendee-intake:v1:submit-001:validation_accepted"
+    ]);
+    expect(deliveryRequests).toHaveLength(0);
+  });
+
   test("test_hosted_submit_uses_sender_trust_resolver_before_verified_sender_signature_check", async () => {
     // Arrange
     const verifiedSenderDefinition: RequestDefinition = {

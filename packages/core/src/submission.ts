@@ -67,6 +67,17 @@ export interface SubmissionRateLimiter {
   consume(key: string): boolean;
 }
 
+type MaybePromise<T> = T | Promise<T>;
+
+export interface AsyncIdempotencyStore {
+  claimValidation(recordKey: string, claim: IdempotencyValidationClaim): MaybePromise<boolean>;
+  releaseValidation(recordKey: string): MaybePromise<void>;
+}
+
+export interface AsyncSubmissionRateLimiter {
+  consume(key: string): MaybePromise<boolean>;
+}
+
 export interface IdempotencyValidationClaim {
   request_id: string;
   request_version: string;
@@ -86,6 +97,14 @@ export interface SubmissionValidationContext {
   trustedSenderKeyIds?: string[] | undefined;
   trustedSenderPublicKeys?: TrustedSenderPublicKey[] | undefined;
   trustedInvites?: TrustedInviteBinding[] | undefined;
+}
+
+export interface AsyncSubmissionValidationContext extends Omit<
+  SubmissionValidationContext,
+  "idempotencyStore" | "rateLimiter"
+> {
+  idempotencyStore: AsyncIdempotencyStore;
+  rateLimiter: AsyncSubmissionRateLimiter;
 }
 
 export type SubmissionValidationResult =
@@ -242,33 +261,9 @@ export function validateSubmissionEnvelope(
   envelope: SubmissionEnvelope,
   context: SubmissionValidationContext
 ): SubmissionValidationResult {
-  const staticError = validateSubmissionEnvelopeMetadata(envelope, context.published);
-  if (staticError !== undefined) {
-    return rejected(staticError.code, staticError.message);
-  }
-
-  if (context.capability.revoked) {
-    return rejected("capability_revoked", "Capability URL has been revoked.");
-  }
-
-  const trustError = validateSenderTrust(envelope, context);
-  if (trustError !== undefined) {
-    return authRequired(trustError.code, trustError.message);
-  }
-
-  const submittedAt = new Date(envelope.submitted_at);
-  if (Number.isNaN(submittedAt.getTime())) {
-    return rejected("invalid_submitted_at", "submitted_at must be a valid date-time.");
-  }
-
-  const now = context.clock();
-  const maxSubmissionAgeMs = context.maxSubmissionAgeMs ?? defaultMaxSubmissionAgeMs;
-  if (submittedAt.getTime() - now.getTime() > defaultMaxSubmissionClockSkewMs) {
-    return rejected("submitted_at_in_future", "submitted_at is outside the accepted clock skew.");
-  }
-
-  if (now.getTime() - submittedAt.getTime() > maxSubmissionAgeMs) {
-    return rejected("submission_expired", "Submission is outside the accepted time window.");
+  const prepared = prepareSubmissionValidation(envelope, context);
+  if (!prepared.ok) {
+    return prepared.result;
   }
 
   if (!context.rateLimiter.consume(rateLimitKey(context))) {
@@ -276,7 +271,7 @@ export function validateSubmissionEnvelope(
   }
 
   const idempotencyClaimKey = createIdempotencyClaimKey(envelope);
-  const acceptedAt = now.toISOString();
+  const acceptedAt = prepared.acceptedAt;
   const claimed = context.idempotencyStore.claimValidation(idempotencyClaimKey, {
     request_id: envelope.request_id,
     request_version: envelope.request_version,
@@ -303,6 +298,107 @@ export function validateSubmissionEnvelope(
       sender_key_id: envelope.sender_key_id,
       invite_id: envelope.invite_id
     }
+  };
+}
+
+export async function validateSubmissionEnvelopeAsync(
+  envelope: SubmissionEnvelope,
+  context: AsyncSubmissionValidationContext
+): Promise<SubmissionValidationResult> {
+  const prepared = prepareSubmissionValidation(envelope, context);
+  if (!prepared.ok) {
+    return prepared.result;
+  }
+
+  if (!await context.rateLimiter.consume(rateLimitKey(context))) {
+    return rejected("rate_limited", "Submission rate limit was exceeded.");
+  }
+
+  const idempotencyClaimKey = createIdempotencyClaimKey(envelope);
+  const acceptedAt = prepared.acceptedAt;
+  const claimed = await context.idempotencyStore.claimValidation(idempotencyClaimKey, {
+    request_id: envelope.request_id,
+    request_version: envelope.request_version,
+    idempotency_key: envelope.idempotency_key,
+    submitted_at: envelope.submitted_at,
+    claimed_at: acceptedAt,
+    status: "validation_accepted"
+  });
+
+  if (!claimed) {
+    return rejected("idempotency_key_replayed", "Idempotency key has already been accepted.");
+  }
+
+  return {
+    ok: true,
+    status: "accepted",
+    submission: {
+      request_id: envelope.request_id,
+      request_version: envelope.request_version,
+      idempotency_key: envelope.idempotency_key,
+      submitted_at: envelope.submitted_at,
+      accepted_at: acceptedAt,
+      capability_hash: sha256Hash(context.capability.url),
+      sender_key_id: envelope.sender_key_id,
+      invite_id: envelope.invite_id
+    }
+  };
+}
+
+function prepareSubmissionValidation(
+  envelope: SubmissionEnvelope,
+  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">
+): { ok: true; acceptedAt: string } | { ok: false; result: SubmissionValidationResult } {
+  const staticError = validateSubmissionEnvelopeMetadata(envelope, context.published);
+  if (staticError !== undefined) {
+    return {
+      ok: false,
+      result: rejected(staticError.code, staticError.message)
+    };
+  }
+
+  if (context.capability.revoked) {
+    return {
+      ok: false,
+      result: rejected("capability_revoked", "Capability URL has been revoked.")
+    };
+  }
+
+  const trustError = validateSenderTrust(envelope, context);
+  if (trustError !== undefined) {
+    return {
+      ok: false,
+      result: authRequired(trustError.code, trustError.message)
+    };
+  }
+
+  const submittedAt = new Date(envelope.submitted_at);
+  if (Number.isNaN(submittedAt.getTime())) {
+    return {
+      ok: false,
+      result: rejected("invalid_submitted_at", "submitted_at must be a valid date-time.")
+    };
+  }
+
+  const now = context.clock();
+  const maxSubmissionAgeMs = context.maxSubmissionAgeMs ?? defaultMaxSubmissionAgeMs;
+  if (submittedAt.getTime() - now.getTime() > defaultMaxSubmissionClockSkewMs) {
+    return {
+      ok: false,
+      result: rejected("submitted_at_in_future", "submitted_at is outside the accepted clock skew.")
+    };
+  }
+
+  if (now.getTime() - submittedAt.getTime() > maxSubmissionAgeMs) {
+    return {
+      ok: false,
+      result: rejected("submission_expired", "Submission is outside the accepted time window.")
+    };
+  }
+
+  return {
+    ok: true,
+    acceptedAt: now.toISOString()
   };
 }
 
@@ -417,7 +513,7 @@ function validateConsentReceiptMetadata(
 
 function validateSenderTrust(
   envelope: SubmissionEnvelope,
-  context: SubmissionValidationContext
+  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">
 ): SubmissionValidationError | undefined {
   const trustProfile = context.published.definition.trust_profile;
 
@@ -459,7 +555,7 @@ function validateSenderTrust(
 
 function validateTrustedSenderKey(
   envelope: SubmissionEnvelope,
-  context: SubmissionValidationContext,
+  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">,
   trustProfile: TrustProfile
 ): SubmissionValidationError | undefined {
   if (envelope.sender_key_id === undefined) {
@@ -580,7 +676,9 @@ function hashEncryptedPayload(encryptedPayload: Record<string, unknown>): Sha256
   return sha256Hash(canonicalizeJson(encryptedPayload));
 }
 
-function rateLimitKey(context: SubmissionValidationContext): string {
+function rateLimitKey(
+  context: Pick<SubmissionValidationContext, "published" | "capability">
+): string {
   return `${context.published.request_id}:${context.published.request_version}:${sha256Hash(context.capability.url)}`;
 }
 
