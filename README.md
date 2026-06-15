@@ -155,6 +155,23 @@ pnpm --filter @watasu/personal-info-adapter dry-run \
 The output must contain mapped field names and `"[REDACTED]"` placeholders, not
 the fixture values.
 
+To read from a local `personal-info-mcp` stdio server instead of the test values
+fixture, replace `--personal-info-values ...` with an MCP command and args:
+
+```bash
+pnpm --filter @watasu/personal-info-adapter dry-run \
+  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
+  --schema http://127.0.0.1:8787/schemas/plaintext.json \
+  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
+  --personal-info-mcp-command uvx \
+  --personal-info-mcp-arg --from \
+  --personal-info-mcp-arg git+https://github.com/KenTaniguchi-R/personal-info-mcp@v0.1.0 \
+  --personal-info-mcp-arg personal-info-mcp
+```
+
+The adapter calls `get_personal_info` once per mapped required field over MCP
+stdio. Pin the `personal-info-mcp` tag or commit before using real data.
+
 To submit an encrypted envelope to the local HTTP demo, run:
 
 ```bash

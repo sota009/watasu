@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { spawn } from "node:child_process";
 import {
   canonicalizeJson,
   encryptJsonPayload,
@@ -15,6 +16,13 @@ export const personalInfoAdapterPackageName = "@watasu/personal-info-adapter";
 
 export interface PersonalInfoReader {
   getPersonalInfo(field: string): Promise<string | undefined>;
+}
+
+export interface PersonalInfoMcpStdioConfig {
+  command: string;
+  args?: string[] | undefined;
+  env?: Record<string, string | undefined> | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export type FieldMapping = Record<string, string>;
@@ -108,6 +116,8 @@ export interface PersonalInfoAdapterError {
     | "invalid_plaintext_schema"
     | "missing_required_mapping"
     | "missing_personal_info_value"
+    | "personal_info_mcp_failed"
+    | "personal_info_source_required"
     | "missing_confirmation"
     | "confirmation_request_version_mismatch"
     | "confirmation_consent_text_mismatch"
@@ -126,6 +136,8 @@ export interface PersonalInfoAdapterError {
   message: string;
   path: string;
 }
+
+type JsonInputResult = Awaited<ReturnType<typeof readJsonInput>>;
 
 export async function createPersonalInfoAdapterDryRun(
   input: PersonalInfoAdapterDryRunInput
@@ -301,6 +313,16 @@ export async function createPersonalInfoAdapterSubmit(
   };
 }
 
+export function createPersonalInfoMcpStdioReader(
+  config: PersonalInfoMcpStdioConfig
+): PersonalInfoReader {
+  return {
+    async getPersonalInfo(field: string): Promise<string | undefined> {
+      return callPersonalInfoMcpGetTool(config, field);
+    }
+  };
+}
+
 export async function runPersonalInfoAdapterCli(argv: string[]): Promise<{
   exitCode: 0 | 1;
   stdout: string;
@@ -308,6 +330,7 @@ export async function runPersonalInfoAdapterCli(argv: string[]): Promise<{
 }>;
 export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
   fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
+  env?: Record<string, string | undefined> | undefined;
   now?: (() => Date) | undefined;
 }): Promise<{
   exitCode: 0 | 1;
@@ -316,6 +339,7 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
 }>;
 export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
   fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
+  env?: Record<string, string | undefined> | undefined;
   now?: (() => Date) | undefined;
 } = {}): Promise<{
   exitCode: 0 | 1;
@@ -338,24 +362,32 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
     );
   }
 
-  const inputReads = [
+  const inputReads: Promise<JsonInputResult>[] = [
     readJsonInput(parsed.value.agentCard),
     readJsonInput(parsed.value.schema),
-    readJsonInput(parsed.value.mapping),
-    readJsonInput(parsed.value.personalInfoValues)
+    readJsonInput(parsed.value.mapping)
   ];
+  if (parsed.value.personalInfoValues !== undefined) {
+    inputReads.push(readJsonInput(parsed.value.personalInfoValues));
+  }
   if (parsed.value.command === "submit") {
     inputReads.push(readJsonInput(parsed.value.publicJwk));
   }
 
   const loadedInputs = await Promise.all(inputReads);
 
-  const [agentCard, plaintextSchema, fieldMapping, personalInfoValues, publicJwk] = loadedInputs;
+  const [agentCard, plaintextSchema, fieldMapping, maybePersonalInfoValues, maybePublicJwk] =
+    loadedInputs;
+  const personalInfoValues = parsed.value.personalInfoValues === undefined
+    ? undefined
+    : maybePersonalInfoValues;
+  const publicJwk = parsed.value.command === "submit" && parsed.value.personalInfoValues === undefined
+    ? maybePersonalInfoValues
+    : maybePublicJwk;
   if (
     agentCard === undefined ||
     plaintextSchema === undefined ||
-    fieldMapping === undefined ||
-    personalInfoValues === undefined
+    fieldMapping === undefined
   ) {
     return errorResult(
       {
@@ -379,8 +411,13 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
     return errorResult(fieldMapping.error, parsed.value.command);
   }
 
-  if (!personalInfoValues.ok) {
+  if (personalInfoValues !== undefined && !personalInfoValues.ok) {
     return errorResult(personalInfoValues.error, parsed.value.command);
+  }
+
+  const personalInfo = createCliPersonalInfoReader(parsed.value, personalInfoValues, dependencies);
+  if (!personalInfo.ok) {
+    return errorResult(personalInfo.error, parsed.value.command);
   }
 
   if (parsed.value.command === "dry-run") {
@@ -388,7 +425,7 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
       agentCard: agentCard.value,
       plaintextSchema: plaintextSchema.value,
       fieldMapping: asRecord(fieldMapping.value),
-      personalInfo: personalInfoValueReader(asRecord(personalInfoValues.value))
+      personalInfo: personalInfo.reader
     });
 
     if (!result.ok) {
@@ -423,7 +460,7 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
     agentCard: agentCard.value,
     plaintextSchema: plaintextSchema.value,
     fieldMapping: asRecord(fieldMapping.value),
-    personalInfo: personalInfoValueReader(asRecord(personalInfoValues.value)),
+    personalInfo: personalInfo.reader,
     confirmation: confirmationFromAgentCard(agentCard.value, now),
     idempotencyKey: parsed.value.idempotencyKey ?? `adapter-${now.getTime()}`,
     submittedAt: parsed.value.submittedAt ?? now.toISOString(),
@@ -726,7 +763,20 @@ async function buildPlaintextPayload(input: {
       continue;
     }
 
-    const value = await input.personalInfo.getPersonalInfo(personalInfoField);
+    let value: string | undefined;
+    try {
+      value = await input.personalInfo.getPersonalInfo(personalInfoField);
+    } catch {
+      return {
+        ok: false,
+        error: {
+          code: "personal_info_mcp_failed",
+          path: `$.personal_info.${personalInfoField}`,
+          message: `personal-info-mcp could not return required field ${personalInfoField}.`
+        }
+      };
+    }
+
     if (value === undefined || value.length === 0) {
       return {
         ok: false,
@@ -865,6 +915,58 @@ function personalInfoValueReader(values: Record<string, string>): PersonalInfoRe
   };
 }
 
+function createCliPersonalInfoReader(
+  parsed: ParsedCliSuccessValue,
+  personalInfoValues: JsonInputResult | undefined,
+  dependencies: {
+    env?: Record<string, string | undefined> | undefined;
+  }
+): { ok: true; reader: PersonalInfoReader } | { ok: false; error: PersonalInfoAdapterError } {
+  const hasFixture = parsed.personalInfoValues !== undefined;
+  const hasMcp = parsed.personalInfoMcpCommand !== undefined;
+
+  if (hasFixture === hasMcp) {
+    return {
+      ok: false,
+      error: {
+        code: "personal_info_source_required",
+        path: "$.personal_info_source",
+        message:
+          "Provide exactly one personal-info source: --personal-info-values or --personal-info-mcp-command."
+      }
+    };
+  }
+
+  if (hasFixture) {
+    if (personalInfoValues === undefined || !personalInfoValues.ok) {
+      return {
+        ok: false,
+        error: personalInfoValues?.error ?? {
+          code: "missing_argument",
+          path: "$.personal-info-values",
+          message: "--personal-info-values is required when using fixture input."
+        }
+      };
+    }
+
+    return {
+      ok: true,
+      reader: personalInfoValueReader(asRecord(personalInfoValues.value))
+    };
+  }
+
+  return {
+    ok: true,
+    reader: createPersonalInfoMcpStdioReader({
+      command: parsed.personalInfoMcpCommand ?? "",
+      args: parsed.personalInfoMcpArgs,
+      env: dependencies.env
+    })
+  };
+}
+
+type ParsedCliSuccessValue = Extract<ParsedCliArgs, { ok: true }>["value"];
+
 type ParsedCliArgs =
   | {
       ok: true;
@@ -873,7 +975,9 @@ type ParsedCliArgs =
         agentCard: string;
         schema: string;
         mapping: string;
-        personalInfoValues: string;
+        personalInfoValues?: string | undefined;
+        personalInfoMcpCommand?: string | undefined;
+        personalInfoMcpArgs: string[];
       };
     }
   | {
@@ -883,7 +987,9 @@ type ParsedCliArgs =
         agentCard: string;
         schema: string;
         mapping: string;
-        personalInfoValues: string;
+        personalInfoValues?: string | undefined;
+        personalInfoMcpCommand?: string | undefined;
+        personalInfoMcpArgs: string[];
         publicJwk: string;
         confirm: boolean;
         idempotencyKey?: string | undefined;
@@ -908,6 +1014,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
   }
 
   const values: Record<string, string> = {};
+  const repeatedValues: Record<string, string[]> = {};
   let confirm = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -921,6 +1028,8 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
       arg === "--schema" ||
       arg === "--mapping" ||
       arg === "--personal-info-values" ||
+      arg === "--personal-info-mcp-command" ||
+      arg === "--personal-info-mcp-arg" ||
       arg === "--public-jwk" ||
       arg === "--idempotency-key" ||
       arg === "--submitted-at" ||
@@ -928,7 +1037,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
       arg === "--expect-schema-hash"
     ) {
       const next = args[index + 1];
-      if (next === undefined || next.startsWith("--")) {
+      if (next === undefined || (next.startsWith("--") && arg !== "--personal-info-mcp-arg")) {
         return {
           ok: false,
           error: {
@@ -939,7 +1048,11 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
         };
       }
 
-      values[arg] = next;
+      if (arg === "--personal-info-mcp-arg") {
+        repeatedValues[arg] = [...(repeatedValues[arg] ?? []), next];
+      } else {
+        values[arg] = next;
+      }
       index += 1;
       continue;
     }
@@ -954,7 +1067,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
     };
   }
 
-  const required = ["--agent-card", "--schema", "--mapping", "--personal-info-values"];
+  const required = ["--agent-card", "--schema", "--mapping"];
   const missing = required.find((flag) => values[flag] === undefined);
   if (missing !== undefined) {
     return {
@@ -963,6 +1076,22 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
         code: "missing_argument",
         path: `$.${missing.slice(2)}`,
         message: `${missing} is required.`
+      }
+    };
+  }
+
+  const personalInfoSourceCount = [
+    values["--personal-info-values"],
+    values["--personal-info-mcp-command"]
+  ].filter((value) => value !== undefined).length;
+  if (personalInfoSourceCount !== 1) {
+    return {
+      ok: false,
+      error: {
+        code: "personal_info_source_required",
+        path: "$.personal_info_source",
+        message:
+          "Provide exactly one personal-info source: --personal-info-values or --personal-info-mcp-command."
       }
     };
   }
@@ -988,7 +1117,9 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
         agentCard: values["--agent-card"] ?? "",
         schema: values["--schema"] ?? "",
         mapping: values["--mapping"] ?? "",
-        personalInfoValues: values["--personal-info-values"] ?? "",
+        personalInfoValues: values["--personal-info-values"],
+        personalInfoMcpCommand: values["--personal-info-mcp-command"],
+        personalInfoMcpArgs: repeatedValues["--personal-info-mcp-arg"] ?? [],
         publicJwk: values["--public-jwk"] ?? "",
         confirm,
         idempotencyKey: values["--idempotency-key"],
@@ -1006,9 +1137,143 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
       agentCard: values["--agent-card"] ?? "",
       schema: values["--schema"] ?? "",
       mapping: values["--mapping"] ?? "",
-      personalInfoValues: values["--personal-info-values"] ?? ""
+      personalInfoValues: values["--personal-info-values"],
+      personalInfoMcpCommand: values["--personal-info-mcp-command"],
+      personalInfoMcpArgs: repeatedValues["--personal-info-mcp-arg"] ?? []
     }
   };
+}
+
+async function callPersonalInfoMcpGetTool(
+  config: PersonalInfoMcpStdioConfig,
+  field: string
+): Promise<string | undefined> {
+  const timeoutMs = config.timeoutMs ?? 5_000;
+  const child = spawn(config.command, config.args ?? [], {
+    env: {
+      ...process.env,
+      ...config.env
+    },
+    stdio: ["pipe", "pipe", "ignore"]
+  });
+  let stdout = "";
+  let childError: Error | undefined;
+  const responses = new Map<number, unknown>();
+  let nextId = 1;
+
+  child.on("error", (error: Error) => {
+    childError = error;
+  });
+
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+    while (stdout.includes("\n")) {
+      const index = stdout.indexOf("\n");
+      const line = stdout.slice(0, index).trim();
+      stdout = stdout.slice(index + 1);
+      if (line.length === 0) {
+        continue;
+      }
+
+      const parsed = parseJsonValue(line);
+      if (parsed.ok && isRecord(parsed.value) && typeof parsed.value.id === "number") {
+        responses.set(parsed.value.id, parsed.value);
+      }
+    }
+  });
+
+  const request = (method: string, params: Record<string, unknown>): number => {
+    const id = nextId;
+    nextId += 1;
+    child.stdin.write(`${JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      params
+    })}\n`);
+    return id;
+  };
+
+  const notify = (method: string, params: Record<string, unknown>): void => {
+    child.stdin.write(`${JSON.stringify({
+      jsonrpc: "2.0",
+      method,
+      params
+    })}\n`);
+  };
+
+  try {
+    const initializeId = request("initialize", {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: {
+        name: personalInfoAdapterPackageName,
+        version: "0.0.0"
+      }
+    });
+    await waitForJsonRpcResponse(responses, initializeId, timeoutMs, () => childError);
+    notify("notifications/initialized", {});
+
+    const toolCallId = request("tools/call", {
+      name: "get_personal_info",
+      arguments: {
+        field
+      }
+    });
+    const response = await waitForJsonRpcResponse(
+      responses,
+      toolCallId,
+      timeoutMs,
+      () => childError
+    );
+    return extractMcpTextResult(response);
+  } finally {
+    child.stdin.end();
+    child.kill();
+  }
+}
+
+async function waitForJsonRpcResponse(
+  responses: Map<number, unknown>,
+  id: number,
+  timeoutMs: number,
+  getTransportError: () => Error | undefined
+): Promise<unknown> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const transportError = getTransportError();
+    if (transportError !== undefined) {
+      throw transportError;
+    }
+
+    const response = responses.get(id);
+    if (response !== undefined) {
+      responses.delete(id);
+      if (isRecord(response) && response.error !== undefined) {
+        throw new Error("personal-info-mcp returned a JSON-RPC error.");
+      }
+
+      return response;
+    }
+
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+  }
+
+  throw new Error("personal-info-mcp did not respond before timeout.");
+}
+
+function extractMcpTextResult(response: unknown): string | undefined {
+  if (!isRecord(response) || !isRecord(response.result) || !Array.isArray(response.result.content)) {
+    throw new Error("personal-info-mcp response did not include text content.");
+  }
+
+  const firstText = response.result.content.find(
+    (item): item is { type: "text"; text: string } =>
+      isRecord(item) && item.type === "text" && typeof item.text === "string"
+  );
+
+  return firstText?.text;
 }
 
 async function readJsonInput(
