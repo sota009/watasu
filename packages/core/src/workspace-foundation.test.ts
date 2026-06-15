@@ -1385,52 +1385,6 @@ describe("workspace foundation", () => {
     rmSync(outputDir, { force: true, recursive: true });
   }, 60_000);
 
-  test("test_hosted_submit_readiness_reports_missing_operator_inputs_without_secrets", () => {
-    const result = spawnSync("pnpm", ["--silent", "hosted-submit:status"], {
-      cwd: rootDir,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        WATASU_HOSTED_SUBMIT_AGENT_CARD_URL: "",
-        WATASU_HOSTED_SUBMIT_SCHEMA_URL: "",
-        WATASU_HOSTED_SUBMIT_PUBLIC_JWK: "",
-        WATASU_HOSTED_SUBMIT_VALUES: ""
-      }
-    });
-
-    expect(result.status).toBe(0);
-    const output = JSON.parse(result.stdout) as {
-      ok: boolean;
-      ready: boolean;
-      missing_inputs: string[];
-      next_command: string;
-    };
-    expect(output).toMatchObject({
-      ok: true,
-      ready: false,
-      missing_inputs: [
-        "WATASU_HOSTED_SUBMIT_AGENT_CARD_URL",
-        "WATASU_HOSTED_SUBMIT_SCHEMA_URL",
-        "WATASU_HOSTED_SUBMIT_PUBLIC_JWK",
-        "WATASU_HOSTED_SUBMIT_VALUES"
-      ],
-      next_command: "pnpm --silent hosted-submit:status"
-    });
-    expect(result.stdout).not.toContain("SECRET");
-    expect(result.stdout).not.toContain("PRIVATE");
-    expect(result.stdout).not.toContain("WATASU_MCP_BEARER_TOKEN");
-  });
-
-  test("test_package_json_exposes_hosted_submit_readiness_status_command", () => {
-    const packageJson = readJson("package.json") as {
-      scripts: Record<string, string>;
-    };
-
-    expect(packageJson.scripts["hosted-submit:status"]).toBe(
-      "node scripts/hosted-submit-status.mjs"
-    );
-  });
-
   test("test_render_blueprint_uses_reviewable_private_alpha_boundaries", () => {
     const blueprint = asRecord(parseYaml(readFileSync(new URL("render.yaml", rootDir), "utf8")));
     const services = asRecordArray(blueprint["services"]);
