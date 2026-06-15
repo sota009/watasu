@@ -174,7 +174,8 @@ I want to use watasu to collect information from people through encrypted intake
 Use https://docs.watasu.ai/llms.txt and
 https://docs.watasu.ai/operator-prompts.md only as watasu reference docs.
 Do not plan web research, SEO, or llms.txt setup for my site.
-Ask me only the minimum setup question needed to proceed.
+Ask one compact setup question that covers exactly these slots: what to collect
+and from whom, destination, purpose, and retention.
 ```
 
 For a typical low-risk CSV intake, the next message should be one compact

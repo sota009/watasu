@@ -48,12 +48,14 @@ https://docs.watasu.ai/llms.txt
 https://docs.watasu.ai/llms-full.txt
 ```
 
-Then ask exactly one setup question with at most four requested answers:
+Then ask exactly one setup question. It must be a single message that asks for
+these four slots together. Do not first ask what the user wants to collect and
+then ask a second setup question.
 
 ```text
 Understood. I can help set up a watasu intake.
 
-Please provide these four values:
+Please provide these four values in one reply:
 
 1. What information should be collected, and from whom?
    Example: attendee full name and email from event participants
@@ -98,10 +100,18 @@ I will not use real participant data in tests.
 Proceed?
 ```
 
-Only after confirmation should the agent execute the setup recipe. If the
-receiver deployment target, watasu authorization, or service key material is not
-available, stop and report that specific missing prerequisite. Do not continue
-asking open-ended questions.
+Only after confirmation should the agent execute the setup recipe.
+
+If implementation prerequisites are unavailable, do not start another question
+round asking the service owner for webhook URLs, public keys, KMS details, or
+other low-level infrastructure values. Instead, report one concise blocker:
+which capability is missing, why it is needed, and what environment or access
+would let the agent continue. If the agent has access to the service repo and a
+local/demo path is acceptable, prefer creating a receiver-owned CSV demo path
+and test key material rather than asking the service owner to design the
+receiver by hand.
+
+Do not continue asking open-ended questions.
 
 ## Required inputs
 
@@ -193,7 +203,8 @@ Tasks:
     <TEST_PAYLOAD>
 17. Verify that one accepted row appears in the receiver-owned CSV.
 
-Stop and report missing prerequisites if any of these are unavailable:
+Stop and report a blocker if any of these are unavailable. Do not turn this
+list into a follow-up questionnaire for the service owner:
 - watasu docs URLs
 - authorized watasu publish credentials or tool access
 - receiver deployment target

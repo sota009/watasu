@@ -6,7 +6,8 @@ const startPrompt = `I want to use watasu to collect information from people thr
 Use https://docs.watasu.ai/llms.txt and
 https://docs.watasu.ai/operator-prompts.md only as watasu reference docs.
 Do not plan web research, SEO, or llms.txt setup for my site.
-Ask me only the minimum setup question needed to proceed.`;
+Ask one compact setup question that covers exactly these slots: what to collect
+and from whom, destination, purpose, and retention.`;
 
 const StartHere = () => {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -33,8 +34,8 @@ const StartHere = () => {
           <h2>Give this to your service-side agent.</h2>
           <p>
             Paste this as-is into your coding or operations agent. The agent
-            should treat watasu as encrypted intake from people, then ask one
-            compact setup question before it publishes anything.
+            should ask one compact four-slot question, then summarize and wait
+            for confirmation before it publishes anything.
           </p>
         </div>
         <div className="watasu-start-here__prompt-wrap">
