@@ -420,6 +420,9 @@ Current implementation:
 - The adapter builds plaintext in memory, encrypts it with the supplied
   `--public-jwk`, submits an A2A HTTP+JSON envelope, and prints metadata-only
   submit evidence.
+- `--confirm` is required before personal-info values are read. The consent
+  receipt metadata and hash are bound to request version, consent text hash,
+  field purposes hash, destination policy hash, and confirmation time.
 - Local demo uses a test public JWK fixture because the local Agent Card exposes
   the public key fingerprint but not the JWK body.
 
@@ -430,7 +433,7 @@ Goal:
 - Add an explicit confirmation step.
 - Bind confirmation to request version, consent text hash, field purpose hash,
   and destination policy hash.
-- Include `consent_receipt_hash` in the envelope.
+- Include `consent_receipt` metadata and `consent_receipt_hash` in the envelope.
 
 Suggested tests:
 
@@ -553,7 +556,8 @@ pnpm --filter @watasu/personal-info-adapter submit \
   --schema http://127.0.0.1:8787/schemas/plaintext.json \
   --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
   --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json \
-  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json
+  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json \
+  --confirm
 ```
 
 Expected behavior:

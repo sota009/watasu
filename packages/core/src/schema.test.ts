@@ -124,6 +124,16 @@ describe("encrypted envelope schema generation", () => {
       "encrypted_payload_hash"
     ]);
   });
+
+  test("test_envelope_schema_allows_consent_receipt_metadata", () => {
+    const hashes = createRequestVersionHashes(baseDefinition);
+    const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
+
+    expect(schema.properties.consent_receipt).toEqual({
+      type: "object"
+    });
+    expect(schema.required).not.toContain("consent_receipt");
+  });
 });
 
 describe("generated JSON Schema 2020-12 validation", () => {

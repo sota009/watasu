@@ -91,6 +91,18 @@ describe("agent card generation", () => {
     );
   });
 
+  test("test_agent_card_includes_field_purposes_hash_for_confirmation_binding", () => {
+    const published = publishedRequest();
+    const card = buildAgentCard({
+      published,
+      endpointUrl: "https://api.watasu.dev/a2a/requests/event-attendee-intake/v1"
+    });
+
+    expect(card.capabilities.extensions[0]?.params).toMatchObject({
+      field_purposes_hash: published.hashes.field_purposes_hash
+    });
+  });
+
   test("test_agent_card_does_not_include_webhook_secret_or_private_key", () => {
     const card = buildAgentCard({
       published: publishedRequest(),

@@ -27,6 +27,7 @@ export interface PersonalInfoAdapterDryRunInput {
 }
 
 export interface PersonalInfoAdapterSubmitInput extends PersonalInfoAdapterDryRunInput {
+  confirmation?: PersonalInfoAdapterConfirmation | undefined;
   idempotencyKey: string;
   submittedAt: string;
   expectedRequestVersion?: string | undefined;
@@ -38,6 +39,14 @@ export interface PersonalInfoAdapterSubmitInput extends PersonalInfoAdapterDryRu
     }
   ) => Record<string, unknown> | Promise<Record<string, unknown>>;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
+}
+
+export interface PersonalInfoAdapterConfirmation {
+  request_version: string;
+  consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
+  confirmed_at: string;
 }
 
 export interface PersonalInfoAdapterDryRunSummary {
@@ -90,6 +99,7 @@ export interface PersonalInfoAdapterError {
     | "invalid_agent_card"
     | "missing_watasu_extension"
     | "missing_schema_hash"
+    | "missing_field_purposes_hash"
     | "missing_request_id"
     | "missing_request_version"
     | "missing_destination_policy_hash"
@@ -98,6 +108,11 @@ export interface PersonalInfoAdapterError {
     | "invalid_plaintext_schema"
     | "missing_required_mapping"
     | "missing_personal_info_value"
+    | "missing_confirmation"
+    | "confirmation_request_version_mismatch"
+    | "confirmation_consent_text_mismatch"
+    | "confirmation_field_purposes_mismatch"
+    | "confirmation_destination_policy_mismatch"
     | "request_version_mismatch"
     | "schema_hash_mismatch"
     | "public_key_fingerprint_mismatch"
@@ -186,6 +201,11 @@ export async function createPersonalInfoAdapterSubmit(
     };
   }
 
+  const confirmationResult = validateConfirmation(contract.extension, input.confirmation);
+  if (!confirmationResult.ok) {
+    return confirmationResult;
+  }
+
   const payloadResult = await buildPlaintextPayload({
     schema: contract.schema,
     fieldMapping: input.fieldMapping,
@@ -203,7 +223,8 @@ export async function createPersonalInfoAdapterSubmit(
     request_id: contract.extension.params.request_id,
     request_version: contract.extension.params.request_version,
     schema_hash: contract.extension.params.schema_hash,
-    consent_receipt_hash: contract.extension.params.consent_text_hash,
+    consent_receipt_hash: sha256Hash(canonicalizeJson(input.confirmation)),
+    consent_receipt: input.confirmation,
     idempotency_key: input.idempotencyKey,
     submitted_at: input.submittedAt,
     service_key_id: contract.extension.params.encryption.service_key_id,
@@ -306,6 +327,17 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
     return errorResult(parsed.error, "personal-info-adapter");
   }
 
+  if (parsed.value.command === "submit" && !parsed.value.confirm) {
+    return errorResult(
+      {
+        code: "missing_confirmation",
+        path: "$.confirm",
+        message: "Submit requires --confirm before personal-info values can be read."
+      },
+      parsed.value.command
+    );
+  }
+
   const inputReads = [
     readJsonInput(parsed.value.agentCard),
     readJsonInput(parsed.value.schema),
@@ -392,6 +424,7 @@ export async function runPersonalInfoAdapterCli(argv: string[], dependencies: {
     plaintextSchema: plaintextSchema.value,
     fieldMapping: asRecord(fieldMapping.value),
     personalInfo: personalInfoValueReader(asRecord(personalInfoValues.value)),
+    confirmation: confirmationFromAgentCard(agentCard.value, now),
     idempotencyKey: parsed.value.idempotencyKey ?? `adapter-${now.getTime()}`,
     submittedAt: parsed.value.submittedAt ?? now.toISOString(),
     expectedRequestVersion: parsed.value.expectedRequestVersion,
@@ -512,6 +545,105 @@ function validateAdapterContract(
     schema: plaintextSchema,
     submissionEndpoint: endpoint
   };
+}
+
+function validateConfirmation(
+  extension: AgentCard["capabilities"]["extensions"][number],
+  confirmation: PersonalInfoAdapterConfirmation | undefined
+): { ok: true } | { ok: false; error: PersonalInfoAdapterError } {
+  if (confirmation === undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "missing_confirmation",
+        path: "$.confirmation",
+        message: "Submit requires explicit confirmation before personal-info values can be read."
+      }
+    };
+  }
+
+  const checks: Array<{
+    code: PersonalInfoAdapterError["code"];
+    path: string;
+    actual: string;
+    expected: string;
+    message: string;
+  }> = [
+    {
+      code: "confirmation_request_version_mismatch",
+      path: "$.confirmation.request_version",
+      actual: confirmation.request_version,
+      expected: extension.params.request_version,
+      message: "Confirmation request version does not match the Agent Card request version."
+    },
+    {
+      code: "confirmation_consent_text_mismatch",
+      path: "$.confirmation.consent_text_hash",
+      actual: confirmation.consent_text_hash,
+      expected: extension.params.consent_text_hash,
+      message: "Confirmation consent text hash does not match the Agent Card consent text hash."
+    },
+    {
+      code: "confirmation_field_purposes_mismatch",
+      path: "$.confirmation.field_purposes_hash",
+      actual: confirmation.field_purposes_hash,
+      expected: extension.params.field_purposes_hash,
+      message: "Confirmation field purposes hash does not match the Agent Card field purposes hash."
+    },
+    {
+      code: "confirmation_destination_policy_mismatch",
+      path: "$.confirmation.destination_policy_hash",
+      actual: confirmation.destination_policy_hash,
+      expected: extension.params.destination_policy_hash,
+      message:
+        "Confirmation destination policy hash does not match the Agent Card destination policy hash."
+    }
+  ];
+  const failed = checks.find((check) => check.actual !== check.expected);
+  if (failed !== undefined) {
+    return {
+      ok: false,
+      error: {
+        code: failed.code,
+        path: failed.path,
+        message: failed.message
+      }
+    };
+  }
+
+  return { ok: true };
+}
+
+function confirmationFromAgentCard(
+  agentCard: unknown,
+  confirmedAt: Date
+): PersonalInfoAdapterConfirmation {
+  const extension = findRequiredWatasuExtension(agentCard);
+
+  return {
+    request_version: extension.params.request_version,
+    consent_text_hash: extension.params.consent_text_hash,
+    field_purposes_hash: extension.params.field_purposes_hash,
+    destination_policy_hash: extension.params.destination_policy_hash,
+    confirmed_at: confirmedAt.toISOString()
+  };
+}
+
+function findRequiredWatasuExtension(
+  agentCard: unknown
+): AgentCard["capabilities"]["extensions"][number] {
+  if (!isAgentCardLike(agentCard)) {
+    throw new Error("Agent Card must be an A2A HTTP+JSON watasu Agent Card.");
+  }
+
+  const extension = agentCard.capabilities.extensions.find(
+    (candidate) => candidate.uri === watasuEncryptedIntakeExtensionUri && candidate.required
+  );
+  if (extension === undefined) {
+    throw new Error("Agent Card must include the required watasu encrypted-intake extension.");
+  }
+
+  return extension;
 }
 
 function validatePublicKeyFingerprint(
@@ -645,6 +777,12 @@ function requireExtensionParams(
       message: "Agent Card extension must include schema_hash."
     },
     {
+      code: "missing_field_purposes_hash",
+      path: "$.capabilities.extensions[].params.field_purposes_hash",
+      value: extension.params.field_purposes_hash,
+      message: "Agent Card extension must include field_purposes_hash."
+    },
+    {
       code: "missing_destination_policy_hash",
       path: "$.capabilities.extensions[].params.destination_policy_hash",
       value: extension.params.destination_policy_hash,
@@ -747,6 +885,7 @@ type ParsedCliArgs =
         mapping: string;
         personalInfoValues: string;
         publicJwk: string;
+        confirm: boolean;
         idempotencyKey?: string | undefined;
         submittedAt?: string | undefined;
         expectedRequestVersion?: string | undefined;
@@ -769,8 +908,14 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
   }
 
   const values: Record<string, string> = {};
+  let confirm = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === "--confirm") {
+      confirm = true;
+      continue;
+    }
+
     if (
       arg === "--agent-card" ||
       arg === "--schema" ||
@@ -845,6 +990,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
         mapping: values["--mapping"] ?? "",
         personalInfoValues: values["--personal-info-values"] ?? "",
         publicJwk: values["--public-jwk"] ?? "",
+        confirm,
         idempotencyKey: values["--idempotency-key"],
         submittedAt: values["--submitted-at"],
         expectedRequestVersion: values["--expect-request-version"],
