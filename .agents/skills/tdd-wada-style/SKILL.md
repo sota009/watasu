@@ -1,6 +1,6 @@
 ---
 name: tdd-wada-style
-description: t.wada流TDD（テスト駆動開発）。新機能実装、バグ修正、リファクタリング時に自動適用。Red-Green-Refactorサイクル、AAA構造、振る舞いテストの原則に従う。コード、テスト名、コメント、docstring、エラーメッセージ例は英語で書く。テストを書く、テストファーストで実装する、テストコードをレビューする際に使用。
+description: t.wada流TDD（テスト駆動開発）。新機能実装、バグ修正、リファクタリング時に自動適用。Kent BeckのCanonical TDDに基づく List-Red-Green-Refactor、AAA構造、振る舞いテストの原則に従う。コード、テスト名、コメント、docstring、エラーメッセージ例は英語で書く。テストを書く、テストファーストで実装する、テストコードをレビューする際に使用。
 ---
 
 # t.wada流 TDD（テスト駆動開発）
@@ -9,19 +9,21 @@ description: t.wada流TDD（テスト駆動開発）。新機能実装、バグ�
 
 ## Core Philosophy（中核思想）
 
-> 「テストとは、動くことを証明するものではない。間違いを見つけるためのものだ。」
-> — t.wada
+TDDは「先にテストを書くこと」だけではなく、振る舞い変更を安全に進めるための小さなワークフローである。
 
-### 3つの原則
+### 4つの原則
 
-1. **テストは設計行為** — テストを書くことで、使いやすいAPIを設計する
-2. **テストは仕様書** — テストコードが最も正確なドキュメントである
-3. **小さく回す** — Red → Green → Refactor を短いサイクルで繰り返す
+1. **テストリストから始める** — 期待する振る舞いを分析し、実装設計を混ぜすぎずに候補を並べる
+2. **テストはインターフェイス設計** — テストを書くことで、使いやすいAPIや境界を設計する
+3. **ひとつずつ具体化する** — テストリストから1項目だけ選び、失敗を確認してから実装する
+4. **小さく回す** — List → Red → Green → Refactor を短いサイクルで繰り返す
 
-## TDD Cycle（Red-Green-Refactor）
+## Canonical TDD Cycle（List-Red-Green-Refactor）
 
 ```
-RED        -> Write a failing test first.
+LIST       -> List behavior scenarios before writing test code.
+     ↓
+RED        -> Translate one list item into one failing automated test.
      ↓
 GREEN      -> Make the test pass with the smallest implementation.
      ↓
@@ -32,9 +34,9 @@ REFACTOR   -> Improve the design while all tests stay green.
 
 ## Instructions
 
-### Step 1: 要件を振る舞いで分解
+### Step 1: テストリストを作る
 
-実装前に「〜したとき、〜となる」形式でテストケースをリストアップする。
+実装前に「〜したとき、〜となる」形式で振る舞い候補をリストアップする。これは具体的なテストコードではなく、分析メモである。
 
 ```markdown
 Test case list:
@@ -44,11 +46,17 @@ Test case list:
 □ Negative numbers are sorted correctly.
 ```
 
-最も単純なケースから始める。
+ルール:
+- 実装の設計判断を混ぜすぎない。呼び出し方や観測可能な結果を中心に書く。
+- 既存の振る舞いを壊さないための回帰ケースも入れる。
+- 最初に全項目をテストコード化しない。次に進めるのは1項目だけ。
+- 実装中に新しい不安やケースを見つけたら、いまの作業へ割り込ませずテストリストに追加する。
 
-### Step 2: テスト構造（AAA パターン）
+最も単純で、失敗理由が明確になりやすいケースから始める。
 
-すべてのテストは Arrange-Act-Assert の3フェーズで構成する。
+### Step 2: ひとつだけテストを書く（AAA パターン）
+
+テストリストから1項目だけ選び、Arrange-Act-Assert の3フェーズを持つ、実行可能で失敗する自動テストへ翻訳する。必要なら Assert から逆向きに書き始める。
 
 ```python
 def test_describes_behavior_in_english():
@@ -68,8 +76,39 @@ def test_describes_behavior_in_english():
 - コード、識別子、コメント、docstring、ログ、エラーメッセージ例はすべて英語で書く
 - 1テスト1アサーション（原則）
 - 3つのブロックを空行で明確に分離
+- アサーションのないテスト、スナップショットだけのテスト、カバレッジ稼ぎのテストを書かない
+- 期待値は実装結果のコピーではなく、仕様・例・独立した計算から決める
 
-### Step 3: 境界値と異常系
+### Step 3: Green（最小実装）
+
+失敗するテストを確認してから、いま書いたテストと既存テストを通す最小の実装を行う。
+
+ルール:
+- アサーション削除、期待値の都合よい変更、skip化でGreenにしない。
+- Green中にリファクタリングを混ぜない。まず動かし、それから整える。
+- 新しいケースに気づいたらテストリストに追記する。
+- テストが通ったら対応するリスト項目に完了印をつける。
+
+### Step 4: Refactor（必要なときだけ）
+
+テストがグリーンの状態を維持しながら、実装の設計を改善する。
+
+対象:
+- 重複の除去
+- 命名の改善
+- 責務の分離
+- テストの読みやすさ改善
+
+ルール:
+- 振る舞いを変えずに構造を改善する。
+- 重複はヒントであって命令ではない。早すぎる抽象化を避ける。
+- 次のテストに進む不安を隠すための過剰な整理をしない。
+
+### Step 5: テストリストが空になるまで繰り返す
+
+次のリスト項目をひとつ選び、Red → Green → Refactor を繰り返す。コードの動作への不安が退屈に変わるところを終了の目安にする。
+
+## Coverage Guidance（境界値と異常系）
 
 必ず以下をカバーする:
 
@@ -98,16 +137,25 @@ def test_invalid_type_raises_type_error():
         func("not a list")
 ```
 
-### Step 4: Refactor（リファクタリング）
-
-テストがグリーンの状態を維持しながら:
-- 重複の除去
-- 命名の改善
-- 責務の分離
-
-**ルール:** 振る舞いを変えずに構造を改善する
-
 ## Anti-Patterns（避けるべきパターン）
+
+### ❌ TDDを単なる自動テストやテストファーストと混同する
+
+```markdown
+Bad:
+□ Write all tests first.
+□ Make them pass later.
+□ Skip refactoring because tests exist.
+
+Good:
+□ Keep a behavior test list.
+□ Turn one item into one failing test.
+□ Make it pass.
+□ Refactor when useful.
+□ Repeat.
+```
+
+TDDは自動テスト、開発者テスト、テストファーストを含み得るが、それらだけではTDDではない。
 
 ### ❌ 実装詳細のテスト
 
@@ -175,6 +223,21 @@ def test_user_registration_sends_confirmation_email():
     ...
 ```
 
+### ❌ Greenの偽装
+
+```python
+# Bad: Copies the implementation output into the expected value.
+result = calculate_invoice(input_data)
+assert result == result
+
+# Bad: Removes the meaningful assertion to pass the test.
+calculate_invoice(input_data)
+
+# Good: Uses an independently derived expected value.
+result = calculate_invoice(input_data)
+assert result.total == Decimal("120.00")
+```
+
 ## Test Template
 
 新しいテストファイルを作成する際のテンプレート:
@@ -239,6 +302,10 @@ class Test{TargetClass}:
 
 実装完了時の確認項目:
 
+- [ ] テストリストを作り、1項目ずつRed化した
+- [ ] 最初に全テストを具体化していない
+- [ ] 各Redが期待した理由で失敗することを確認した
+- [ ] Green中にアサーション削除、skip化、期待値弱体化、過剰リファクタをしていない
 - [ ] すべてのテストがパス
 - [ ] 各テストが独立して実行可能
 - [ ] テスト名から振る舞いが理解できる
@@ -248,9 +315,11 @@ class Test{TargetClass}:
 - [ ] 異常系がカバーされている
 - [ ] 実装詳細ではなく振る舞いをテスト
 - [ ] 過度なモックを使用していない
+- [ ] 重複除去や抽象化を「必要な分だけ」に留めた
 
 ## References
 
 追加のガイダンスは以下を参照:
+- [Canonical TDD by Kent Beck, translated by t-wada](https://t-wada.hatenablog.jp/entry/canon-tdd-by-kent-beck) - List-Red-Green-Refactor の原典に近い定義
 - [EXAMPLES.md](EXAMPLES.md) - 具体的なテストパターン例
 - [PATTERNS.md](PATTERNS.md) - よくあるテストパターン集
