@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { RequestDefinition } from "./request-definition.js";
 import { InMemoryRequestVersionRepository } from "./request-version.js";
-import { publishRequestVersion } from "./publish.js";
+import { publishRequestVersion, publishRequestVersionAsync } from "./publish.js";
 
 const baseDefinition: RequestDefinition = {
   name: "event-attendee-intake",
@@ -292,5 +292,37 @@ describe("request publishing", () => {
     expect(JSON.stringify(repository.list("event-attendee-intake"))).not.toContain(
       "cap_test_abcdefghijklmnopqrstuvwxyz1234567890"
     );
+  });
+
+  test("test_async_publish_awaits_repository_before_returning_metadata", async () => {
+    const events: string[] = [];
+    const repository = {
+      async publish(requestId: string, definition: RequestDefinition) {
+        await Promise.resolve();
+        events.push(`publish:${requestId}:${definition.name}`);
+        return new InMemoryRequestVersionRepository().publish(requestId, definition);
+      }
+    };
+
+    const result = await publishRequestVersionAsync({
+      requestId: "event-attendee-intake",
+      definition: baseDefinition,
+      confirmed: true,
+      mode: "hosted",
+      repository,
+      ownership: {
+        verifiedServiceKeyIds: ["jwk-thumbprint:sha256:example"],
+        verifiedWebhookOrigins: ["https://example.com"]
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      published: {
+        request_id: "event-attendee-intake",
+        request_version: "v1"
+      }
+    });
+    expect(events).toEqual(["publish:event-attendee-intake:event-attendee-intake"]);
   });
 });

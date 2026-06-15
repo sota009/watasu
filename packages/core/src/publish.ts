@@ -10,6 +10,13 @@ export interface RequestVersionPublisher {
   publish(requestId: string, definition: RequestDefinition): PublishedRequestVersion;
 }
 
+export interface AsyncRequestVersionPublisher {
+  publish(
+    requestId: string,
+    definition: RequestDefinition
+  ): PublishedRequestVersion | Promise<PublishedRequestVersion>;
+}
+
 export interface PublishOwnershipVerification {
   verifiedServiceKeyIds: string[];
   verifiedWebhookOrigins: string[];
@@ -61,6 +68,48 @@ export function publishRequestVersion(input: {
 
   const capabilityToken = input.generateCapabilityToken?.() ?? generateCapabilityToken();
   const published = input.repository.publish(input.requestId, input.definition);
+
+  return {
+    ok: true,
+    published: {
+      ...published,
+      capability: {
+        token_hash: sha256Hash(capabilityToken)
+      }
+    }
+  };
+}
+
+export async function publishRequestVersionAsync(input: {
+  requestId: string;
+  definition: RequestDefinition;
+  confirmed: boolean;
+  mode: PublishMode;
+  repository: AsyncRequestVersionPublisher;
+  generateCapabilityToken?: (() => string) | undefined;
+  ownership?: PublishOwnershipVerification | undefined;
+}): Promise<PublishRequestVersionResult> {
+  if (!input.confirmed) {
+    return {
+      ok: false,
+      error: {
+        code: "publish_requires_confirmation",
+        path: "$",
+        message: "Publishing requires explicit human confirmation."
+      }
+    };
+  }
+
+  const destinationError = validateDestinationForMode(input.definition, input.mode, input.ownership);
+  if (destinationError !== undefined) {
+    return {
+      ok: false,
+      error: destinationError
+    };
+  }
+
+  const capabilityToken = input.generateCapabilityToken?.() ?? generateCapabilityToken();
+  const published = await input.repository.publish(input.requestId, input.definition);
 
   return {
     ok: true,

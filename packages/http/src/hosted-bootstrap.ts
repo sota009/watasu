@@ -1,5 +1,6 @@
 import type {
   AsyncIdempotencyStore,
+  AsyncRequestVersionPublisher,
   AsyncSubmissionRateLimiter,
   DeliveryClient,
   DeliveryCircuitBreaker,
@@ -71,7 +72,7 @@ export function createHostedProductionBootstrapApp(
   const resolveServiceIdentity = createTrustedServiceIdentityResolver({
     resolvePrincipal: input.resolvePrincipal
   });
-  const publishRepository: RequestVersionPublisher = {
+  const publishRepository: AsyncRequestVersionPublisher = {
     publish(requestId, definition) {
       const published = input.repository.publish(requestId, definition);
       const tenantId = pendingPublishTenants.get(requestId);
