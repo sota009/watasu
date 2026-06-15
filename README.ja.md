@@ -202,7 +202,8 @@ Hosted publish / ledger 操作は private-alpha の authenticated MCP / service 
 pnpm loop
 ```
 
-`pnpm loop` は `pnpm typecheck`、`pnpm test`、`pnpm lint`、`pnpm review:self` を実行します。
+`pnpm loop` は `pnpm typecheck`、`pnpm exec vitest run`、`pnpm lint`、`pnpm review:self` を実行します。
+`pnpm test` 単体は引き続き typecheck 込みですが、loop 内では重複する typecheck を省いて高速化しています。
 
 依存、release gate、supply-chain 境界に触れた場合:
 

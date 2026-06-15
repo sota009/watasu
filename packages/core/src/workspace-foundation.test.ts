@@ -1335,22 +1335,27 @@ describe("workspace foundation", () => {
 
   test("test_receiver_csv_demo_writes_to_ignored_output_directory", () => {
     const rootCsvPath = new URL("collected-submissions.csv", rootDir);
-    const outputDir = new URL("receiver-demo-output/", rootDir);
-    const outputCsvPath = new URL("receiver-demo-output/collected-submissions.csv", rootDir);
+    const outputDirectory = `receiver-demo-output/test-${process.pid}-${Date.now()}`;
+    const outputDir = new URL(`${outputDirectory}/`, rootDir);
+    const outputCsvPath = `${outputDirectory}/collected-submissions.csv`;
     rmSync(rootCsvPath, { force: true });
     rmSync(outputDir, { force: true, recursive: true });
 
     const result = spawnSync(process.execPath, ["scripts/local-receiver-csv-demo.mjs"], {
       cwd: rootDir,
-      encoding: "utf8"
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WATASU_RECEIVER_DEMO_OUTPUT_DIR: outputDirectory
+      }
     });
 
     expect(result.status).toBe(0);
     expect(existsSync(rootCsvPath)).toBe(false);
-    expect(readText("receiver-demo-output/collected-submissions.csv")).toBe(
+    expect(readText(outputCsvPath)).toBe(
       "full_name,email\nAlice Example,alice@example.com\n"
     );
-    expect(result.stdout).toContain("\"output_path\": \"receiver-demo-output/collected-submissions.csv\"");
+    expect(result.stdout).toContain(`"output_path": "${outputCsvPath}"`);
     expect(result.stdout).toContain("\"response_contains_plaintext_payload\": false");
     expect(result.stdout).toContain("\"ledger_contains_plaintext_payload\": false");
     expect(result.stdout).not.toContain("Alice Example");

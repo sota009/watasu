@@ -63,7 +63,7 @@ export function buildLoopCommandPlan({ includeAudit = false } = {}) {
     },
     {
       label: "test",
-      command: "pnpm test"
+      command: "pnpm exec vitest run"
     },
     {
       label: "lint",

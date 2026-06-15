@@ -196,7 +196,8 @@ Standard loop:
 pnpm loop
 ```
 
-`pnpm loop` runs `pnpm typecheck`, `pnpm test`, `pnpm lint`, and `pnpm review:self`.
+`pnpm loop` runs `pnpm typecheck`, `pnpm exec vitest run`, `pnpm lint`, and `pnpm review:self`.
+`pnpm test` still includes typecheck for standalone test runs; the loop skips that duplicate typecheck for speed.
 
 Dependency, release-gate, or supply-chain changes require:
 

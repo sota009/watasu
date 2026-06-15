@@ -9,7 +9,7 @@ import {
 const baseUrl = "http://127.0.0.1:8787";
 const signingSecret = "local-receiver-csv-demo-secret";
 const now = new Date("2026-06-14T12:00:00.000Z");
-const outputDirectory = "receiver-demo-output";
+const outputDirectory = process.env["WATASU_RECEIVER_DEMO_OUTPUT_DIR"] ?? "receiver-demo-output";
 const outputFile = "collected-submissions.csv";
 const outputPath = join(outputDirectory, outputFile);
 const samplePayload = {
