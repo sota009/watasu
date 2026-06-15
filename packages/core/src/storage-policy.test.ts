@@ -10,16 +10,20 @@ import {
   createPostgresCapabilityRegistrySchemaSql,
   createMigratedPostgresIdempotencyStore,
   createMigratedPostgresDeliveryLedgerStore,
+  createMigratedPostgresFixedWindowRateLimiter,
   createPostgresDeliveryLedgerSchemaSql,
   createPostgresIdempotencyStoreSchemaSql,
+  createPostgresFixedWindowRateLimiterSchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
   PostgresCapabilityRegistry,
   PostgresDeliveryLedgerStore,
   PostgresIdempotencyStore,
+  PostgresFixedWindowRateLimiter,
   runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
   runPostgresIdempotencyStoreMigration,
+  runPostgresFixedWindowRateLimiterMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention,
   type MetadataLedgerAuditEvent
@@ -1010,6 +1014,141 @@ describe("storage policy controlled delivery ledger", () => {
     expect(queries).toEqual([
       {
         text: createPostgresIdempotencyStoreSchemaSql(),
+        values: []
+      }
+    ]);
+  });
+
+  test("test_postgres_fixed_window_rate_limiter_consumes_hash_only_counter", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const limiter = new PostgresFixedWindowRateLimiter({
+      tenantId: "tenant-a",
+      limit: 2,
+      windowMs: 60_000,
+      clock: () => new Date("2026-06-14T12:00:30.000Z"),
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("insert") ? [{ hit_count: 1 }] : []
+          };
+        }
+      }
+    });
+
+    const consumed = await limiter.consume("event-attendee-intake:v1:secret-capability");
+
+    expect(consumed).toBe(true);
+    expect(queries[0]?.text).toContain("delete from watasu_rate_limit_counters");
+    expect(queries[1]?.text).toContain("insert into watasu_rate_limit_counters");
+    expect(queries[1]?.text).toContain("on conflict");
+    expect(queries[1]?.text).toContain("updated_at = now()");
+    expect(queries[1]?.text).toContain("where watasu_rate_limit_counters.hit_count < $5");
+    expect(queries[1]?.values).toEqual([
+      "tenant-a",
+      sha256Hash("event-attendee-intake:v1:secret-capability"),
+      "2026-06-14T12:00:00.000Z",
+      1,
+      2
+    ]);
+    expect(JSON.stringify(queries)).not.toContain("secret-capability");
+    expect(JSON.stringify(queries)).not.toContain("\"encrypted_payload\"");
+  });
+
+  test("test_postgres_fixed_window_rate_limiter_rejects_when_atomic_upsert_returns_no_row", async () => {
+    const limiter = new PostgresFixedWindowRateLimiter({
+      tenantId: "tenant-a",
+      limit: 2,
+      windowMs: 60_000,
+      clock: () => new Date("2026-06-14T12:00:30.000Z"),
+      queryClient: {
+        async query(text) {
+          return {
+            rows: text.includes("insert") ? [] : []
+          };
+        }
+      }
+    });
+
+    const consumed = await limiter.consume("event-attendee-intake:v1:secret-capability");
+
+    expect(consumed).toBe(false);
+  });
+
+  test("test_postgres_fixed_window_rate_limiter_schema_is_hash_only_metadata", () => {
+    const schemaSql = createPostgresFixedWindowRateLimiterSchemaSql();
+
+    expect(schemaSql).toContain("create table if not exists watasu_rate_limit_counters");
+    expect(schemaSql).toContain("tenant_id text not null");
+    expect(schemaSql).toContain("rate_limit_key_hash text not null");
+    expect(schemaSql).toContain("hit_count integer not null");
+    expect(schemaSql).toContain("primary key (tenant_id, rate_limit_key_hash, window_start)");
+    expect(schemaSql).not.toContain("rate_limit_key text");
+    expect(schemaSql).not.toContain("capability_url");
+    expect(schemaSql).not.toContain("encrypted_payload");
+  });
+
+  test("test_create_migrated_postgres_fixed_window_rate_limiter_runs_migration_before_consume", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+    const limiter = await createMigratedPostgresFixedWindowRateLimiter({
+      tenantId: "tenant-a",
+      limit: 2,
+      windowMs: 60_000,
+      clock: () => new Date("2026-06-14T12:00:30.000Z"),
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: text.includes("insert") ? [{ hit_count: 1 }] : []
+          };
+        }
+      }
+    });
+
+    await limiter.consume("event-attendee-intake:v1:secret-capability");
+
+    expect(queries[0]).toEqual({
+      text: createPostgresFixedWindowRateLimiterSchemaSql(),
+      values: []
+    });
+    expect(queries[2]?.values[0]).toBe("tenant-a");
+  });
+
+  test("test_postgres_fixed_window_rate_limiter_migration_runs_schema_sql_once", async () => {
+    const queries: Array<{
+      text: string;
+      values: readonly unknown[];
+    }> = [];
+
+    await runPostgresFixedWindowRateLimiterMigration({
+      queryClient: {
+        async query(text, values) {
+          queries.push({
+            text,
+            values
+          });
+          return {
+            rows: []
+          };
+        }
+      }
+    });
+
+    expect(queries).toEqual([
+      {
+        text: createPostgresFixedWindowRateLimiterSchemaSql(),
         values: []
       }
     ]);
