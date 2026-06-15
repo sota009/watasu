@@ -27,9 +27,13 @@ pnpm loop:full
 `pnpm loop` is the fast local loop:
 
 1. `pnpm typecheck`
-2. `pnpm test`
+2. `pnpm exec vitest run`
 3. `pnpm lint`
 4. `pnpm review:self`
+
+`pnpm test` remains typecheck-inclusive for standalone test runs. `pnpm loop` runs
+Vitest directly after the dedicated typecheck step to avoid duplicate typecheck
+work in the fast loop.
 
 `pnpm loop:full` adds:
 

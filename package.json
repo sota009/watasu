@@ -18,6 +18,7 @@
     "cutover:status": "node scripts/production-cutover-status.mjs",
     "cutover:verify": "node scripts/production-cutover-verify.mjs",
     "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
+    "demo:receiver-csv": "pnpm typecheck && node scripts/local-receiver-csv-demo.mjs",
     "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
     "docs:build": "rspress build",
     "docs:dev": "rspress dev --host 127.0.0.1",

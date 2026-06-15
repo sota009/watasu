@@ -78,6 +78,15 @@ describe("workflow helpers", () => {
     expect(plan.some((command) => command.command.includes("audit"))).toBe(false);
   });
 
+  test("test_loop_command_plan_avoids_duplicate_typecheck_during_tests", () => {
+    const plan = buildLoopCommandPlan({ includeAudit: false });
+
+    expect(plan.find((command) => command.label === "test")).toEqual({
+      label: "test",
+      command: "pnpm exec vitest run"
+    });
+  });
+
   test("test_loop_command_plan_can_include_supply_chain_audit_for_full_gate", () => {
     const plan = buildLoopCommandPlan({ includeAudit: true });
 

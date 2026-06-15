@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -128,6 +128,7 @@ describe("workspace foundation", () => {
       "cutover:status": "node scripts/production-cutover-status.mjs",
       "cutover:verify": "node scripts/production-cutover-verify.mjs",
       "demo:handoff": "pnpm typecheck && node scripts/local-handoff-demo.mjs",
+      "demo:receiver-csv": "pnpm typecheck && node scripts/local-receiver-csv-demo.mjs",
       "deploy:preflight": "node scripts/render-deploy-preflight.mjs",
       lint: "node scripts/secret-scan.mjs --repo",
       loop: "node scripts/loop-engineer.mjs",
@@ -1330,6 +1331,38 @@ describe("workspace foundation", () => {
     expect(result.stdout).not.toContain("alice@example.com");
     expect(result.stdout).not.toContain("base64url-ciphertext");
     expect(result.stdout).not.toContain("\"encrypted_payload\"");
+  }, 60_000);
+
+  test("test_receiver_csv_demo_writes_to_ignored_output_directory", () => {
+    const rootCsvPath = new URL("collected-submissions.csv", rootDir);
+    const outputDirectory = `receiver-demo-output/test-${process.pid}-${Date.now()}`;
+    const outputDir = new URL(`${outputDirectory}/`, rootDir);
+    const outputCsvPath = `${outputDirectory}/collected-submissions.csv`;
+    rmSync(rootCsvPath, { force: true });
+    rmSync(outputDir, { force: true, recursive: true });
+
+    const result = spawnSync(process.execPath, ["scripts/local-receiver-csv-demo.mjs"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WATASU_RECEIVER_DEMO_OUTPUT_DIR: outputDirectory
+      }
+    });
+
+    expect(result.status).toBe(0);
+    expect(existsSync(rootCsvPath)).toBe(false);
+    expect(readText(outputCsvPath)).toBe(
+      "full_name,email\nAlice Example,alice@example.com\n"
+    );
+    expect(result.stdout).toContain(`"output_path": "${outputCsvPath}"`);
+    expect(result.stdout).toContain("\"response_contains_plaintext_payload\": false");
+    expect(result.stdout).toContain("\"ledger_contains_plaintext_payload\": false");
+    expect(result.stdout).not.toContain("Alice Example");
+    expect(result.stdout).not.toContain("alice@example.com");
+    expect(result.stdout).not.toContain("base64url-ciphertext");
+
+    rmSync(outputDir, { force: true, recursive: true });
   }, 60_000);
 
   test("test_render_blueprint_uses_reviewable_private_alpha_boundaries", () => {

@@ -92,6 +92,15 @@ Expected `pnpm demo:handoff` highlights:
 }
 ```
 
+To run the receiver-owned CSV slice, use:
+
+```bash
+pnpm demo:receiver-csv
+```
+
+It appends accepted demo rows to `receiver-demo-output/collected-submissions.csv`.
+The `receiver-demo-output/` directory is ignored by Git.
+
 ## CLI examples
 
 Sample request definition:
@@ -187,7 +196,8 @@ Standard loop:
 pnpm loop
 ```
 
-`pnpm loop` runs `pnpm typecheck`, `pnpm test`, `pnpm lint`, and `pnpm review:self`.
+`pnpm loop` runs `pnpm typecheck`, `pnpm exec vitest run`, `pnpm lint`, and `pnpm review:self`.
+`pnpm test` still includes typecheck for standalone test runs; the loop skips that duplicate typecheck for speed.
 
 Dependency, release-gate, or supply-chain changes require:
 

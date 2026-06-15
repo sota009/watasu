@@ -4,5 +4,6 @@ coverage/
 doc_build/
 .watasu/
 cutover-evidence/
+receiver-demo-output/
 .env
 .env.*
