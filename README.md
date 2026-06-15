@@ -240,6 +240,7 @@ Cutover evidence is written to the gitignored `cutover-evidence/` directory. Mai
 - [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
 - [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol and dependency baseline
+- [docs/personal-info-mcp-integration-brief.md](docs/personal-info-mcp-integration-brief.md): development brief for connecting a user-side `personal-info-mcp` product to watasu
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 
 Public docs site:
