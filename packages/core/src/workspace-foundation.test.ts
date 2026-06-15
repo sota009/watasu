@@ -192,6 +192,10 @@ describe("workspace foundation", () => {
       "dry-run",
       "pnpm --dir ../.. typecheck && node dist/bin.js dry-run"
     );
+    expect(personalInfoAdapterPackageJson.scripts).toHaveProperty(
+      "submit",
+      "pnpm --dir ../.. typecheck && node dist/bin.js submit"
+    );
   });
 
   test("test_no_env_files_or_secret_like_values_are_committed", () => {

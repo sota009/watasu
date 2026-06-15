@@ -332,8 +332,8 @@ const localDemoDefinition: RequestDefinition = {
     public_key_jwk: {
       kty: "EC",
       crv: "P-256",
-      x: "base64url-x",
-      y: "base64url-y"
+      x: "TiZ60tQ0Se3zeQGt6T98XN5abLKOS1fjOJu1ea-xHnU",
+      y: "p7AD2mCWCUYJGBLkcA-lc3A46USGO147crX12i1lLrA"
     }
   },
   metadata_retention: {

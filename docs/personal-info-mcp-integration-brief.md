@@ -414,6 +414,15 @@ Done when:
 - `ledger_contains_payload_body` remains false.
 - `response_contains_plaintext_payload` remains false.
 
+Current implementation:
+
+- Command: `pnpm --filter @watasu/personal-info-adapter submit ...`
+- The adapter builds plaintext in memory, encrypts it with the supplied
+  `--public-jwk`, submits an A2A HTTP+JSON envelope, and prints metadata-only
+  submit evidence.
+- Local demo uses a test public JWK fixture because the local Agent Card exposes
+  the public key fingerprint but not the JWK body.
+
 ### Slice 3: user confirmation and consent receipt metadata
 
 Goal:
@@ -535,6 +544,24 @@ Expected behavior:
 - stdout contains request metadata, destination origin, mapped field names, and
   `"[REDACTED]"` placeholders only.
 - stdout must not contain the test fixture values.
+
+For the local encrypted submit:
+
+```bash
+pnpm --filter @watasu/personal-info-adapter submit \
+  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
+  --schema http://127.0.0.1:8787/schemas/plaintext.json \
+  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
+  --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json \
+  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json
+```
+
+Expected behavior:
+
+- stdout returns `status: "delivered"`.
+- `plaintext_values_sent_to_watasu` remains false.
+- `ledger_contains_payload_body` remains false.
+- `response_contains_plaintext_payload` remains false.
 
 ## Open Questions
 
