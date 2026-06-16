@@ -527,9 +527,269 @@ body:not(.notTopArrived) .rp-nav {
   border-radius: 10px;
 }
 
+.watasu-test-form {
+  margin-top: 34px;
+}
+
+.watasu-test-form__notice {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 8px;
+  background: var(--rp-c-bg-soft);
+  padding: 14px 16px;
+}
+
+.watasu-test-form__notice strong {
+  color: var(--rp-c-text-0);
+  font-size: 14px;
+}
+
+.watasu-test-form__notice span {
+  color: var(--rp-c-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.watasu-test-form__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.watasu-test-form__form,
+.watasu-test-form__submissions {
+  min-width: 0;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 8px;
+  background: var(--rp-c-bg);
+  padding: 18px;
+}
+
+.watasu-test-form__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.watasu-test-form__field,
+.watasu-test-form__consent,
+.watasu-test-form__actions,
+.watasu-test-form__status {
+  min-width: 0;
+}
+
+.watasu-test-form__field {
+  display: grid;
+  gap: 7px;
+}
+
+.watasu-test-form__field--full,
+.watasu-test-form__consent,
+.watasu-test-form__actions,
+.watasu-test-form__status {
+  grid-column: 1 / -1;
+}
+
+.watasu-test-form label,
+.watasu-test-form__field label {
+  color: var(--rp-c-text-1);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.watasu-test-form input,
+.watasu-test-form select,
+.watasu-test-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--rp-c-divider);
+  border-radius: 8px;
+  color: var(--rp-c-text-0);
+  background: var(--rp-c-bg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.watasu-test-form input,
+.watasu-test-form select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.watasu-test-form textarea {
+  resize: vertical;
+  min-height: 112px;
+  padding: 11px 12px;
+  line-height: 1.55;
+}
+
+.watasu-test-form input:focus,
+.watasu-test-form select:focus,
+.watasu-test-form textarea:focus {
+  outline: 2px solid rgba(17, 17, 17, 0.24);
+  outline-offset: 2px;
+}
+
+.watasu-test-form__consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--rp-c-text-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.watasu-test-form__consent input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.watasu-test-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.watasu-test-form__actions button {
+  min-height: 42px;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 999px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.watasu-test-form__actions button[type="submit"] {
+  color: #ffffff;
+  border-color: #000000;
+  background: #000000;
+}
+
+.watasu-test-form__actions button[type="button"] {
+  color: var(--rp-c-text-1);
+  background: var(--rp-c-bg);
+}
+
+.watasu-test-form__actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.watasu-test-form__actions button:disabled {
+  color: var(--rp-c-text-3);
+  cursor: not-allowed;
+}
+
+.watasu-test-form__status {
+  margin: 0;
+  color: var(--rp-c-text-2);
+  font-size: 13px;
+}
+
+.watasu-test-form__submissions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.watasu-test-form__submissions-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.watasu-test-form__submissions-header span {
+  display: grid;
+  min-width: 34px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 999px;
+  color: var(--rp-c-text-1);
+  background: var(--rp-c-bg-soft);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.watasu-test-form__empty {
+  margin: 0;
+  color: var(--rp-c-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.watasu-test-form__entry-list {
+  display: grid;
+  gap: 12px;
+}
+
+.watasu-test-form__entry {
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 8px;
+  background: var(--rp-c-bg-soft);
+  padding: 14px;
+}
+
+.watasu-test-form__entry-meta {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.watasu-test-form__entry-meta strong {
+  overflow-wrap: anywhere;
+  color: var(--rp-c-text-0);
+  font-size: 13px;
+}
+
+.watasu-test-form__entry-meta time {
+  color: var(--rp-c-text-2);
+  font-size: 12px;
+}
+
+.watasu-test-form__entry dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+
+.watasu-test-form__entry dl div {
+  min-width: 0;
+}
+
+.watasu-test-form__entry dt {
+  color: var(--rp-c-text-3);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.watasu-test-form__entry dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--rp-c-text-1);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.watasu-test-form__entry-message {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 900px) {
   .watasu-flow-preview__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .watasu-test-form__layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -573,5 +833,13 @@ body:not(.notTopArrived) .rp-nav {
 
   .watasu-flow-preview__step {
     min-height: 124px;
+  }
+
+  .watasu-test-form__form {
+    grid-template-columns: 1fr;
+  }
+
+  .watasu-test-form__entry dl {
+    grid-template-columns: 1fr;
   }
 }
