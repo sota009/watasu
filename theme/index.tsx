@@ -1,6 +1,6 @@
 import { Layout as BaseLayout } from "@rspress/core/theme-original";
 import { useLocation } from "@rspress/core/runtime";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 import "./styles.css";
 
 const startPrompt = `I want to use watasu to collect information from people through encrypted intake.
@@ -90,9 +90,7 @@ const FlowPreview = () => (
   </section>
 );
 
-type TestFormSubmission = {
-  id: string;
-  submittedAt: string;
+type TestFormPayload = {
   fullName: string;
   email: string;
   organization: string;
@@ -101,71 +99,41 @@ type TestFormSubmission = {
   consent: boolean;
 };
 
-const testFormSessionKey = "watasu:test-form:submissions";
-
-const createSubmissionId = () =>
-  `submission-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-const formatAttendanceType = (value: string) => {
-  switch (value) {
-    case "in_person":
-      return "In person";
-    case "remote":
-      return "Remote";
-    case "undecided":
-      return "Undecided";
-    default:
-      return value;
-  }
-};
-
-const readStoredSubmissions = (): TestFormSubmission[] => {
-  try {
-    const stored = window.sessionStorage.getItem(testFormSessionKey);
-    if (!stored) {
-      return [];
+type TestFormResponse =
+  | {
+      status: "idle";
     }
-
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeStoredSubmissions = (submissions: TestFormSubmission[]) => {
-  try {
-    window.sessionStorage.setItem(testFormSessionKey, JSON.stringify(submissions));
-  } catch {
-    // The page still works with in-memory state when browser storage is blocked.
-  }
-};
+  | {
+      status: "posting";
+      endpoint: string;
+      payload: TestFormPayload;
+    }
+  | {
+      status: "success";
+      endpoint: string;
+      payload: TestFormPayload;
+      responseStatus: number;
+      responseStatusText: string;
+      responseContentType: string;
+      responseBody: string;
+    }
+  | {
+      status: "error";
+      endpoint: string;
+      payload: TestFormPayload;
+      message: string;
+    };
 
 const TestForm = () => {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [submissions, setSubmissions] = useState<TestFormSubmission[]>([]);
-  const [loadedStorage, setLoadedStorage] = useState(false);
-  const [status, setStatus] = useState<"idle" | "submitted" | "cleared">("idle");
+  const [response, setResponse] = useState<TestFormResponse>({ status: "idle" });
 
-  useEffect(() => {
-    setSubmissions(readStoredSubmissions());
-    setLoadedStorage(true);
-  }, []);
-
-  useEffect(() => {
-    if (loadedStorage) {
-      writeStoredSubmissions(submissions);
-    }
-  }, [loadedStorage, submissions]);
-
-  const submitForm = (event: FormEvent<HTMLFormElement>) => {
+  const submitForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const form = event.currentTarget;
     const data = new FormData(form);
-    const nextSubmission: TestFormSubmission = {
-      id: createSubmissionId(),
-      submittedAt: new Date().toISOString(),
+    const endpoint = String(data.get("endpoint") ?? "").trim();
+    const payload: TestFormPayload = {
       fullName: String(data.get("fullName") ?? ""),
       email: String(data.get("email") ?? ""),
       organization: String(data.get("organization") ?? ""),
@@ -174,30 +142,68 @@ const TestForm = () => {
       consent: data.get("consent") === "on"
     };
 
-    setSubmissions((current) => [nextSubmission, ...current]);
-    setStatus("submitted");
-    form.reset();
+    setResponse({ status: "posting", endpoint, payload });
+
+    try {
+      const postResponse = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      const responseBody = await postResponse.text();
+
+      setResponse({
+        status: "success",
+        endpoint,
+        payload,
+        responseStatus: postResponse.status,
+        responseStatusText: postResponse.statusText,
+        responseContentType: postResponse.headers.get("content-type") ?? "unknown",
+        responseBody
+      });
+    } catch (error) {
+      setResponse({
+        status: "error",
+        endpoint,
+        payload,
+        message:
+          error instanceof Error
+            ? error.message
+            : "The browser could not complete the POST request."
+      });
+    }
   };
 
-  const clearSubmissions = () => {
-    setSubmissions([]);
-    setStatus("cleared");
-    formRef.current?.reset();
+  const resetResponse = () => {
+    setResponse({ status: "idle" });
   };
 
   return (
     <section className="watasu-test-form" aria-label="Test form">
       <div className="watasu-test-form__notice">
-        <strong>Local review only.</strong>
+        <strong>POST test form.</strong>
         <span>
-          This test form does not send data to a server. Submitted entries stay
-          in this browser session so you can review the form contents on this
-          page.
+          This form sends a JSON POST request to the endpoint you provide and
+          shows the response on this page. The endpoint must allow browser CORS
+          access if you want to read the response body.
         </span>
       </div>
 
       <div className="watasu-test-form__layout">
-        <form ref={formRef} className="watasu-test-form__form" onSubmit={submitForm}>
+        <form className="watasu-test-form__form" onSubmit={submitForm}>
+          <div className="watasu-test-form__field watasu-test-form__field--full">
+            <label htmlFor="watasu-test-endpoint">POST endpoint URL</label>
+            <input
+              id="watasu-test-endpoint"
+              name="endpoint"
+              type="url"
+              placeholder="https://example.com/test-submit"
+              required
+            />
+          </div>
+
           <div className="watasu-test-form__field">
             <label htmlFor="watasu-test-full-name">Name</label>
             <input id="watasu-test-full-name" name="fullName" type="text" required />
@@ -229,73 +235,83 @@ const TestForm = () => {
 
           <label className="watasu-test-form__consent" htmlFor="watasu-test-consent">
             <input id="watasu-test-consent" name="consent" type="checkbox" required />
-            <span>I agree to use this form for this browser-local test.</span>
+            <span>I agree to send this test entry to the endpoint above.</span>
           </label>
 
           <div className="watasu-test-form__actions">
-            <button type="submit">Submit test entry</button>
-            <button type="button" onClick={clearSubmissions} disabled={submissions.length === 0}>
-              Clear entries
+            <button type="submit" disabled={response.status === "posting"}>
+              {response.status === "posting" ? "Posting..." : "POST test entry"}
+            </button>
+            <button type="button" onClick={resetResponse} disabled={response.status === "idle"}>
+              Clear response
             </button>
           </div>
 
           <p className="watasu-test-form__status" role="status" aria-live="polite">
-            {status === "submitted"
-              ? "Entry saved in this browser session."
-              : status === "cleared"
-                ? "Entries cleared from this browser session."
-                : "Ready for a local test submission."}
+            {response.status === "posting"
+              ? "Posting JSON to the endpoint..."
+              : response.status === "success"
+                ? "Response received."
+                : response.status === "error"
+                  ? "POST failed. Check the response panel."
+                  : "Ready to POST a test submission."}
           </p>
         </form>
 
-        <section className="watasu-test-form__submissions" aria-label="Submitted entries">
+        <section className="watasu-test-form__submissions" aria-label="POST response">
           <div className="watasu-test-form__submissions-header">
-            <h2>Submitted entries</h2>
-            <span>{submissions.length}</span>
+            <h2>POST response</h2>
+            <span>{response.status}</span>
           </div>
 
-          {submissions.length === 0 ? (
+          {response.status === "idle" ? (
             <p className="watasu-test-form__empty">
-              No entries yet. Submit the form to review the captured contents here.
+              No response yet. Submit the form to POST JSON and review the response here.
             </p>
           ) : (
             <div className="watasu-test-form__entry-list">
-              {submissions.map((submission) => (
-                <article className="watasu-test-form__entry" key={submission.id}>
-                  <div className="watasu-test-form__entry-meta">
-                    <strong>{submission.id}</strong>
-                    <time dateTime={submission.submittedAt}>
-                      {new Date(submission.submittedAt).toLocaleString()}
-                    </time>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Name</dt>
-                      <dd>{submission.fullName}</dd>
-                    </div>
-                    <div>
-                      <dt>Email</dt>
-                      <dd>{submission.email}</dd>
-                    </div>
-                    <div>
-                      <dt>Organization</dt>
-                      <dd>{submission.organization || "Not provided"}</dd>
-                    </div>
-                    <div>
-                      <dt>Attendance</dt>
-                      <dd>{formatAttendanceType(submission.attendanceType)}</dd>
-                    </div>
-                    <div>
-                      <dt>Consent</dt>
-                      <dd>{submission.consent ? "Accepted" : "Missing"}</dd>
-                    </div>
+              <article className="watasu-test-form__entry">
+                <div className="watasu-test-form__entry-meta">
+                  <strong>{response.endpoint}</strong>
+                  <span>{response.status === "posting" ? "Waiting for response" : "Latest request"}</span>
+                </div>
+                <dl>
+                  {response.status === "success" ? (
+                    <>
+                      <div>
+                        <dt>Status</dt>
+                        <dd>
+                          {response.responseStatus} {response.responseStatusText}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Content-Type</dt>
+                        <dd>{response.responseContentType}</dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {response.status === "error" ? (
                     <div className="watasu-test-form__entry-message">
-                      <dt>Message</dt>
-                      <dd>{submission.message || "Not provided"}</dd>
+                      <dt>Error</dt>
+                      <dd>{response.message}</dd>
                     </div>
-                  </dl>
-                </article>
-              ))}
+                  ) : null}
+                  <div className="watasu-test-form__entry-message">
+                    <dt>Request JSON</dt>
+                    <dd>
+                      <pre>{JSON.stringify(response.payload, null, 2)}</pre>
+                    </dd>
+                  </div>
+                  {response.status === "success" ? (
+                    <div className="watasu-test-form__entry-message">
+                      <dt>Response body</dt>
+                      <dd>
+                        <pre>{response.responseBody || "(empty response body)"}</pre>
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </article>
             </div>
           )}
         </section>
