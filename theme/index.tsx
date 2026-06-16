@@ -126,13 +126,13 @@ type TestFormResponse =
 
 const TestForm = () => {
   const [response, setResponse] = useState<TestFormResponse>({ status: "idle" });
+  const endpoint = "/api/test-form";
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const form = event.currentTarget;
     const data = new FormData(form);
-    const endpoint = String(data.get("endpoint") ?? "").trim();
     const payload: TestFormPayload = {
       fullName: String(data.get("fullName") ?? ""),
       email: String(data.get("email") ?? ""),
@@ -183,27 +183,16 @@ const TestForm = () => {
   return (
     <section className="watasu-test-form" aria-label="Test form">
       <div className="watasu-test-form__notice">
-        <strong>POST test form.</strong>
+        <strong>Internal POST test.</strong>
         <span>
-          This form sends a JSON POST request to the endpoint you provide and
-          shows the response on this page. The endpoint must allow browser CORS
-          access if you want to read the response body.
+          This form sends a JSON POST request to this docs site's internal test
+          endpoint and shows the response on this page. It does not save the
+          submitted values.
         </span>
       </div>
 
       <div className="watasu-test-form__layout">
         <form className="watasu-test-form__form" onSubmit={submitForm}>
-          <div className="watasu-test-form__field watasu-test-form__field--full">
-            <label htmlFor="watasu-test-endpoint">POST endpoint URL</label>
-            <input
-              id="watasu-test-endpoint"
-              name="endpoint"
-              type="url"
-              placeholder="https://example.com/test-submit"
-              required
-            />
-          </div>
-
           <div className="watasu-test-form__field">
             <label htmlFor="watasu-test-full-name">Name</label>
             <input id="watasu-test-full-name" name="fullName" type="text" required />
@@ -235,7 +224,7 @@ const TestForm = () => {
 
           <label className="watasu-test-form__consent" htmlFor="watasu-test-consent">
             <input id="watasu-test-consent" name="consent" type="checkbox" required />
-            <span>I agree to send this test entry to the endpoint above.</span>
+            <span>I agree to send this test entry to the internal test endpoint.</span>
           </label>
 
           <div className="watasu-test-form__actions">
