@@ -9,7 +9,9 @@ import {
   runHostedMetadataLedgerRetentionJob,
   type PostgresQueryClient,
   type PostgresDeliveryLedgerStore,
-  type HostedServiceRole
+  type HostedServiceRole,
+  type PublishOwnershipVerification,
+  type RequestDefinition
 } from "@watasu/core";
 import {
   createHostedProductionBootstrapApp,
@@ -83,6 +85,12 @@ export interface HostedPublishInviteConfigRecord {
   max_publish_count: number;
   used_count?: number | undefined;
   revoked_at?: string | null | undefined;
+}
+
+export interface HostedTrialPublishConfig {
+  destinationUrl: string;
+  serviceKeyId: string;
+  expiresAt: string;
 }
 
 export interface HostedSignedHeaderIdentityProvider {
@@ -215,6 +223,93 @@ function parseHostedPublishInviteConfigRecord(value: unknown): HostedPublishInvi
   };
 }
 
+export function loadHostedTrialPublishConfigFromEnv(
+  env: Record<string, string | undefined>
+): HostedTrialPublishConfig | undefined {
+  const destinationUrl = env["WATASU_HOSTED_TRIAL_DESTINATION_URL"]?.trim();
+  const serviceKeyId = env["WATASU_HOSTED_TRIAL_SERVICE_KEY_ID"]?.trim();
+  const expiresAt = env["WATASU_HOSTED_TRIAL_EXPIRES_AT"]?.trim();
+  const values = [destinationUrl, serviceKeyId, expiresAt];
+  if (values.every((value) => value === undefined || value.length === 0)) {
+    return undefined;
+  }
+
+  if (destinationUrl === undefined || destinationUrl.length === 0 ||
+    serviceKeyId === undefined || serviceKeyId.length === 0 ||
+    expiresAt === undefined || expiresAt.length === 0) {
+    throw new Error("Hosted trial publish env vars must be set together.");
+  }
+
+  const parsedUrl = new URL(destinationUrl);
+  if (parsedUrl.protocol !== "https:" || parsedUrl.username.length > 0 || parsedUrl.password.length > 0) {
+    throw new Error("WATASU_HOSTED_TRIAL_DESTINATION_URL must be an HTTPS URL without credentials.");
+  }
+
+  if (Number.isNaN(new Date(expiresAt).getTime())) {
+    throw new Error("WATASU_HOSTED_TRIAL_EXPIRES_AT must be a valid date-time.");
+  }
+
+  return {
+    destinationUrl,
+    serviceKeyId,
+    expiresAt
+  };
+}
+
+function buildHostedTrialPublishOwnership(input: {
+  config: HostedTrialPublishConfig | undefined;
+  definition: RequestDefinition;
+  now: Date;
+}): PublishOwnershipVerification | undefined {
+  if (input.config === undefined) {
+    return undefined;
+  }
+
+  if (new Date(input.config.expiresAt).getTime() <= input.now.getTime()) {
+    return undefined;
+  }
+
+  if (input.definition.destination.url !== input.config.destinationUrl) {
+    return undefined;
+  }
+
+  if (input.definition.encryption.service_key_id !== input.config.serviceKeyId) {
+    return undefined;
+  }
+
+  if (!isLowRiskTrialRequest(input.definition)) {
+    return undefined;
+  }
+
+  return {
+    verifiedServiceKeyIds: [input.config.serviceKeyId],
+    verifiedWebhookOrigins: [new URL(input.config.destinationUrl).origin]
+  };
+}
+
+function mergeOwnershipVerification(
+  base: PublishOwnershipVerification,
+  extra: PublishOwnershipVerification | undefined
+): PublishOwnershipVerification {
+  if (extra === undefined) {
+    return base;
+  }
+
+  return {
+    verifiedServiceKeyIds: [...new Set([...base.verifiedServiceKeyIds, ...extra.verifiedServiceKeyIds])],
+    verifiedWebhookOrigins: [...new Set([...base.verifiedWebhookOrigins, ...extra.verifiedWebhookOrigins])]
+  };
+}
+
+function isLowRiskTrialRequest(definition: RequestDefinition): boolean {
+  const allowedFieldIds = new Set(["email", "display_name"]);
+  return definition.fields.length > 0 &&
+    definition.fields.every((field) =>
+      allowedFieldIds.has(field.id) &&
+      (field.sensitivity === "low" || field.sensitivity === "moderate")
+    );
+}
+
 function isDocumentedPlaceholderSigningSecret(signingSecret: string): boolean {
   return signingSecret === "test-deployment-identity-secret-with-enough-entropy" ||
     signingSecret === "local-demo-signing-secret" ||
@@ -324,6 +419,7 @@ export function createHostedProductionServerFromEnv(input: {
   const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
   const mcpBearerTokenConfig = loadHostedMcpBearerTokenConfig(input.env);
   const publishInviteStore = loadHostedPublishInviteStoreFromEnv(input.env);
+  const trialPublishConfig = loadHostedTrialPublishConfigFromEnv(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
     clock: input.now
@@ -343,11 +439,18 @@ export function createHostedProductionServerFromEnv(input: {
       }
     }),
     resolvePrincipal: identityProvider.resolvePrincipal,
-    resolveOwnershipVerification({ principal }) {
-      return buildOwnershipVerification({
+    resolveOwnershipVerification({ principal, definition }) {
+      const registryOwnership = buildOwnershipVerification({
         tenant_id: principal.tenant_id,
         registry: ownershipRegistry
       });
+      const trialOwnership = buildHostedTrialPublishOwnership({
+        config: trialPublishConfig,
+        definition,
+        now: input.now()
+      });
+
+      return mergeOwnershipVerification(registryOwnership, trialOwnership);
     }
   });
   const mcpEntrypoint = createHostedMcpHttpEntrypoint({

@@ -9,6 +9,7 @@ import {
   createPostgresPoolQueryClient,
   formatHostedCommandError,
   loadHostedPublishInviteStoreFromEnv,
+  loadHostedTrialPublishConfigFromEnv,
   loadHostedRetentionJobConfig,
   loadHostedIdentityProviderConfig,
   parseHostedRetentionArgs
@@ -16,6 +17,8 @@ import {
 
 const hostedIdentitySigningSecret = "unit-fixture-hosted-identity-secret-with-enough-entropy";
 const hostedMcpBearerToken = "unit-fixture-hosted-mcp-bearer-token-with-enough-entropy";
+const trialDestinationUrl = "https://webhook.site/d4fdb9b4-f8af-470a-a9e8-2bfb6e04d04b";
+const trialServiceKeyId = "jwk-thumbprint:sha256:trial-webhook-site";
 
 describe("hosted production runtime package", () => {
   test("test_hosted_production_server_from_env_constructs_closed_server", () => {
@@ -64,6 +67,129 @@ describe("hosted production runtime package", () => {
       }
     });
     expect(JSON.stringify(store?.listRecords())).not.toContain("friend_invite_token");
+  });
+
+  test("test_hosted_trial_publish_config_loads_only_when_complete", () => {
+    expect(loadHostedTrialPublishConfigFromEnv({})).toBeUndefined();
+    expect(loadHostedTrialPublishConfigFromEnv({
+      WATASU_HOSTED_TRIAL_DESTINATION_URL: trialDestinationUrl,
+      WATASU_HOSTED_TRIAL_SERVICE_KEY_ID: trialServiceKeyId,
+      WATASU_HOSTED_TRIAL_EXPIRES_AT: "2026-06-17T00:00:00.000Z"
+    })).toEqual({
+      destinationUrl: trialDestinationUrl,
+      serviceKeyId: trialServiceKeyId,
+      expiresAt: "2026-06-17T00:00:00.000Z"
+    });
+    expect(() => loadHostedTrialPublishConfigFromEnv({
+      WATASU_HOSTED_TRIAL_DESTINATION_URL: trialDestinationUrl
+    })).toThrow("Hosted trial publish env vars must be set together.");
+  });
+
+  test("test_hosted_trial_publish_allows_exact_low_risk_destination_without_ownership_challenge", async () => {
+    const runtime = createHostedProductionServerFromEnv({
+      env: createTrialPublishEnv(),
+      now: () => new Date("2026-06-16T00:00:00.000Z")
+    });
+    const response = await postHostedPublish(runtime, {
+      bearerCredential: "trial_invite",
+      definition: createTrialRequestDefinition()
+    });
+
+    expect(response.status).toBe(201);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: true,
+      published: {
+        request_id: "event-attendee-alpha-test",
+        request_version: "v1"
+      }
+    });
+    expect(response.body).not.toContain("trial_invite");
+    runtime.server.close();
+  });
+
+  test("test_hosted_trial_publish_rejects_destination_mismatch", async () => {
+    const runtime = createHostedProductionServerFromEnv({
+      env: createTrialPublishEnv(),
+      now: () => new Date("2026-06-16T00:00:00.000Z")
+    });
+    const response = await postHostedPublish(runtime, {
+      bearerCredential: "trial_invite",
+      definition: createTrialRequestDefinition({
+        destination: {
+          type: "webhook",
+          url: "https://webhook.site/other"
+        }
+      })
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      error: {
+        code: "service_key_not_verified"
+      }
+    });
+    runtime.server.close();
+  });
+
+  test("test_hosted_trial_publish_rejects_expired_trial", async () => {
+    const runtime = createHostedProductionServerFromEnv({
+      env: createTrialPublishEnv({
+        WATASU_HOSTED_TRIAL_EXPIRES_AT: "2026-06-15T00:00:00.000Z"
+      }),
+      now: () => new Date("2026-06-16T00:00:00.000Z")
+    });
+    const response = await postHostedPublish(runtime, {
+      bearerCredential: "trial_invite",
+      definition: createTrialRequestDefinition()
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      error: {
+        code: "service_key_not_verified"
+      }
+    });
+    runtime.server.close();
+  });
+
+  test("test_hosted_trial_publish_rejects_high_risk_fields", async () => {
+    const runtime = createHostedProductionServerFromEnv({
+      env: createTrialPublishEnv(),
+      now: () => new Date("2026-06-16T00:00:00.000Z")
+    });
+    const response = await postHostedPublish(runtime, {
+      bearerCredential: "trial_invite",
+      definition: createTrialRequestDefinition({
+        fields: [
+          {
+            id: "email",
+            type: "string",
+            format: "email",
+            required: true,
+            purpose: "Send smoke-test updates.",
+            sensitivity: "moderate"
+          },
+          {
+            id: "address",
+            type: "string",
+            required: true,
+            purpose: "Test high-risk policy.",
+            sensitivity: "high"
+          }
+        ]
+      })
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: false,
+      error: {
+        code: "public_capability_high_sensitivity"
+      }
+    });
+    runtime.server.close();
   });
 
   test("test_hosted_production_server_from_env_mounts_mcp_auth_challenge", async () => {
@@ -688,6 +814,113 @@ describe("hosted production runtime package", () => {
     expect(JSON.stringify(queries)).not.toContain("postgres://db.example.com/watasu");
   });
 });
+
+function createTrialPublishEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+  return {
+    WATASU_IDENTITY_PROVIDER: "signed_headers",
+    WATASU_MCP_BEARER_TOKEN: hostedMcpBearerToken,
+    WATASU_PUBLIC_BASE_URL: "https://api.watasu.ai",
+    WATASU_SERVICE_IDENTITY_SIGNING_SECRET: hostedIdentitySigningSecret,
+    WATASU_HOSTED_PUBLISH_INVITES_JSON: JSON.stringify([
+      {
+        token: "trial_invite",
+        owner_id: "friend-1",
+        tenant_id: "watasu-private-alpha",
+        roles: ["publisher"],
+        expires_at: "2026-06-17T00:00:00.000Z",
+        max_publish_count: 1
+      }
+    ]),
+    WATASU_HOSTED_TRIAL_DESTINATION_URL: trialDestinationUrl,
+    WATASU_HOSTED_TRIAL_SERVICE_KEY_ID: trialServiceKeyId,
+    WATASU_HOSTED_TRIAL_EXPIRES_AT: "2026-06-17T00:00:00.000Z",
+    PORT: "10000",
+    ...overrides
+  };
+}
+
+function createTrialRequestDefinition(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    name: "event-attendee-alpha-test",
+    schema_version: "2026-06-14",
+    description: "Collect fake attendee details for a private-alpha smoke test.",
+    fields: [
+      {
+        id: "email",
+        type: "string",
+        format: "email",
+        required: true,
+        purpose: "Send smoke-test updates.",
+        sensitivity: "moderate"
+      },
+      {
+        id: "display_name",
+        type: "string",
+        required: false,
+        purpose: "Show a friendly attendee label in the smoke test.",
+        sensitivity: "low"
+      }
+    ],
+    consent: {
+      text: "This private-alpha smoke test uses fake attendee values only to verify delivery."
+    },
+    destination: {
+      type: "webhook",
+      url: trialDestinationUrl
+    },
+    retention: {
+      destination_policy: "Delete smoke-test receiver evidence within 7 days."
+    },
+    encryption: {
+      mode: "required",
+      algorithm: "JWE",
+      key_management: "ECDH-ES+A256KW",
+      content_encryption: "A256GCM",
+      service_key_id: trialServiceKeyId,
+      public_key_jwk: {
+        kty: "EC",
+        crv: "P-256",
+        x: "base64url-x",
+        y: "base64url-y"
+      }
+    },
+    metadata_retention: {
+      days: 7
+    },
+    trust_profile: "public_capability",
+    ...overrides
+  };
+}
+
+async function postHostedPublish(
+  runtime: ReturnType<typeof createHostedProductionServerFromEnv>,
+  input: {
+    bearerCredential: string;
+    definition: Record<string, unknown>;
+  }
+): Promise<CapturedHostedResponse> {
+  const body = JSON.stringify({
+    definition: input.definition,
+    confirmed: true
+  });
+  const request = Readable.from([body]) as Readable & {
+    headers: Record<string, string>;
+    method: string;
+    url: string;
+  };
+  request.headers = {
+    authorization: `Bearer ${input.bearerCredential}`,
+    "content-type": "application/json; charset=utf-8",
+    "content-length": String(Buffer.byteLength(body))
+  };
+  request.method = "POST";
+  request.url = "/requests/event-attendee-alpha-test/publish";
+  const response = captureHostedResponse();
+
+  runtime.server.emit("request", request, response.response);
+
+  return response.ended;
+}
 
 type CapturedHostedResponse = {
   body: string;

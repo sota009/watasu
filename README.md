@@ -300,6 +300,21 @@ record into `WATASU_HOSTED_PUBLISH_INVITES_JSON` through the deployment secret
 manager. Do not put invite tokens in URLs, logs, docs, schemas, Agent Cards, or
 error responses.
 
+For a temporary fake-data smoke test, operators may also approve exactly one
+trial receiver URL without completing the normal ownership challenge. Set these
+only on the `watasu-hosted` web service, keep the expiry short, and remove them
+after the test:
+
+```text
+WATASU_HOSTED_TRIAL_DESTINATION_URL=https://webhook.site/<uuid>
+WATASU_HOSTED_TRIAL_SERVICE_KEY_ID=jwk-thumbprint:sha256:trial-webhook-site
+WATASU_HOSTED_TRIAL_EXPIRES_AT=2026-06-18T00:00:00.000Z
+```
+
+The trial allowance is exact-match only and applies only to low-risk fields such
+as `email` and `display_name`; it does not disable hosted ownership checks
+globally.
+
 The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions, invite records, retirement state, and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, invite, retirement, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
 
 ## Verification

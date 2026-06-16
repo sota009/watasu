@@ -103,6 +103,7 @@ Current hosted private-alpha limits:
 - Rate limiting now has a PostgreSQL-compatible fixed-window counter that saves hashed rate-limit keys only. The live private-alpha runtime still uses in-memory defaults until DB-backed runtime wiring is intentionally enabled.
 - Hosted publish now awaits async request-version repositories, and a PostgreSQL-compatible request-version repository can persist contract versions per tenant. Live DB-backed repository wiring remains Hosted Production MVP work.
 - Hosted publish can resolve an individual invite token into a limited publisher identity, record owner metadata, increment quota only after successful publish, and retire requests without deleting ledger rows. Live DB-backed invite administration remains operator work.
+- Hosted private-alpha smoke tests can use a short-lived operator-approved trial receiver exact-match allowlist for low-risk fake-data requests. This is a temporary verification path, not a general ownership-check bypass.
 - A real private-alpha request still needs to be published through the authenticated hosted MCP boundary when the first design partner flow is ready.
 - Live runtime wiring for persisted request repositories, replay/rate-limit state, production capability administration, and multi-tenant operational runbooks remain Hosted Production MVP work.
 
