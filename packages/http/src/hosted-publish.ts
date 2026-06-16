@@ -28,6 +28,11 @@ export interface HostedPublishApp {
 export interface CreateHostedPublishAppInput {
   repository: AsyncRequestVersionPublisher;
   resolveServiceIdentity(request: HostedPublishRequest): HostedServiceIdentity | undefined;
+  resolveServiceIdentityFailure?(request: HostedPublishRequest): {
+    status: 401 | 403;
+    code: string;
+    message: string;
+  } | undefined;
   authorizeRequestId?(input: {
     serviceIdentity: HostedServiceIdentity;
     request: HostedPublishRequest;
@@ -40,6 +45,11 @@ export interface CreateHostedPublishAppInput {
     definition: RequestDefinition;
   }): PublishOwnershipVerification;
   generateCapabilityToken?: (() => string) | undefined;
+  afterSuccessfulPublish?(input: {
+    serviceIdentity: HostedServiceIdentity;
+    request: HostedPublishRequest;
+    published: Awaited<ReturnType<AsyncRequestVersionPublisher["publish"]>>;
+  }): void | Promise<void>;
 }
 
 export type HostedPublishAuthorizationResult =
@@ -81,6 +91,18 @@ export function createHostedPublishApp(input: CreateHostedPublishAppInput): Host
 
       const serviceIdentity = input.resolveServiceIdentity(request);
       if (serviceIdentity === undefined) {
+        const authFailure = input.resolveServiceIdentityFailure?.(request);
+        if (authFailure !== undefined) {
+          return jsonResponse(authFailure.status, {
+            ok: false,
+            status: authFailure.status === 401 ? "auth_required" : "forbidden",
+            error: {
+              code: authFailure.code,
+              message: authFailure.message
+            }
+          });
+        }
+
         return jsonResponse(401, {
           ok: false,
           status: "auth_required",
@@ -160,6 +182,12 @@ export function createHostedPublishApp(input: CreateHostedPublishAppInput): Host
           error: result.error
         });
       }
+
+      await input.afterSuccessfulPublish?.({
+        serviceIdentity,
+        request,
+        published: result.published
+      });
 
       return jsonResponse(201, {
         ok: true,

@@ -14,6 +14,8 @@ import {
   createMigratedPostgresRequestVersionRepository,
   createPostgresDeliveryLedgerSchemaSql,
   createPostgresIdempotencyStoreSchemaSql,
+  createPostgresPublishedRequestRegistrySchemaSql,
+  createPostgresPublishInviteStoreSchemaSql,
   createPostgresFixedWindowRateLimiterSchemaSql,
   createPostgresRequestVersionRepositorySchemaSql,
   createPolicyControlledDeliveryLedger,
@@ -26,6 +28,8 @@ import {
   runPostgresCapabilityRegistryMigration,
   runPostgresDeliveryLedgerMigration,
   runPostgresIdempotencyStoreMigration,
+  runPostgresPublishedRequestRegistryMigration,
+  runPostgresPublishInviteStoreMigration,
   runPostgresFixedWindowRateLimiterMigration,
   runPostgresRequestVersionRepositoryMigration,
   runHostedMetadataLedgerRetentionJob,
@@ -1410,6 +1414,51 @@ describe("storage policy controlled delivery ledger", () => {
         text: createPostgresRequestVersionRepositorySchemaSql(),
         values: []
       }
+    ]);
+  });
+});
+
+describe("hosted publish invite and request registry storage schema", () => {
+  test("test_publish_invite_schema_stores_token_hash_without_raw_token", () => {
+    const sql = createPostgresPublishInviteStoreSchemaSql();
+
+    expect(sql).toContain("watasu_publish_invites");
+    expect(sql).toContain("token_hash text not null");
+    expect(sql).toContain("owner_id text not null");
+    expect(sql).toContain("max_publish_count integer not null");
+    expect(sql).toContain("used_count integer not null default 0");
+    expect(sql).not.toContain(" token text");
+    expect(sql).not.toContain("raw_token");
+  });
+
+  test("test_published_request_registry_schema_records_owner_and_retired_at", () => {
+    const sql = createPostgresPublishedRequestRegistrySchemaSql();
+
+    expect(sql).toContain("watasu_published_requests");
+    expect(sql).toContain("tenant_id text not null");
+    expect(sql).toContain("owner_id text not null");
+    expect(sql).toContain("request_id text not null");
+    expect(sql).toContain("request_version text not null");
+    expect(sql).toContain("retired_at timestamptz");
+  });
+
+  test("test_publish_invite_and_registry_migrations_execute_schema_sql", async () => {
+    const queries: string[] = [];
+    const queryClient = {
+      async query(text: string) {
+        queries.push(text);
+        return {
+          rows: []
+        };
+      }
+    };
+
+    await runPostgresPublishInviteStoreMigration({ queryClient });
+    await runPostgresPublishedRequestRegistryMigration({ queryClient });
+
+    expect(queries).toEqual([
+      createPostgresPublishInviteStoreSchemaSql(),
+      createPostgresPublishedRequestRegistrySchemaSql()
     ]);
   });
 });

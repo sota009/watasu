@@ -29,6 +29,12 @@ export {
   publishRequestVersionAsync
 } from "./publish.js";
 export {
+  InMemoryPublishInviteStore
+} from "./publish-invite.js";
+export {
+  InMemoryPublishedRequestRegistry
+} from "./published-request-registry.js";
+export {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
@@ -59,6 +65,8 @@ export {
   createPostgresDeliveryLedgerSchemaSql,
   createPostgresFixedWindowRateLimiterSchemaSql,
   createPostgresIdempotencyStoreSchemaSql,
+  createPostgresPublishedRequestRegistrySchemaSql,
+  createPostgresPublishInviteStoreSchemaSql,
   createPostgresRequestVersionRepositorySchemaSql,
   createPolicyControlledDeliveryLedger,
   JsonlDeliveryLedgerStore,
@@ -71,6 +79,8 @@ export {
   runPostgresDeliveryLedgerMigration,
   runPostgresFixedWindowRateLimiterMigration,
   runPostgresIdempotencyStoreMigration,
+  runPostgresPublishedRequestRegistryMigration,
+  runPostgresPublishInviteStoreMigration,
   runPostgresRequestVersionRepositoryMigration,
   runHostedMetadataLedgerRetentionJob,
   runMetadataLedgerRetention
@@ -171,6 +181,16 @@ export type {
   StoragePolicy,
   StoragePolicyMode
 } from "./storage-policy.js";
+export type {
+  PublishInviteRecord,
+  PublishInviteResolutionResult,
+  PublishInviteStore
+} from "./publish-invite.js";
+export type {
+  PublishedRequestRecord,
+  PublishedRequestRegistry,
+  RequestRetireResult
+} from "./published-request-registry.js";
 export type {
   OwnershipChallenge,
   OwnershipChallengeStatus,

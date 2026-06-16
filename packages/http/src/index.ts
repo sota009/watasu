@@ -26,11 +26,17 @@ export type {
   CreateSignedServiceIdentityPrincipalResolverInput
 } from "./hosted-signed-identity.js";
 export { createHostedPublishApp } from "./hosted-publish.js";
+export { createHostedRetireApp } from "./hosted-retire.js";
 export type {
   HostedPublishApp,
   HostedPublishRequest,
   HostedPublishResponse
 } from "./hosted-publish.js";
+export type {
+  HostedRetireApp,
+  HostedRetireRequest,
+  HostedRetireResponse
+} from "./hosted-retire.js";
 export {
   InMemoryHostedSenderKeyRegistry,
   createHostedSenderTrustResolver

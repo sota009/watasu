@@ -91,6 +91,7 @@ export type HostedServiceRole =
 
 export interface HostedServiceIdentity {
   tenant_id: string;
+  owner_id?: string | undefined;
   roles: HostedServiceRole[];
 }
 
@@ -677,6 +678,62 @@ export async function createMigratedPostgresRequestVersionRepository(input: {
     queryClient: input.queryClient,
     clock: input.clock
   });
+}
+
+export function createPostgresPublishInviteStoreSchemaSql(): string {
+  return `create table if not exists watasu_publish_invites (
+  tenant_id text not null,
+  owner_id text not null,
+  token_hash text not null,
+  roles_json jsonb not null,
+  expires_at timestamptz not null,
+  max_publish_count integer not null,
+  used_count integer not null default 0,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, token_hash),
+  check (max_publish_count >= 0),
+  check (used_count >= 0)
+);
+
+create index if not exists watasu_publish_invites_owner_idx
+  on watasu_publish_invites (tenant_id, owner_id);
+
+create index if not exists watasu_publish_invites_expiry_idx
+  on watasu_publish_invites (tenant_id, expires_at);`;
+}
+
+export async function runPostgresPublishInviteStoreMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresPublishInviteStoreSchemaSql(), []);
+}
+
+export function createPostgresPublishedRequestRegistrySchemaSql(): string {
+  return `create table if not exists watasu_published_requests (
+  tenant_id text not null,
+  owner_id text not null,
+  request_id text not null,
+  request_version text not null,
+  published_at timestamptz not null,
+  retired_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, request_id)
+);
+
+create index if not exists watasu_published_requests_owner_idx
+  on watasu_published_requests (tenant_id, owner_id);
+
+create index if not exists watasu_published_requests_retired_idx
+  on watasu_published_requests (tenant_id, retired_at);`;
+}
+
+export async function runPostgresPublishedRequestRegistryMigration(input: {
+  queryClient: PostgresQueryClient;
+}): Promise<void> {
+  await input.queryClient.query(createPostgresPublishedRequestRegistrySchemaSql(), []);
 }
 
 export function createPostgresFixedWindowRateLimiterSchemaSql(): string {

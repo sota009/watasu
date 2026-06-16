@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
+  InMemoryPublishedRequestRegistry,
   InMemoryRequestVersionRepository,
   type RequestDefinition
 } from "@watasu/core";
+import { createHostedRetireApp } from "./hosted-retire.js";
 import {
   createHostedProductionApp,
   type HostedProductionRequest
@@ -466,6 +468,125 @@ describe("hosted production HTTP app", () => {
       surface: "submit"
     });
     expect(handledPaths).toEqual(["/requests/event-attendee-intake/submit"]);
+  });
+
+  test("test_retired_agent_card_and_schema_and_submit_routes_return_gone", async () => {
+    // Arrange
+    const requestVersions = new InMemoryRequestVersionRepository();
+    const published = requestVersions.publish("event-attendee-intake", definition);
+    const registry = new InMemoryPublishedRequestRegistry();
+    registry.recordPublished({
+      tenant_id: "tenant-a",
+      owner_id: "owner-a",
+      request_id: published.request_id,
+      request_version: published.request_version,
+      published_at: published.published_at,
+      retired_at: null
+    });
+    registry.retireRequest({
+      serviceIdentity: {
+        tenant_id: "tenant-a",
+        owner_id: "owner-a",
+        roles: ["publisher"]
+      },
+      requestId: "event-attendee-intake",
+      retiredAt: "2026-06-16T00:00:00.000Z"
+    });
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle retired routes");
+        }
+      },
+      submitApp: createUnexpectedSubmitApp("retired submit"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions,
+      isRequestRetired: registry.isRetired.bind(registry),
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle retired routes");
+        }
+      }
+    });
+
+    // Act
+    const agentCardResponse = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/agent-card.json"
+    }));
+    const schemaResponse = await app.handle(createRequest({
+      method: "GET",
+      path: "/requests/event-attendee-intake/schemas/plaintext.json"
+    }));
+    const submitResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/submit"
+    }));
+
+    // Assert
+    expect(agentCardResponse.status).toBe(410);
+    expect(schemaResponse.status).toBe(410);
+    expect(submitResponse.status).toBe(410);
+    expect(parseJson(agentCardResponse.body)).toEqual({
+      ok: false,
+      error: {
+        code: "request_retired",
+        message: "Published request has been retired."
+      }
+    });
+  });
+
+  test("test_post_retire_route_is_delegated_to_hosted_retire_app", async () => {
+    // Arrange
+    const registry = new InMemoryPublishedRequestRegistry();
+    registry.recordPublished({
+      tenant_id: "tenant-a",
+      owner_id: "owner-a",
+      request_id: "event-attendee-intake",
+      request_version: "v1",
+      published_at: "2026-06-16T00:00:00.000Z",
+      retired_at: null
+    });
+    const app = createHostedProductionApp({
+      publishApp: {
+        async handle() {
+          throw new Error("publish app must not handle retire route");
+        }
+      },
+      retireApp: createHostedRetireApp({
+        registry,
+        resolveServiceIdentity: () => ({
+          tenant_id: "tenant-a",
+          owner_id: "owner-a",
+          roles: ["publisher"]
+        }),
+        clock: () => new Date("2026-06-16T01:00:00.000Z")
+      }),
+      submitApp: createUnexpectedSubmitApp("retire"),
+      publicBaseUrl: "https://api.watasu.ai",
+      requestVersions: new InMemoryRequestVersionRepository(),
+      metadataApp: {
+        async handle() {
+          throw new Error("metadata app must not handle retire route");
+        }
+      }
+    });
+
+    // Act
+    const response = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/retire"
+    }));
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(parseJson(response.body)).toMatchObject({
+      ok: true,
+      retired: {
+        request_id: "event-attendee-intake",
+        retired_at: "2026-06-16T01:00:00.000Z"
+      }
+    });
   });
 
   test("test_get_ledger_route_is_delegated_to_hosted_metadata_app", async () => {

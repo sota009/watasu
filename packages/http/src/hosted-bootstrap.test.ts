@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   canonicalizeJson,
+  InMemoryPublishedRequestRegistry,
+  InMemoryPublishInviteStore,
   InMemoryRequestVersionRepository,
   createMetadataLedgerReader,
   sha256Hash,
@@ -245,6 +247,224 @@ describe("hosted production bootstrap app", () => {
 
     expect(publishResponse.status).toBe(401);
     expect(ledgerResponse.status).toBe(401);
+  });
+
+  test("test_bootstrap_allows_invite_token_to_publish_and_records_owner", async () => {
+    const repository = new InMemoryRequestVersionRepository();
+    const inviteStore = new InMemoryPublishInviteStore();
+    const requestRegistry = new InMemoryPublishedRequestRegistry();
+    inviteStore.issueInvite({
+      token: "friend_invite_token",
+      ownerId: "owner-a",
+      tenantId: "tenant-a",
+      roles: ["publisher"],
+      expiresAt: "2026-06-17T00:00:00.000Z",
+      maxPublishCount: 1
+    });
+    const app = createHostedProductionBootstrapApp({
+      repository,
+      requestRegistry,
+      publishInviteStore: inviteStore,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      clock: () => new Date("2026-06-16T00:00:00.000Z"),
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: () => undefined,
+      resolveOwnershipVerification: () => createOwnership()
+    });
+
+    const response = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      headers: {
+        authorization: "Bearer friend_invite_token"
+      },
+      body: {
+        definition,
+        confirmed: true
+      }
+    }));
+
+    expect(response.status).toBe(201);
+    expect(inviteStore.listRecords()[0]?.used_count).toBe(1);
+    expect(await requestRegistry.listRecords()).toMatchObject([
+      {
+        tenant_id: "tenant-a",
+        owner_id: "owner-a",
+        request_id: "event-attendee-intake",
+        request_version: "v1",
+        retired_at: null
+      }
+    ]);
+    expect(response.body).not.toContain("friend_invite_token");
+  });
+
+  test("test_bootstrap_rejects_invite_publish_quota_exceeded", async () => {
+    const inviteStore = new InMemoryPublishInviteStore();
+    inviteStore.issueInvite({
+      token: "single_use_invite_token",
+      ownerId: "owner-a",
+      tenantId: "tenant-a",
+      roles: ["publisher"],
+      expiresAt: "2026-06-17T00:00:00.000Z",
+      maxPublishCount: 1
+    });
+    inviteStore.incrementPublishCount("single_use_invite_token");
+    const app = createHostedProductionBootstrapApp({
+      repository: new InMemoryRequestVersionRepository(),
+      publishInviteStore: inviteStore,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      clock: () => new Date("2026-06-16T00:00:00.000Z"),
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: () => undefined,
+      resolveOwnershipVerification: () => createOwnership()
+    });
+
+    const response = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      headers: {
+        authorization: "Bearer single_use_invite_token"
+      },
+      body: {
+        definition,
+        confirmed: true
+      }
+    }));
+
+    expect(response.status).toBe(403);
+    expect(parseJson(response.body)).toMatchObject({
+      ok: false,
+      status: "forbidden",
+      error: {
+        code: "invite_quota_exceeded"
+      }
+    });
+  });
+
+  test("test_bootstrap_owner_and_request_admin_can_retire_requests", async () => {
+    const repository = new InMemoryRequestVersionRepository();
+    const requestRegistry = new InMemoryPublishedRequestRegistry();
+    const inviteStore = new InMemoryPublishInviteStore();
+    inviteStore.issueInvite({
+      token: "owner_invite_token",
+      ownerId: "owner-a",
+      tenantId: "tenant-a",
+      roles: ["publisher"],
+      expiresAt: "2026-06-17T00:00:00.000Z",
+      maxPublishCount: 2
+    });
+    const app = createHostedProductionBootstrapApp({
+      repository,
+      requestRegistry,
+      publishInviteStore: inviteStore,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      clock: () => new Date("2026-06-16T00:00:00.000Z"),
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: (request) => {
+        if (request.headers.authorization === "Bearer admin_token") {
+          return {
+            tenant_id: "tenant-admin",
+            roles: ["request_admin"]
+          };
+        }
+
+        if (request.headers.authorization === "Bearer other_owner_token") {
+          return {
+            tenant_id: "tenant-a",
+            owner_id: "owner-b",
+            roles: ["publisher"]
+          };
+        }
+
+        return undefined;
+      },
+      resolveOwnershipVerification: () => createOwnership()
+    });
+
+    await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/publish",
+      headers: {
+        authorization: "Bearer owner_invite_token"
+      },
+      body: {
+        definition,
+        confirmed: true
+      }
+    }));
+    const forbiddenResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/retire",
+      headers: {
+        authorization: "Bearer other_owner_token"
+      }
+    }));
+    const ownerResponse = await app.handle(createRequest({
+      method: "POST",
+      path: "/requests/event-attendee-intake/retire",
+      headers: {
+        authorization: "Bearer owner_invite_token"
+      }
+    }));
+
+    expect(forbiddenResponse.status).toBe(403);
+    expect(ownerResponse.status).toBe(200);
+
+    const adminRegistry = new InMemoryPublishedRequestRegistry();
+    adminRegistry.recordPublished({
+      tenant_id: "tenant-a",
+      owner_id: "owner-a",
+      request_id: "admin-retired-intake",
+      request_version: "v1",
+      published_at: "2026-06-16T00:00:00.000Z",
+      retired_at: null
+    });
+    const adminApp = createHostedProductionBootstrapApp({
+      repository: new InMemoryRequestVersionRepository(),
+      requestRegistry: adminRegistry,
+      publicBaseUrl: "https://api.watasu.ai",
+      deliverySigningSecret: "test-deployment-signing-secret-with-enough-entropy",
+      clock: () => new Date("2026-06-16T01:00:00.000Z"),
+      ledgerReader: createMetadataLedgerReader({
+        rows: [],
+        requestTenants: {},
+        auditLog: {
+          write() {}
+        }
+      }),
+      resolvePrincipal: () => ({
+        tenant_id: "tenant-admin",
+        roles: ["request_admin"]
+      }),
+      resolveOwnershipVerification: () => createOwnership()
+    });
+    const adminResponse = await adminApp.handle(createRequest({
+      method: "POST",
+      path: "/requests/admin-retired-intake/retire"
+    }));
+
+    expect(adminResponse.status).toBe(200);
   });
 
   test("test_bootstrap_resolves_sender_trust_with_principal_tenant_for_submit", async () => {

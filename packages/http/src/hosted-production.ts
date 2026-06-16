@@ -15,6 +15,11 @@ import type {
   HostedPublishResponse
 } from "./hosted-publish.js";
 import type {
+  HostedRetireApp,
+  HostedRetireRequest,
+  HostedRetireResponse
+} from "./hosted-retire.js";
+import type {
   HostedSubmitApp,
   HostedSubmitRequest,
   HostedSubmitResponse,
@@ -22,8 +27,8 @@ import type {
 } from "./hosted-submit.js";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
-export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest & HostedSubmitRequest;
-export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse & HostedSubmitResponse;
+export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest & HostedSubmitRequest & HostedRetireRequest;
+export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse & HostedSubmitResponse & HostedRetireResponse;
 
 export interface HostedProductionApp {
   handle(request: HostedProductionRequest): Promise<HostedProductionResponse>;
@@ -31,10 +36,12 @@ export interface HostedProductionApp {
 
 export interface CreateHostedProductionAppInput {
   publishApp: HostedPublishApp;
+  retireApp?: HostedRetireApp | undefined;
   metadataApp: HostedMetadataApp;
   submitApp: HostedSubmitApp;
   publicBaseUrl: string;
   requestVersions: HostedRequestVersionReader;
+  isRequestRetired?: ((requestId: string) => boolean | Promise<boolean>) | undefined;
 }
 
 export function createHostedProductionApp(input: CreateHostedProductionAppInput): HostedProductionApp {
@@ -51,12 +58,34 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
         return input.publishApp.handle(request);
       }
 
-      if (matchActionPath(request, "POST", "submit") !== undefined) {
+      const retireRequestId = matchActionPath(request, "POST", "retire");
+      if (retireRequestId !== undefined) {
+        return input.retireApp === undefined
+          ? jsonResponse(404, {
+              ok: false,
+              error: {
+                code: "not_found",
+                message: "Hosted production route was not found."
+              }
+            })
+          : input.retireApp.handle(request);
+      }
+
+      const submitRequestId = matchActionPath(request, "POST", "submit");
+      if (submitRequestId !== undefined) {
+        if (await isRetired(input, submitRequestId)) {
+          return publishedRequestGoneResponse();
+        }
+
         return input.submitApp.handle(request);
       }
 
       const schemaRequest = matchSchemaPath(request);
       if (schemaRequest !== undefined) {
+        if (await isRetired(input, schemaRequest.requestId)) {
+          return publishedRequestGoneResponse();
+        }
+
         const published = latestPublishedRequest(await input.requestVersions.list(schemaRequest.requestId));
         if (published === undefined) {
           return publishedRequestNotFoundResponse();
@@ -72,6 +101,10 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 
       const agentCardRequestId = matchAgentCardPath(request);
       if (agentCardRequestId !== undefined) {
+        if (await isRetired(input, agentCardRequestId)) {
+          return publishedRequestGoneResponse();
+        }
+
         const published = latestPublishedRequest(await input.requestVersions.list(agentCardRequestId));
         if (published === undefined) {
           return publishedRequestNotFoundResponse();
@@ -101,7 +134,7 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 function matchActionPath(
   request: HostedProductionRequest,
   method: string,
-  action: "publish" | "submit" | "ledger"
+  action: "publish" | "submit" | "ledger" | "retire"
 ): string | undefined {
   if (request.method !== method) {
     return undefined;
@@ -163,6 +196,23 @@ function publishedRequestNotFoundResponse(): HostedProductionResponse {
     error: {
       code: "request_version_not_found",
       message: "Published request was not found."
+    }
+  });
+}
+
+async function isRetired(
+  input: CreateHostedProductionAppInput,
+  requestId: string
+): Promise<boolean> {
+  return await input.isRequestRetired?.(requestId) ?? false;
+}
+
+function publishedRequestGoneResponse(): HostedProductionResponse {
+  return jsonResponse(410, {
+    ok: false,
+    error: {
+      code: "request_retired",
+      message: "Published request has been retired."
     }
   });
 }
