@@ -1,12 +1,15 @@
 import {
   buildOwnershipVerification,
   createMetadataLedgerReader,
+  InMemoryPublishedRequestRegistry,
   InMemoryOwnershipChallengeRegistry,
+  InMemoryPublishInviteStore,
   InMemoryRequestVersionRepository,
   createMigratedPostgresDeliveryLedgerStore,
   runHostedMetadataLedgerRetentionJob,
   type PostgresQueryClient,
-  type PostgresDeliveryLedgerStore
+  type PostgresDeliveryLedgerStore,
+  type HostedServiceRole
 } from "@watasu/core";
 import {
   createHostedProductionBootstrapApp,
@@ -71,6 +74,17 @@ export interface HostedMcpBearerTokenConfig {
   bearerToken: string;
 }
 
+export interface HostedPublishInviteConfigRecord {
+  token: string;
+  owner_id: string;
+  tenant_id: string;
+  roles: HostedServiceRole[];
+  expires_at: string;
+  max_publish_count: number;
+  used_count?: number | undefined;
+  revoked_at?: string | null | undefined;
+}
+
 export interface HostedSignedHeaderIdentityProvider {
   resolvePrincipal(request: HostedProductionRequest): ReturnType<
     ReturnType<typeof createSignedServiceIdentityPrincipalResolver>
@@ -131,6 +145,73 @@ export function loadHostedMcpBearerTokenConfig(
 
   return {
     bearerToken
+  };
+}
+
+export function loadHostedPublishInviteStoreFromEnv(
+  env: Record<string, string | undefined>
+): InMemoryPublishInviteStore | undefined {
+  const raw = env["WATASU_HOSTED_PUBLISH_INVITES_JSON"]?.trim();
+  if (raw === undefined || raw.length === 0) {
+    return undefined;
+  }
+
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("WATASU_HOSTED_PUBLISH_INVITES_JSON must be a JSON array.");
+  }
+
+  const store = new InMemoryPublishInviteStore();
+  for (const value of parsed) {
+    const record = parseHostedPublishInviteConfigRecord(value);
+    store.issueInvite({
+      token: record.token,
+      ownerId: record.owner_id,
+      tenantId: record.tenant_id,
+      roles: record.roles,
+      expiresAt: record.expires_at,
+      maxPublishCount: record.max_publish_count
+    });
+    for (let index = 0; index < (record.used_count ?? 0); index += 1) {
+      store.incrementPublishCount(record.token);
+    }
+    if (record.revoked_at !== undefined && record.revoked_at !== null) {
+      store.revokeToken(record.token, record.revoked_at);
+    }
+  }
+
+  return store;
+}
+
+function parseHostedPublishInviteConfigRecord(value: unknown): HostedPublishInviteConfigRecord {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("WATASU_HOSTED_PUBLISH_INVITES_JSON entries must be objects.");
+  }
+
+  const record = value as Record<string, unknown>;
+  const roles = record.roles;
+  if (
+    typeof record.token !== "string" ||
+    typeof record.owner_id !== "string" ||
+    typeof record.tenant_id !== "string" ||
+    !Array.isArray(roles) ||
+    !roles.every((role): role is HostedServiceRole => role === "publisher") ||
+    typeof record.expires_at !== "string" ||
+    typeof record.max_publish_count !== "number" ||
+    !Number.isInteger(record.max_publish_count)
+  ) {
+    throw new Error("WATASU_HOSTED_PUBLISH_INVITES_JSON entries are invalid.");
+  }
+
+  return {
+    token: record.token,
+    owner_id: record.owner_id,
+    tenant_id: record.tenant_id,
+    roles,
+    expires_at: record.expires_at,
+    max_publish_count: record.max_publish_count,
+    used_count: typeof record.used_count === "number" ? record.used_count : undefined,
+    revoked_at: typeof record.revoked_at === "string" ? record.revoked_at : null
   };
 }
 
@@ -242,12 +323,16 @@ export function createHostedProductionServerFromEnv(input: {
 
   const identityProviderConfig = loadHostedIdentityProviderConfig(input.env);
   const mcpBearerTokenConfig = loadHostedMcpBearerTokenConfig(input.env);
+  const publishInviteStore = loadHostedPublishInviteStoreFromEnv(input.env);
   const identityProvider = createSignedHeaderIdentityProviderFromEnv(input);
   const ownershipRegistry = new InMemoryOwnershipChallengeRegistry({
     clock: input.now
   });
+  const requestRegistry = new InMemoryPublishedRequestRegistry();
   const app = createHostedProductionBootstrapApp({
     repository: new InMemoryRequestVersionRepository(),
+    publishInviteStore,
+    requestRegistry,
     publicBaseUrl: config.publicBaseUrl,
     deliverySigningSecret: identityProviderConfig.signingSecret,
     ledgerReader: createMetadataLedgerReader({

@@ -8,6 +8,7 @@ import {
   createNodePostgresPoolConfig,
   createPostgresPoolQueryClient,
   formatHostedCommandError,
+  loadHostedPublishInviteStoreFromEnv,
   loadHostedRetentionJobConfig,
   loadHostedIdentityProviderConfig,
   parseHostedRetentionArgs
@@ -38,6 +39,31 @@ describe("hosted production runtime package", () => {
     });
     expect(runtime.server.listening).toBe(false);
     runtime.server.close();
+  });
+
+  test("test_hosted_publish_invites_env_loads_hash_only_records", () => {
+    const store = loadHostedPublishInviteStoreFromEnv({
+      WATASU_HOSTED_PUBLISH_INVITES_JSON: JSON.stringify([
+        {
+          token: "friend_invite_token",
+          owner_id: "owner-a",
+          tenant_id: "tenant-a",
+          roles: ["publisher"],
+          expires_at: "2026-06-17T00:00:00.000Z",
+          max_publish_count: 2
+        }
+      ])
+    });
+
+    expect(store?.resolveToken("friend_invite_token", new Date("2026-06-16T00:00:00.000Z"))).toMatchObject({
+      ok: true,
+      identity: {
+        tenant_id: "tenant-a",
+        owner_id: "owner-a",
+        roles: ["publisher"]
+      }
+    });
+    expect(JSON.stringify(store?.listRecords())).not.toContain("friend_invite_token");
   });
 
   test("test_hosted_production_server_from_env_mounts_mcp_auth_challenge", async () => {

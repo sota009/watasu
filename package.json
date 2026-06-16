@@ -24,6 +24,7 @@
     "docs:dev": "rspress dev --host 127.0.0.1",
     "docs:preview": "rspress preview --host 127.0.0.1",
     "hosted-submit:status": "node scripts/hosted-submit-status.mjs",
+    "invite:publish": "node scripts/hosted-publish-invite.mjs",
     "lint": "node scripts/secret-scan.mjs --repo",
     "loop": "node scripts/loop-engineer.mjs",
     "loop:full": "node scripts/loop-engineer.mjs --full",
