@@ -87,6 +87,13 @@ GET  https://api.watasu.ai/requests/<request-id>/schemas/plaintext.json
 POST https://api.watasu.ai/requests/<request-id>/submit
 ```
 
+Hosted publish is invite-gated during alpha. An administrator issues an
+individual invite token for a specific owner and tenant, and the service-side
+agent sends it only as `Authorization: Bearer <token>` when publishing. There is
+no public signup or account flow yet. If the owner or an admin retires the
+request, these request-specific Agent Card, schema, and submit URLs return
+`410 Gone`.
+
 The handoff to the user-side agent is the Agent Card URL, usually with the
 schema URL or a schema link inside the Agent Card. The user-side agent fetches
 those URLs, shows the requested fields and consent text to the user, collects or

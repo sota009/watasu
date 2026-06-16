@@ -172,8 +172,8 @@ pnpm --filter @watasu/personal-info-adapter dry-run \
 The adapter calls `get_personal_info` once per mapped required field over MCP
 stdio. Pin the `personal-info-mcp` tag or commit before using real data.
 
-Hosted private-alpha usage uses the same adapter command shape with a private
-Agent Card URL and schema URL:
+Hosted private-alpha submit usage uses the same adapter command shape with a
+private Agent Card URL and schema URL:
 
 ```bash
 pnpm --silent hosted-submit:status
@@ -240,6 +240,15 @@ curl http://127.0.0.1:8787/schemas/envelope.json
 
 ## Hosted private alpha
 
+watasu currently has three operating modes:
+
+- Local demo: run and publish on your machine for protocol rehearsal.
+- Invite-gated hosted alpha: `api.watasu.ai` publish is limited to individual
+  administrator-issued invite tokens. The token is sent only as
+  `Authorization: Bearer <token>` and is stored by hash, not plaintext.
+- Public self-serve: not available yet. Do not invent signup, account creation,
+  billing, or public dashboard flows.
+
 Production origin:
 
 ```text
@@ -272,9 +281,26 @@ curl https://api.watasu.ai/mcp
 
 Without a Bearer token, `401` is the correct result.
 
-Hosted publish and ledger operations run inside the private-alpha authenticated MCP / service identity boundary. This is not a public self-serve UI yet.
+Hosted publish and ledger operations run inside the private-alpha authenticated
+MCP / service identity boundary or the invite-gated hosted alpha boundary. A
+valid invite grants a limited `publisher` service identity for the invite owner
+and tenant; it is not a general account credential. Owner or `request_admin`
+retire can unpublish a request with `POST /requests/<request-id>/retire`.
+Retired Agent Card, schema, and submit routes return `410 Gone`; metadata ledger
+rows are left for retention jobs instead of being hard-deleted immediately.
 
-The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
+Operators can generate an alpha invite record with:
+
+```bash
+pnpm --silent invite:publish --owner <owner-id> --tenant <tenant-id> --max-publish-count 1 --ttl-days 30
+```
+
+Share the printed token once with the invited publisher, and put the generated
+record into `WATASU_HOSTED_PUBLISH_INVITES_JSON` through the deployment secret
+manager. Do not put invite tokens in URLs, logs, docs, schemas, Agent Cards, or
+error responses.
+
+The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions, invite records, retirement state, and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, invite, retirement, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
 
 ## Verification
 

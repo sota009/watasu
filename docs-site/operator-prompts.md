@@ -147,11 +147,16 @@ hand-design them during the first setup flow.
 | `<WATASU_BASE_URL>` | Hosted watasu API base URL, such as `https://api.watasu.ai` |
 | `<WATASU_DOCS_URL>` | Public docs URL, such as `https://docs.watasu.ai` |
 | `<AUTH_CONTEXT>` | How the agent can use authorized watasu CLI, MCP, or API credentials |
+| `<HOSTED_PUBLISH_INVITE>` | Optional alpha-only Bearer invite token for hosted publish; never put it in a URL, log, Agent Card, schema, or error text |
 | `<SERVICE_PUBLIC_KEY>` | Public JWK or key reference published in the request definition |
 
 If a capability is missing, prefer a local/demo implementation path first. If a
 real hosted publish cannot proceed, stop with a blocker report rather than
 asking for low-level secrets or key material in chat.
+
+Hosted alpha has no public signup or account creation path. If
+`<HOSTED_PUBLISH_INVITE>` is unavailable, do not invent one; use local demo or
+report that an administrator-issued invite is required.
 
 ## Service-side setup recipe
 

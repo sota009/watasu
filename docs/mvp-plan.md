@@ -76,6 +76,8 @@ The repository now has library or runtime artifacts for these hosted trust bound
 - webhook domain ownership verification
 - hosted sender authentication for `verified_sender` and `private_invite`
 - tenant and role authorization for hosted operations
+- invite-gated hosted publish for limited alpha publishers
+- request retire/unpublish state with `410 Gone` public request routes
 - optional metadata-only ledger access controls
 - audit logs for metadata reads
 - retention jobs for ledger and operational metadata
@@ -95,11 +97,12 @@ These commands passed against the current implementation on 2026-06-16 JST. The 
 Current hosted private-alpha limits:
 
 - The live web runtime composes `InMemoryRequestVersionRepository`, an in-memory ownership challenge registry, in-memory idempotency/rate-limit defaults, and a no-op delivery ledger unless explicit dependencies are injected by tests or future runtime wiring.
-- The web runtime intentionally rejects `WATASU_METADATA_LEDGER_STORE=postgres`; PostgreSQL is wired for retention dry-run evidence and durable request-version/capability/idempotency/rate-limit metadata primitives, not full web read/write custody.
+- The web runtime intentionally rejects `WATASU_METADATA_LEDGER_STORE=postgres`; PostgreSQL is wired for retention dry-run evidence and durable request-version/invite/retirement/capability/idempotency/rate-limit metadata primitives, not full web read/write custody.
 - Capability revoke/rotate is implemented in the core model, can be enforced by hosted submit through an injected resolver, and now has a PostgreSQL-compatible metadata store that saves hashes only. Production capability administration is not yet wired to the live hosted runtime.
 - Idempotency validation now has an async validation path and PostgreSQL-compatible claim store that saves hashed replay keys only. The live private-alpha runtime still uses in-memory defaults until DB-backed runtime wiring is intentionally enabled.
 - Rate limiting now has a PostgreSQL-compatible fixed-window counter that saves hashed rate-limit keys only. The live private-alpha runtime still uses in-memory defaults until DB-backed runtime wiring is intentionally enabled.
 - Hosted publish now awaits async request-version repositories, and a PostgreSQL-compatible request-version repository can persist contract versions per tenant. Live DB-backed repository wiring remains Hosted Production MVP work.
+- Hosted publish can resolve an individual invite token into a limited publisher identity, record owner metadata, increment quota only after successful publish, and retire requests without deleting ledger rows. Live DB-backed invite administration remains operator work.
 - A real private-alpha request still needs to be published through the authenticated hosted MCP boundary when the first design partner flow is ready.
 - Live runtime wiring for persisted request repositories, replay/rate-limit state, production capability administration, and multi-tenant operational runbooks remain Hosted Production MVP work.
 
