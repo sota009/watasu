@@ -232,3 +232,10 @@ export type {
   ServiceKeyRecordStatus,
   ServiceKeyRegistryResult
 } from "./service-key.js";
+export {
+  InMemoryCredentialStore
+} from "./credential-store.js";
+export type {
+  CredentialRecord,
+  CredentialStore
+} from "./credential-store.js";
