@@ -27,10 +27,12 @@ Investigated both repos before this framing (2026-07-04).
   no-custody relay, envelope validation, hashing, idempotency, SSRF-guarded delivery, the
   metadata ledger, and the MCP + CLI operator surface — all deployed on Render. The consent
   gate is a **single insertion** at a known point in `hosted-submit.ts`, plus one new table.
-- The envelope already reserves `consent_receipt_hash`
-  (`packages/core/src/submission.ts`, checked in `isSubmissionEnvelope`,
-  `packages/http/src/hosted-submit.ts:319`) with **no runtime lifecycle behind it** — a
-  hole shaped like this feature.
+- The gate adds a distinct runtime field **`consent_receipt_token`** on the envelope
+  (`packages/core/src/submission.ts`). **Post-rebase note (2026-07-05):** upstream separately
+  shipped a *static* `consent_receipt` / `consent_receipt_hash` attestation (Sota's
+  personal-info adapter, PRs #81–87). Same-ish name, different mechanism — the runtime token
+  and the static receipt are explicitly distinct (`submission.ts:24-30`). See §13 for the
+  reconciliation; this is the most consequential finding in this doc.
 - **`tap` (Nexepia / Sota) is the wrong home for the *trigger*.** Its only entry point is a
   synchronous physical NFC/QR tap resolved in-PWA; it has no agent-pause, no consent-URL
   handoff, and no A2A task states — so the pause/relay belongs on watasu. But tap *is* the
@@ -115,7 +117,7 @@ completion signal is only the fast path.
 | Concern | File | What changes |
 | --- | --- | --- |
 | Gate the submit flow | `packages/http/src/hosted-submit.ts:180` | Between `validateSubmissionEnvelope` (`:172`) and `deliverAcceptedSubmission` (`:180`), branch on consent state. |
-| Envelope already carries the field | `packages/http/src/hosted-submit.ts:319` (`consent_receipt_hash`) | Reuse; bind runtime receipt to it. |
+| Runtime receipt field | `packages/core/src/submission.ts` (`consent_receipt_token`) | New field, distinct from upstream's static `consent_receipt` / `consent_receipt_hash` (§13). |
 | New trust profile | `packages/core/src/submission.ts` (`trust_profile`), `resolveSenderTrust` in `hosted-submit.ts:225` | Add `human_consent`; short-circuit sender-trust the way `public_capability`/`local_demo` already do at `:236`. |
 | Persistence pattern to copy | `infra/postgres/metadata-ledger.sql`, `packages/core/src/delivery.ts` (ledger row types), `packages/hosted/src/index.ts` (Postgres wiring + retention) | Add a parallel `pending_consent` table + store + retention. |
 | Consent surface (new) | new `packages/http` routes + a static page | `GET /requests/{id}/consent/{token}`, `POST …/consent/{token}/approve`. |
@@ -201,8 +203,8 @@ nothing between pause and approval.
   carries it in `consent_url`; the token *is* the row.
 - On approval, watasu verifies the token signature + `exp`, checks the WebAuthn assertion
   against `challenge = SHA-256(envelope_hash ‖ consent_text_hash ‖ nonce)` (all recovered
-  from the token — no lookup), and mints a signed `consent_receipt` (in `@tap/schema` KB-JWT
-  shape, §9) that the agent presents on resume.
+  from the token — no lookup), and mints a signed `consent_receipt_token` (in `@tap/schema`
+  KB-JWT shape, §9) that the agent presents on resume.
 - The only durable need is **single-use / replay protection** ("has this consent_token been
   spent"), which rides the existing `IdempotencyStore` abstraction
   (`packages/http/src/hosted-submit.ts:48`). Single Render instance: in-memory is adequate
@@ -357,3 +359,54 @@ This is not cleanup — it deletes tap's **physical-NFC product** and its **clie
 and dissolves the **verifier Worker** into watasu. It is the "merge the two halves into one
 agent-mediated product" decision. Execute as a reviewable branch/PR on `tap` for Sota, not
 piecemeal.
+
+## 13. Reconciliation with upstream's `consent_receipt` (surfaced by the rebase)
+
+Rebasing onto current `main` collided on the name `consent_receipt` — because **Sota already
+built a consent mechanism on watasu** (PRs #81–87, 2026-06-15, the personal-info adapter).
+The branch's runtime field was renamed to `consent_receipt_token` to coexist. But the
+collision is not just a name clash; it exposes **two different philosophies of where consent
+lives**, and that is the real thing to reconcile with Sota before this merges.
+
+### The two mechanisms
+
+| | Upstream `consent_receipt` (Sota, shipped) | This gate `consent_receipt_token` (proposed) |
+|---|---|---|
+| Type | `ConsentReceiptMetadata` (`submission.ts:33-39`): request_version + 3 hashes + `confirmed_at` | Compact JWS runtime token (`consent.ts`) |
+| Who confirms | The **user's agent / adapter**, before submitting | The **human**, live, at the watasu boundary |
+| Where consent happens | **Client-side**, pre-submission (a local `--confirm` CLI flag in the adapter) | **Server-mediated**, at submission (browser passkey) |
+| What watasu checks | Hash-equality only — receipt matches the published version's hashes (`validateConsentReceiptMetadata`, `submission.ts:466-519`) | WebAuthn signature over the payload-bound challenge |
+| Proves a human consented? | **No** — no signature; anyone with the public Agent Card can forge a structurally-valid receipt. It proves *freshness / version-pinning*, not consent. | **Yes** — passkey signature bound to `envelope_hash` |
+| Pauses the agent? | No — validated inline, fully automated | Yes — `auth_required` → approve → resume |
+
+### The conflict to resolve
+
+Sota's own integration brief (`docs/personal-info-mcp-integration-brief.md`, lines 72-78)
+**explicitly scopes human consent OUT of watasu**: watasu does *not* own "user consent UI,"
+"human dashboard UI," or "model-calling loops for user decisions" — the sender-side adapter
+owns "asking the user to confirm." This consent gate does the **opposite**: it puts a live,
+enforceable human-approval surface *inside* watasu's boundary.
+
+So the two aren't redundant — they're a genuine architectural disagreement:
+
+- **Sota's model** is simpler and keeps watasu thin, but its consent signal is
+  **unenforceable** — watasu cannot prove a human ever confirmed (the `--confirm` flag is
+  invisible to watasu; the receipt is forgeable).
+- **This gate** is heavier (watasu hosts a consent surface) but produces an **enforceable,
+  signed** consent receipt.
+
+### Recommendation
+
+The gate is the stronger fit for the **service-side-risk-reduction** thesis Sota framed in the
+2026-07 sync: an unenforceable client-side `--confirm` does not reduce a service's liability
+(it can't prove consent), whereas a passkey-signed receipt does. But adopting it means Sota
+**moves the "no consent UI in watasu" boundary** his brief drew. That is his call.
+
+Cleanest end state (propose to Sota): keep **both**, layered — upstream's static
+`consent_receipt` stays as the version-pinning/freshness credential the autonomous adapter
+always attaches; the runtime `consent_receipt_token` is required **only** for the
+`human_consent` trust profile, when a service wants an *enforceable* consent receipt. They
+compose: freshness (static) + human approval (token). If Sota rejects hosting a consent UI in
+watasu, the gate's consent surface moves to tap's PWA (which was the plan anyway, §1) and
+watasu only mints/verifies the token — keeping his boundary intact while still producing an
+enforceable receipt.
