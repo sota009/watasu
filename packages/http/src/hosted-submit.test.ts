@@ -133,9 +133,7 @@ function createA2aBody(input: {
             service_key_id: input.published.definition.encryption.service_key_id,
             encrypted_payload: encryptedPayload,
             encrypted_payload_hash: encryptedPayloadHash,
-            ...(input.consentReceiptToken === undefined
-              ? {}
-              : { consent_receipt_token: input.consentReceiptToken })
+            consent_receipt_token: input.consentReceiptToken
           }
         }
       ]

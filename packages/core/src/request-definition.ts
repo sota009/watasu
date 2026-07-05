@@ -114,20 +114,21 @@ const sensitivityRank: Record<Sensitivity, number> = {
   prohibited: 3
 };
 
+// Each rule tags a field with the highest sensitivity its label/purpose implies.
+// The comment on each entry names the category the patterns detect.
 const inferenceRules: Array<{
-  code: string;
   sensitivity: Sensitivity;
   patterns: RegExp[];
 }> = [
   {
-    code: "authentication_secret",
+    // authentication_secret
     sensitivity: "prohibited",
     patterns: [
       /\b(api[_ -]?key|password|token|private[_ -]?key|recovery[_ -]?code|secret)\b/i
     ]
   },
   {
-    code: "safety_sensitive_metadata",
+    // safety_sensitive_metadata
     sensitivity: "prohibited",
     patterns: [
       /\b(political|religious|union)(?:\b|[_ -])/i,
@@ -135,32 +136,32 @@ const inferenceRules: Array<{
     ]
   },
   {
-    code: "government_identity",
+    // government_identity
     sensitivity: "high",
     patterns: [/\b(government[_ -]?id|passport|driver'?s?[_ -]?license|national[_ -]?id|kyc)\b/i]
   },
   {
-    code: "financial_tax",
+    // financial_tax
     sensitivity: "high",
     patterns: [/\b(tax[_ -]?id|bank[_ -]?account|income|invoice|payment[_ -]?credential)\b/i]
   },
   {
-    code: "minor_guardian",
+    // minor_guardian
     sensitivity: "high",
     patterns: [/\b(minor[_ -]?age|under[_ -]?18|guardian|school|child)\b/i]
   },
   {
-    code: "health_safety",
+    // health_safety
     sensitivity: "high",
     patterns: [/\b(allerg(y|ies)|medication|symptom|disability|emergency[_ -]?contact)\b/i]
   },
   {
-    code: "location_address",
+    // location_address
     sensitivity: "high",
     patterns: [/\b(address|postal[_ -]?code|precise[_ -]?location|workplace[_ -]?location)\b/i]
   },
   {
-    code: "contact",
+    // contact
     sensitivity: "moderate",
     patterns: [/\b(email|phone|full[_ -]?name|name|social[_ -]?handle)\b/i]
   }
