@@ -20,6 +20,11 @@ export interface SubmissionEnvelope {
   sender_key_id?: string | undefined;
   sender_signature?: string | undefined;
   invite_id?: string | undefined;
+  /**
+   * Compact JWS consent receipt presented on resume for the `human_consent`
+   * trust profile. Absent on the first (pausing) submission.
+   */
+  consent_receipt?: string | undefined;
 }
 
 export interface SubmissionCapability {
@@ -359,7 +364,13 @@ function validateSenderTrust(
 ): SubmissionValidationError | undefined {
   const trustProfile = context.published.definition.trust_profile;
 
-  if (trustProfile === "public_capability" || trustProfile === "local_demo") {
+  if (
+    trustProfile === "public_capability" ||
+    trustProfile === "local_demo" ||
+    trustProfile === "human_consent"
+  ) {
+    // human_consent short-circuits sender-trust here; the runtime consent gate
+    // (packages/http/src/hosted-submit.ts) enforces the human approval instead.
     return undefined;
   }
 

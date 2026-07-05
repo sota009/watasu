@@ -2,9 +2,11 @@ import {
   createIdempotencyClaimKey,
   deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
+  mintConsentToken,
   sha256Hash,
   validateSubmissionEnvelope,
   validateSubmissionEnvelopeMetadata,
+  verifyConsentReceipt,
   type DeliveryCircuitBreaker,
   type DeliveryClient,
   type DeliveryConcurrencyLimiter,
@@ -58,7 +60,11 @@ export interface CreateHostedSubmitAppInput {
     request: HostedSubmitRequest;
     published: PublishedRequestVersion;
   }) => string | undefined) | undefined;
+  /** TTL for a minted consent token (human_consent trust profile). */
+  consentTtlSeconds?: number | undefined;
 }
+
+const defaultConsentTtlSeconds = 10 * 60;
 
 export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): HostedSubmitApp {
   return {
@@ -177,6 +183,25 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         });
       }
 
+      if (published.definition.trust_profile === "human_consent") {
+        const consentGate = await evaluateConsentGate({
+          envelope: gateResult.envelopeCandidate,
+          published,
+          tenantId,
+          secret: input.signingSecret,
+          idempotencyStore: input.idempotencyStore,
+          now: input.clock(),
+          publicBaseUrl: input.publicBaseUrl,
+          consentTtlSeconds: input.consentTtlSeconds ?? defaultConsentTtlSeconds
+        });
+        if (!consentGate.ok) {
+          // Release the submission validation claim so the resume (same
+          // idempotency_key) is not rejected as a replay after the human approves.
+          input.idempotencyStore.releaseValidation(createIdempotencyClaimKey(validationResult.submission));
+          return consentGate.response;
+        }
+      }
+
       const deliveryResult = await deliverAcceptedSubmission({
         mode: "hosted",
         published,
@@ -219,6 +244,71 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         ledger: deliveryResult.ledger
       });
     }
+  };
+}
+
+async function evaluateConsentGate(input: {
+  envelope: SubmissionEnvelope;
+  published: PublishedRequestVersion;
+  tenantId: string | undefined;
+  secret: string;
+  idempotencyStore: IdempotencyStore;
+  now: Date;
+  publicBaseUrl: string;
+  consentTtlSeconds: number;
+}): Promise<{ ok: true } | { ok: false; response: HostedSubmitResponse }> {
+  const envelopeHash = input.envelope.encrypted_payload_hash;
+  const consentTextHash = input.published.hashes.consent_text_hash;
+  const receiptToken = input.envelope.consent_receipt;
+
+  if (receiptToken !== undefined) {
+    const verified = await verifyConsentReceipt(receiptToken, input.secret, input.now);
+    if (
+      verified.ok &&
+      verified.receipt.envelope_hash === envelopeHash &&
+      verified.receipt.consent_text_hash === consentTextHash &&
+      input.idempotencyStore.claimValidation(`consent-receipt:${verified.receipt.nonce}`, {
+        request_id: input.envelope.request_id,
+        request_version: input.envelope.request_version,
+        idempotency_key: input.envelope.idempotency_key,
+        submitted_at: input.envelope.submitted_at,
+        claimed_at: input.now.toISOString(),
+        status: "validation_accepted"
+      })
+    ) {
+      // Valid, payload-bound, unspent receipt: fall through to delivery.
+      return { ok: true };
+    }
+  }
+
+  // No valid receipt: pause the agent with a fresh consent token.
+  const minted = await mintConsentToken(
+    {
+      tenant_id: input.tenantId ?? "",
+      request_id: input.published.request_id,
+      request_version: input.published.request_version,
+      idempotency_key: input.envelope.idempotency_key,
+      envelope_hash: envelopeHash,
+      consent_text_hash: consentTextHash,
+      issued_at: input.now,
+      ttl_seconds: input.consentTtlSeconds
+    },
+    input.secret
+  );
+
+  const requestIdSegment = encodeURIComponent(input.published.request_id);
+  const consentBase = `${input.publicBaseUrl}/requests/${requestIdSegment}/consent/${minted.token}`;
+  return {
+    ok: false,
+    response: jsonResponse(401, {
+      ok: false,
+      status: "auth_required",
+      consent: {
+        consent_url: consentBase,
+        poll_url: `${consentBase}/status`,
+        expires_in: minted.expires_in_seconds
+      }
+    })
   };
 }
 
@@ -321,7 +411,8 @@ function isSubmissionEnvelope(value: unknown): value is SubmissionEnvelope {
     typeof value.submitted_at === "string" &&
     typeof value.service_key_id === "string" &&
     isRecord(value.encrypted_payload) &&
-    typeof value.encrypted_payload_hash === "string"
+    typeof value.encrypted_payload_hash === "string" &&
+    (value.consent_receipt === undefined || typeof value.consent_receipt === "string")
   );
 }
 

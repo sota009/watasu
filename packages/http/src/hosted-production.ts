@@ -19,10 +19,21 @@ import type {
   HostedSubmitRequest,
   HostedSubmitResponse
 } from "./hosted-submit.js";
+import type {
+  HostedConsentApp,
+  HostedConsentRequest,
+  HostedConsentResponse
+} from "./hosted-consent.js";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
-export type HostedProductionRequest = HostedPublishRequest & HostedMetadataRequest & HostedSubmitRequest;
-export type HostedProductionResponse = HostedPublishResponse & HostedMetadataResponse & HostedSubmitResponse;
+export type HostedProductionRequest = HostedPublishRequest &
+  HostedMetadataRequest &
+  HostedSubmitRequest &
+  HostedConsentRequest;
+export type HostedProductionResponse = HostedPublishResponse &
+  HostedMetadataResponse &
+  HostedSubmitResponse &
+  HostedConsentResponse;
 
 export interface HostedProductionApp {
   handle(request: HostedProductionRequest): Promise<HostedProductionResponse>;
@@ -32,6 +43,7 @@ export interface CreateHostedProductionAppInput {
   publishApp: HostedPublishApp;
   metadataApp: HostedMetadataApp;
   submitApp: HostedSubmitApp;
+  consentApp?: HostedConsentApp | undefined;
   publicBaseUrl: string;
   requestVersions: {
     list(requestId: string): PublishedRequestVersion[];
@@ -54,6 +66,10 @@ export function createHostedProductionApp(input: CreateHostedProductionAppInput)
 
       if (matchActionPath(request, "POST", "submit") !== undefined) {
         return input.submitApp.handle(request);
+      }
+
+      if (input.consentApp !== undefined && isConsentPath(request.path)) {
+        return input.consentApp.handle(request);
       }
 
       const schemaRequest = matchSchemaPath(request);
@@ -139,6 +155,10 @@ function matchSchemaPath(request: HostedProductionRequest): {
     requestId,
     schema
   };
+}
+
+function isConsentPath(path: string): boolean {
+  return /^\/requests\/[^/]+\/consent\/[^/]+(\/approve|\/status)?$/.test(path);
 }
 
 function matchAgentCardPath(request: HostedProductionRequest): string | undefined {

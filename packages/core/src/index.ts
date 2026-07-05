@@ -45,6 +45,17 @@ export {
   encryptJsonPayload
 } from "./jwe.js";
 export {
+  InMemoryConsentApprovalStore,
+  buildConsentChallenge,
+  es256SignatureVerifier,
+  generateConsentNonce,
+  mintConsentReceipt,
+  mintConsentToken,
+  verifyConsentReceipt,
+  verifyConsentToken,
+  verifyWebAuthnAssertion
+} from "./consent.js";
+export {
   createMetadataLedgerReader,
   createMigratedPostgresDeliveryLedgerStore,
   createPostgresDeliveryLedgerSchemaSql,
@@ -131,6 +142,23 @@ export type {
   WatasuJweAlgorithm,
   WatasuJweContentEncryption
 } from "./jwe.js";
+export type {
+  ConsentApprovalStore,
+  ConsentChallengeInput,
+  ConsentReceipt,
+  ConsentReceiptError,
+  ConsentReceiptVerification,
+  ConsentTokenClaims,
+  ConsentTokenError,
+  ConsentTokenVerification,
+  MintConsentReceiptParams,
+  MintConsentTokenParams,
+  MintedConsentToken,
+  VerifyWebAuthnAssertionInput,
+  WebAuthnAssertionError,
+  WebAuthnAssertionResult,
+  WebAuthnSignatureVerifier
+} from "./consent.js";
 export type {
   HostedServiceIdentity,
   HostedServiceRole,
