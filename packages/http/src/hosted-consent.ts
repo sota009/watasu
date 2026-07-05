@@ -44,7 +44,7 @@ export interface CreateHostedConsentAppInput {
   approvalStore: ConsentApprovalStore;
   /**
    * Registration is out of scope: the caller resolves the credential public key
-   * for a credential id (e.g. from tap's console / a registration store).
+   * for a credential id (e.g. from a watasu-side credential registration store).
    */
   resolveCredentialPublicKey: (
     input: ConsentCredentialResolverInput

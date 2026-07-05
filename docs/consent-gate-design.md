@@ -1,59 +1,44 @@
 # Consent Gate — Design Note (v1)
 
-> Status: proposal, 2026-07-04. Adds a **runtime human-consent gate** to watasu's submit
-> flow: an agent's submission pauses, a human approves it in a plain browser with a
-> passkey signature bound to the exact payload, watasu stores a hash-only receipt, and the
-> agent's request resumes. No app install on the user side; no change to the no-custody
+> Status: proposal, 2026-07-04; **revised 2026-07-05 for tap's retirement** (watasu is now a
+> standalone product, not tap's relay half — §1). Adds a **runtime human-consent gate** to
+> watasu's submit flow: an agent's submission pauses, a human approves it in a plain browser
+> with a passkey signature bound to the exact payload, watasu stores a hash-only receipt, and
+> the agent's request resumes. No app install on the user side; no change to the no-custody
 > boundary.
 
-## 1. Decision: watasu is tap's relay half; the gate spans both
+## 1. Decision: watasu is a standalone product; the gate lives entirely in watasu
 
-**Resolved 2026-07-04: watasu is the server-side/relay half of Sota's `tap` (Nexepia) — not
-an independent take.** So the choice isn't "watasu vs tap." It's: the consent gate is a
-*bridge across both halves*, each doing the half it's shaped for:
-
-- **watasu (server):** agent-pause trigger, no-custody relay, receipt store, delivery.
-- **tap (client):** the consent UI (its PWA) + the passkey ceremony.
-- **The seam:** watasu's `consent_url` opens tap's consent surface. One integration closes
-  all three gaps — watasu gains a consent UI, tap gains the agent-pause trigger, and the
-  passkey added to that shared surface upgrades tap's *own* flow (its "no passkey in v1"
-  becomes v1). Receipts are tap's credential format (`@tap/schema`), shared by both halves.
-
-This is Nexepia product work, jointly with Sota — see coordination note in §11.
-
-Investigated both repos before this framing (2026-07-04).
+**Resolved 2026-07-05: the `tap` project is retired. watasu is no longer "the
+server-side/relay half of tap" — it is the standalone Nexepia product, and it now owns
+BOTH halves of the flow the gate needs: the agent-pause trigger *and* the human consent
+ceremony.** (Historical note: an earlier version of this doc, 2026-07-04, framed the gate as
+a bridge across watasu + tap, and a 2026-07-05 revision planned a "full conversion onto tap's
+PWA." Both are dead — see the retirement notes in §11 and §12.)
 
 - **watasu already owns the hard 80%** the feature sits on: A2A 1.0 HTTP+JSON intake, the
   no-custody relay, envelope validation, hashing, idempotency, SSRF-guarded delivery, the
   metadata ledger, and the MCP + CLI operator surface — all deployed on Render. The consent
-  gate is a **single insertion** at a known point in `hosted-submit.ts`, plus one new table.
+  gate is a **single insertion** at a known point in `hosted-submit.ts`.
+- **watasu owns the consent surface itself** — a watasu-hosted static consent page (§2, §6),
+  not a handoff to an external PWA. No second stack, no cross-repo coordination.
 - The gate adds a distinct runtime field **`consent_receipt_token`** on the envelope
-  (`packages/core/src/submission.ts`). **Post-rebase note (2026-07-05):** upstream separately
-  shipped a *static* `consent_receipt` / `consent_receipt_hash` attestation (Sota's
-  personal-info adapter, PRs #81–87). Same-ish name, different mechanism — the runtime token
-  and the static receipt are explicitly distinct (`submission.ts:24-30`). See §13 for the
-  reconciliation; this is the most consequential finding in this doc.
-- **`tap` (Nexepia / Sota) is the wrong home for the *trigger*.** Its only entry point is a
-  synchronous physical NFC/QR tap resolved in-PWA; it has no agent-pause, no consent-URL
-  handoff, and no A2A task states — so the pause/relay belongs on watasu. But tap *is* the
-  right home for the *ceremony*: it already has the consent PWA and the credential-grade
-  receipt stack (OID4VP 1.0 + SD-JWT-VC + KB-JWT + `transaction_data`) that both halves
-  should share via `@tap/schema`.
-- The genuinely new part — **browser passkey/WebAuthn signing over a payload** — is absent
-  from *both* halves; it lands on the shared consent surface (tap's PWA), where it also
-  upgrades tap's existing lite-wallet approval.
+  (`packages/core/src/submission.ts`). It briefly coexisted with an upstream *static*
+  `consent_receipt` / `consent_receipt_hash` attestation (Sota's personal-info adapter,
+  PRs #81–87); that static path has since been removed on this branch — see §13.
+- The genuinely new part — **browser passkey/WebAuthn signing over a payload** — is built
+  fresh on watasu's own consent page (§4–§7).
 
-Stack note: watasu is the lone Node/Render project in an otherwise Cloudflare-Workers
-portfolio (tap included). If the two stacks merge onto Workers, the relay moves to Workers
-alongside tap — decide as part of the conversion, not after.
+**Identity / regulated tier now lands on watasu too.** The credential-grade upgrade
+(OID4VP / SD-JWT-VC / KB-JWT / mdoc, §9) was previously going to lean on tap's `@tap/schema`
++ sealed signing-worker. With tap retired, **watasu owns that tier**: a durable credential
+store and a watasu-minted, watasu-signed credential receipt are now legitimate, expected
+parts of the product (the DB-less "just a relay" posture was a relic of the old framing —
+see §6). The receipt-format *source* is an open decision (§9, §11).
 
-### Full conversion — no demo shortcut
-
-Decided 2026-07-05: **do the full conversion, not a throwaway demo page.** tap's PWA is the
-consent surface; watasu is the relay; receipts are `@tap/schema`. This collapses the two
-previously-parallel stacks into one agent-mediated pipeline, which means **deleting the
-old-model machinery that no longer serves it** — the physical-NFC entry and the client-side
-lite-wallet. Full KEEP / DELETE / CHANGE ledger in §12.
+Stack note: watasu is a Node/Render project. A future migration to Cloudflare Workers is now
+a purely internal watasu choice (no longer tied to merging with tap's Workers stack) — decide
+on its own merits.
 
 ## 2. Scope of v1
 
@@ -206,8 +191,9 @@ nothing between pause and approval.
   carries it in `consent_url`; the token *is* the row.
 - On approval, watasu verifies the token signature + `exp`, checks the WebAuthn assertion
   against `challenge = SHA-256(envelope_hash ‖ consent_text_hash ‖ nonce)` (all recovered
-  from the token — no lookup), and mints a signed `consent_receipt_token` (in `@tap/schema`
-  KB-JWT shape, §9) that the agent presents on resume.
+  from the token — no lookup), and mints a signed `consent_receipt_token` (a watasu-native
+  JWS in v1; watasu-owned KB-JWT credential shape in the deferred upgrade, §9) that the agent
+  presents on resume.
 - The only durable need is **single-use / replay protection** ("has this consent_token been
   spent"), which rides the existing `IdempotencyStore` abstraction
   (`packages/http/src/hosted-submit.ts:48`). Single Render instance: in-memory is adequate
@@ -250,13 +236,16 @@ This keeps the PRD/ERD invariant intact (`docs/prd-cli-mvp.md` "No payload custo
 
 ## 9. Upgrade path & deferred work
 
-- **Credential-grade receipts — converge now, not later.** Since watasu is tap's relay half
-  (§1), the stored receipt should be tap's format from v1: depend on `@tap/schema` (pure TS:
-  OID4VP 1.0 `transaction_data` + SD-JWT-VC KB-JWT per RFC 9901) so both halves share one
-  receipt ledger. Separation of concerns: the **passkey assertion** is the signing gesture
-  (plain WebAuthn — no browser-native OID4VP signing exists yet, §8); the **receipt** is the
-  record, wrapped in tap's KB-JWT credential shape. `receipt_hash` in the table (§6) points at
-  a `@tap/schema` receipt object, not a bespoke ISO-27560 blob. EUDI KB-JWT mandate: 2026-12-24.
+- **Credential-grade receipts — watasu-owned, deferred past v1.** v1 ships the watasu-native
+  signed receipt token (§6); the upgrade is a credential-grade receipt (OID4VP 1.0
+  `transaction_data` + SD-JWT-VC KB-JWT per RFC 9901). With tap retired (§1), **watasu mints
+  and signs this itself** rather than depending on tap's `@tap/schema` / signing-worker.
+  Separation of concerns still holds: the **passkey assertion** is the signing gesture (plain
+  WebAuthn — no browser-native OID4VP signing exists yet, §8); the **receipt** is the record,
+  wrapped in a KB-JWT credential shape. **Open decision (§11):** where watasu's SD-JWT-VC /
+  KB-JWT implementation comes from — vendor/fork the (retired) `@tap/schema` pure-TS code into
+  a watasu package, or build on generic libs (`jose`, `@noble/*`). EUDI KB-JWT mandate:
+  2026-12-24.
 - **MCP-native trigger:** emit `URLElicitationRequiredError` (-32042) for MCP clients that
   advertise URL-mode elicitation, in addition to the A2A/device-flow body.
 - **Push resume (CIBA):** later; requires an authenticator app → violates no-install for v1.
@@ -276,92 +265,40 @@ commoditize).
 
 ## 11. Open decisions
 
-1. **Ownership seam — RESOLVED 2026-07-04:** watasu is the server-side/relay half of Sota's
-   `tap` (Nexepia), not an independent take. Consequences: (a) this is joint Nexepia work —
-   **coordinate with Sota before building**, especially as `tap` is under a Loop-1 code
-   freeze (new solution features on hold pending customer validation); confirm the consent
-   gate counts as core-mechanism work, not a frozen feature. (b) The two halves must
-   interoperate: **confirm A2A wire alignment** — `tap` pins `1.0.0`, watasu pins `"1.0"`
-   (`packages/core/src/a2a.ts`); verify identical `application/a2a+json` + TaskStatus shape.
-   (c) Receipts share `@tap/schema` (§9).
+1. **Ownership — RESOLVED 2026-07-05: `tap` is retired; watasu is the standalone product**
+   (§1). The former "coordinate with Sota / tap Loop-1 freeze / confirm A2A wire alignment
+   with tap / receipts share `@tap/schema`" items are all moot — there is no second half to
+   interoperate with. Nexepia ownership is unchanged (Sota's startup); this is now
+   watasu-internal work.
 2. **Passkey registration UX:** first approval requires creating a passkey (one tap, still no
-   install). Belongs in the demo script so it isn't discovered live. Note this also gives
-   tap's PWA its first passkey (STATE.md: "no passkey in v1").
+   install). Belongs in the demo script so it isn't discovered live.
 3. **Desktop agent / phone passkey:** rely on WebAuthn hybrid (QR/CTAP2) transport; adds a
    hop — acceptable for v1?
-4. **Consent surface — RESOLVED 2026-07-05:** full conversion — tap's PWA is the consent
-   surface (not a standalone watasu page). See §12 ledger.
-5. **Verifier dissolution (needs Sota):** in full conversion, tap's verifier Worker loses its
-   sticker entry, lite-wallet mint, and fanout; its remaining job (verify presentation + sign
-   receipt) moves into watasu (calling tap's sealed signing-worker). Confirm the verifier
-   Worker dissolves rather than persists.
-6. **One service-onboarding surface (needs Sota):** watasu `publish` (CLI/MCP request
-   definitions) vs tap `console` template authoring — same "service declares what it wants"
-   job. Pick one; the other's authoring path is deleted.
-7. **Migrate to Workers?** Only if watasu and tap fully merge onto one stack — decide as part
-   of the conversion.
+4. **Consent surface — RESOLVED 2026-07-05: a watasu-hosted static consent page** (§2, §6),
+   not an external PWA. (Supersedes the 2026-07-04→05 "full conversion onto tap's PWA" plan,
+   now dead with tap's retirement — see §12.)
+5. **Credential-receipt format source (deferred, §9):** when the credential-grade upgrade is
+   built, does watasu vendor/fork the retired `@tap/schema` pure-TS SD-JWT-VC / KB-JWT code
+   into its own package, or build on generic libs (`jose`, `@noble/*`)? Decide at that time.
+6. **Migrate to Workers?** Now a standalone watasu question (no longer tied to merging with
+   tap) — decide on its own merits if/when Render becomes a constraint.
 
-## 12. Full-conversion ledger (KEEP / DELETE / CHANGE)
+## 12. ~~Full-conversion ledger (KEEP / DELETE / CHANGE)~~ — OBSOLETE (tap retired 2026-07-05)
 
-Target flow: **agent → watasu (A2A submit, pause) → tap PWA (review + passkey) →
-`@tap/schema` receipt → watasu (deliver to service webhook, no custody).** This collapses
-the two parallel stacks into one pipeline. **Every DELETE below is in `tap` (Sota's repo,
-under a Loop-1 freeze) — none execute without his sign-off.** watasu is additive: nothing to
-delete there.
+This section planned a full conversion that would fold tap's PWA, `packages/schema`,
+signing-worker, and verifier Worker into one agent-mediated pipeline (deleting tap's
+physical-NFC entry and client-side lite-wallet). **It is obsolete: `tap` was retired outright
+on 2026-07-05, so there is nothing to convert.** watasu is standalone and owns the whole flow
+directly (§1). What survives conceptually:
 
-### KEEP
+- The **consent surface is watasu-native** (§2, §6) — no tap PWA to rewire.
+- watasu **owns delivery, discovery / Agent Card, and service onboarding** (`publish`)
+  outright — the old "consolidate with tap's fanout / console" questions are gone.
+- The **credential / receipt tier is watasu-owned** (§9); if tap's `@tap/schema` pure-TS code
+  is still useful, it would be *vendored into watasu*, not depended on across repos (§11.5).
 
-- **watasu** — entire relay (A2A intake, no-custody delivery, ledger, idempotency, publish,
-  MCP/CLI) + the new consent gate (§4–§7).
-- **tap `packages/schema`** — the protocol brain (`oid4vp/*`: sd-jwt-vc, kb-jwt,
-  transaction-data, receipt, terms, federation). This is the convergence target; watasu
-  depends on it.
-- **tap `apps/signing-worker`** — sealed Ed25519 receipt/credential signer. watasu calls it.
-- **tap PWA consent UI** — `pages/TapLandingPage.tsx`, `components/ticket/*` (hold-to-stamp
-  gesture), `claims/CaptureInterpreter.tsx` (on-the-spot capture when a field isn't in the
-  agent's context). Rewired, not rebuilt.
-
-### DELETE — physical-NFC entry (no stickers in an agent-mediated flow)
-
-- `apps/verifier/scripts/gen-sticker.ts` + `gen:sticker` script + `qrcode` / `@types/qrcode` deps
-- `apps/verifier/src/authoring/` (`stickers.ts`, `templates.ts`, `repo.ts`, guards)
-- `apps/verifier/src/routes/tenant-context.ts` (the sticker→AR entry route)
-- D1 tables `templates`, `stickers`; R2 `STICKERS` bucket
-
-### DELETE — client-side lite-wallet (the agent is the wallet now)
-
-- `apps/pwa/src/infra/notebook-store.ts`, `idb-db.ts`, `receipts-store.ts`
-- `apps/pwa/src/queries/notebook.ts`
-- `apps/pwa/src/pages/NotebookPage.tsx`, `ReceiptsPage.tsx`, `WelcomePage.tsx`
-- `apps/pwa/src/flows/dcql-resolver.ts` (matched DCQL against the local notebook — the agent
-  now decides what to send)
-- `apps/verifier/src/routes/lite-wallet-mint.ts` (minted single-use creds into the wallet)
-
-### DELETE — fanout (watasu owns delivery to the service)
-
-- `apps/verifier/src/fanout/` (`a2a-jsonrpc.ts`, `dispatch.ts`, `target-validation.ts`)
-- D1 table `fanout_peers`; the `peer:add/list/disable` operator CLI
-
-### CHANGE / MOVE
-
-- `apps/verifier/src/routes/oid4vp-response.ts` — verify-presentation + sign-receipt logic
-  **moves into watasu** (calling the signing-worker). If nothing else remains, the verifier
-  Worker dissolves (decision §11.5).
-- `apps/verifier/src/routes/{agent-card,federation}.ts` — consolidate with watasu's Agent
-  Card / discovery (one card, not two).
-- tap `apps/console` template authoring — consolidate with watasu `publish` (decision §11.6);
-  keep console's org/auth/passkey only if it becomes the institution-account layer.
-- `apps/pwa/src/flows/tap-flow.ts` + `pages/TapLandingPage.tsx` — new entry mode: hydrate
-  from a watasu consent handoff (token + fragment) instead of a sticker AR.
-- **ADD** `apps/pwa/src/webauthn/` — passkey assertion (PWA has none today; crib from
-  console-side Better Auth).
-
-### Magnitude
-
-This is not cleanup — it deletes tap's **physical-NFC product** and its **client wallet**,
-and dissolves the **verifier Worker** into watasu. It is the "merge the two halves into one
-agent-mediated product" decision. Execute as a reviewable branch/PR on `tap` for Sota, not
-piecemeal.
+The original KEEP / DELETE / CHANGE ledger has been removed to avoid implying tap work is
+still pending; see this doc's git history (pre-2026-07-05) if that detail is ever needed.
 
 ## 13. Reconciliation with upstream's `consent_receipt` (surfaced by the rebase)
 
@@ -425,10 +362,9 @@ challenge, and the single signed receipt proves *both* "consent was to the corre
 
 **This settles the architectural conflict.** You cannot obtain legally-robust, service-
 trustable consent purely client-side via an unenforceable `--confirm` — there is no neutral
-witness and no attribution. So Sota's "consent UI is out of watasu's scope" position does not
-meet the legal bar. The neutral consent surface may live in **watasu** OR **tap's PWA**
-(either satisfies the law, preserving room for Sota's boundary) — what is ruled out is the
-static self-asserted receipt as the consent basis.
+witness and no attribution. So the "consent UI is out of watasu's scope" position does not
+meet the legal bar. The neutral consent surface lives in **watasu itself** (tap retired, §1)
+— what is ruled out is the static self-asserted receipt as the consent basis.
 
 **Scaling to regulated data.** A passkey proves "a controlling human consented" + non-
 repudiation, but not "verified legal identity X." For identity-bound consent (KYC,
