@@ -23,7 +23,6 @@
     "docs:build": "rspress build",
     "docs:dev": "rspress dev --host 127.0.0.1",
     "docs:preview": "rspress preview --host 127.0.0.1",
-    "hosted-submit:status": "node scripts/hosted-submit-status.mjs",
     "invite:publish": "node scripts/hosted-publish-invite.mjs",
     "lint": "node scripts/secret-scan.mjs --repo",
     "loop": "node scripts/loop-engineer.mjs",
@@ -34,7 +33,7 @@
     "secret:identity": "node scripts/generate-identity-secret.mjs",
     "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
     "test": "pnpm typecheck && vitest run",
-    "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted packages/personal-info-adapter"
+    "typecheck": "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
   },
   "devDependencies": {
     "@rspress/core": "^2.0.14",

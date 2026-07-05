@@ -21,7 +21,6 @@ As of 2026-06-16 JST:
 | Local Protocol MVP | Ready | `pnpm demo:handoff` |
 | CLI | Ready | `pnpm --filter @watasu/cli watasu validate ...` |
 | Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
-| personal-info adapter | Local dry run and submit ready | `pnpm --filter @watasu/personal-info-adapter dry-run ...` |
 | Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
 | Hosted MCP | Auth required | `/mcp` returns 401 without Bearer credentials |
 | Human dashboard UI | Not in scope | Not part of the MVP |
@@ -129,91 +128,6 @@ pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event
 ```
 
 `submit-fixture` is a local learning fixture. It is not a production submission flow.
-
-## personal-info adapter
-
-The first `personal-info-mcp` integration slice lives in `@watasu/personal-info-adapter`.
-It reads a watasu Agent Card, plaintext schema, deterministic field mapping, and
-test-only personal-info values, then prints only a redacted dry-run summary.
-
-Start the local HTTP demo:
-
-```bash
-pnpm --filter @watasu/http demo
-```
-
-Then run the adapter in a second terminal:
-
-```bash
-pnpm --filter @watasu/personal-info-adapter dry-run \
-  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
-  --schema http://127.0.0.1:8787/schemas/plaintext.json \
-  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
-  --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json
-```
-
-The output must contain mapped field names and `"[REDACTED]"` placeholders, not
-the fixture values.
-
-To read from a local `personal-info-mcp` stdio server instead of the test values
-fixture, replace `--personal-info-values ...` with an MCP command and args:
-
-```bash
-pnpm --filter @watasu/personal-info-adapter dry-run \
-  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
-  --schema http://127.0.0.1:8787/schemas/plaintext.json \
-  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
-  --personal-info-mcp-command uvx \
-  --personal-info-mcp-arg --from \
-  --personal-info-mcp-arg git+https://github.com/KenTaniguchi-R/personal-info-mcp@v0.1.0 \
-  --personal-info-mcp-arg personal-info-mcp
-```
-
-The adapter calls `get_personal_info` once per mapped required field over MCP
-stdio. Pin the `personal-info-mcp` tag or commit before using real data.
-
-Hosted private-alpha submit usage uses the same adapter command shape with a
-private Agent Card URL and schema URL:
-
-```bash
-pnpm --silent hosted-submit:status
-```
-
-```bash
-pnpm --filter @watasu/personal-info-adapter submit \
-  --agent-card https://api.watasu.ai/requests/<request-id>/agent-card.json \
-  --schema https://api.watasu.ai/requests/<request-id>/schemas/plaintext.json \
-  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
-  --personal-info-mcp-command uvx \
-  --personal-info-mcp-arg --from \
-  --personal-info-mcp-arg git+https://github.com/KenTaniguchi-R/personal-info-mcp@v0.1.0 \
-  --personal-info-mcp-arg personal-info-mcp \
-  --public-jwk /path/to/service-public-jwk.json \
-  --confirm
-```
-
-Private-alpha requests may return `auth_required` when sender signatures or
-invite bindings are required, or `resubmit_later` when watasu does not retain
-the encrypted payload for retry. The adapter reports those states without
-including plaintext values or the hosted response body in its error message.
-
-To submit an encrypted envelope to the local HTTP demo, run:
-
-```bash
-pnpm --filter @watasu/personal-info-adapter submit \
-  --agent-card http://127.0.0.1:8787/.well-known/agent-card.json \
-  --schema http://127.0.0.1:8787/schemas/plaintext.json \
-  --mapping packages/personal-info-adapter/fixtures/event-attendee.mapping.json \
-  --personal-info-values packages/personal-info-adapter/fixtures/personal-info-values.test.json \
-  --public-jwk packages/personal-info-adapter/fixtures/local-demo-public-jwk.json \
-  --confirm
-```
-
-The adapter constructs plaintext only in memory, encrypts before submit, and
-requires explicit confirmation before personal-info values can be read. It
-includes consent receipt metadata plus its hash in the envelope, then prints
-metadata-only submit evidence. It can read personal-info values from either a
-test fixture file or a configured local `personal-info-mcp` stdio command.
 
 ## Local HTTP demo
 
@@ -379,7 +293,6 @@ Cutover evidence is written to the gitignored `cutover-evidence/` directory. Mai
 - [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
 - [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol and dependency baseline
-- [docs/personal-info-mcp-integration-brief.md](docs/personal-info-mcp-integration-brief.md): development brief for connecting a user-side `personal-info-mcp` product to watasu
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 
 Public docs site:

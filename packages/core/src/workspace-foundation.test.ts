@@ -140,11 +140,11 @@ describe("workspace foundation", () => {
       "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
       test: "pnpm typecheck && vitest run",
       typecheck:
-        "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted packages/personal-info-adapter"
+        "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
     });
   });
 
-  test("test_package_exports_core_cli_fixtures_and_adapter_packages", async () => {
+  test("test_package_exports_core_cli_fixtures_and_service_packages", async () => {
     const corePackageJson = readJson("packages/core/package.json") as {
       exports: Record<string, string>;
     };
@@ -165,13 +165,6 @@ describe("workspace foundation", () => {
     const hostedPackageJson = readJson("packages/hosted/package.json") as {
       exports: Record<string, string>;
     };
-    const personalInfoAdapterPackageJson = readJson(
-      "packages/personal-info-adapter/package.json"
-    ) as {
-      bin: Record<string, string>;
-      exports: Record<string, string>;
-      scripts: Record<string, string>;
-    };
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
@@ -184,18 +177,6 @@ describe("workspace foundation", () => {
     expect(httpPackageJson.exports).toHaveProperty(".");
     expect(mcpPackageJson.exports).toHaveProperty(".");
     expect(hostedPackageJson.exports).toHaveProperty(".");
-    expect(personalInfoAdapterPackageJson.exports).toHaveProperty(".");
-    expect(personalInfoAdapterPackageJson.bin).toEqual({
-      "watasu-personal-info-adapter": "./dist/bin.js"
-    });
-    expect(personalInfoAdapterPackageJson.scripts).toHaveProperty(
-      "dry-run",
-      "pnpm --dir ../.. typecheck && node dist/bin.js dry-run"
-    );
-    expect(personalInfoAdapterPackageJson.scripts).toHaveProperty(
-      "submit",
-      "pnpm --dir ../.. typecheck && node dist/bin.js submit"
-    );
   });
 
   test("test_no_env_files_or_secret_like_values_are_committed", () => {

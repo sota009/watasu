@@ -91,12 +91,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
-  packages/personal-info-adapter:
-    dependencies:
-      '@watasu/core':
-        specifier: workspace:*
-        version: link:../core
-
 packages:
 
   '@emnapi/core@1.10.0':
