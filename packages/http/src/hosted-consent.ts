@@ -494,35 +494,40 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
   }
   async function approve() {
     var challenge = b64urlToBytes(cfg.challenge).buffer;
+    var assertion = null;
     try {
       // Return user: discoverable get() first.
-      var assertion = await navigator.credentials.get({
+      assertion = await navigator.credentials.get({
         publicKey: {
           challenge: challenge,
           userVerification: "required",
           timeout: 120000
         }
       });
-      return post({ type: "authentication", response: authToJSON(assertion) });
     } catch (e) {
-      // First-time (no credential): register + consent in one gesture.
-      var cred = await navigator.credentials.create({
-        publicKey: {
-          challenge: challenge,
-          rp: { id: cfg.rpId, name: "watasu" },
-          user: {
-            id: b64urlToBytes(cfg.userHandle),
-            name: "watasu user",
-            displayName: "watasu user"
-          },
-          pubKeyCredParams: cfg.pubKeyCredParams,
-          authenticatorSelection: { residentKey: "required", userVerification: "required" },
-          attestation: "none",
-          timeout: 120000
-        }
-      });
-      return post({ type: "registration", user_handle: cfg.userHandle, response: regToJSON(cred) });
+      // No discoverable credential — fall through to registration.
+      assertion = null;
     }
+    if (assertion) {
+      return post({ type: "authentication", response: authToJSON(assertion) });
+    }
+    // First-time (no credential): register + consent in one gesture.
+    var cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: { id: cfg.rpId, name: "watasu" },
+        user: {
+          id: b64urlToBytes(cfg.userHandle),
+          name: "watasu user",
+          displayName: "watasu user"
+        },
+        pubKeyCredParams: cfg.pubKeyCredParams,
+        authenticatorSelection: { residentKey: "required", userVerification: "required" },
+        attestation: "none",
+        timeout: 120000
+      }
+    });
+    return post({ type: "registration", user_handle: cfg.userHandle, response: regToJSON(cred) });
   }
 
   approveBtn.addEventListener("click", async function () {
