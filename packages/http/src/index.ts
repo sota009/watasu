@@ -56,6 +56,14 @@ export type {
   HostedSubmitRequest,
   HostedSubmitResponse
 } from "./hosted-submit.js";
+export { createHostedConsentApp } from "./hosted-consent.js";
+export type {
+  ConsentCredentialResolverInput,
+  CreateHostedConsentAppInput,
+  HostedConsentApp,
+  HostedConsentRequest,
+  HostedConsentResponse
+} from "./hosted-consent.js";
 export { createHostedProductionApp } from "./hosted-production.js";
 export type {
   HostedProductionApp,

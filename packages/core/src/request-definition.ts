@@ -6,7 +6,8 @@ const trustProfiles = [
   "public_capability",
   "verified_sender",
   "private_invite",
-  "local_demo"
+  "local_demo",
+  "human_consent"
 ] as const;
 const privateJwkMembers = new Set(["d", "p", "q", "dp", "dq", "qi", "oth", "k"]);
 

@@ -16,9 +16,12 @@ import type {
 } from "@watasu/core";
 import {
   createFetchDeliveryClient,
+  InMemoryConsentApprovalStore,
   InMemoryIdempotencyStore,
-  InMemorySubmissionRateLimiter
+  InMemorySubmissionRateLimiter,
+  type ConsentApprovalStore
 } from "@watasu/core";
+import type { JsonWebKey } from "node:crypto";
 import {
   createTrustedServiceIdentityResolver,
   parseAuthorizationBearerToken,
@@ -34,6 +37,10 @@ import {
 import { createHostedPublishApp } from "./hosted-publish.js";
 import { createHostedRetireApp } from "./hosted-retire.js";
 import { createHostedSubmitApp } from "./hosted-submit.js";
+import {
+  createHostedConsentApp,
+  type ConsentCredentialResolverInput
+} from "./hosted-consent.js";
 
 export interface CreateHostedProductionBootstrapAppInput {
   repository: AsyncRequestVersionPublisher & {
@@ -58,6 +65,13 @@ export interface CreateHostedProductionBootstrapAppInput {
     published: PublishedRequestVersion;
     tenantId?: string | undefined;
   }) => SubmissionCapability | Promise<SubmissionCapability>) | undefined;
+  consentAllowedOrigins?: readonly string[] | undefined;
+  consentApprovalStore?: ConsentApprovalStore | undefined;
+  consentTtlSeconds?: number | undefined;
+  consentReceiptTtlSeconds?: number | undefined;
+  resolveConsentCredentialPublicKey?: ((
+    input: ConsentCredentialResolverInput
+  ) => JsonWebKey | undefined | Promise<JsonWebKey | undefined>) | undefined;
   resolvePrincipal(request: HostedProductionRequest): TrustedServicePrincipal | undefined;
   resolveOwnershipVerification(input: {
     principal: TrustedServicePrincipal;
@@ -72,6 +86,9 @@ export function createHostedProductionBootstrapApp(
   input: CreateHostedProductionBootstrapAppInput
 ): HostedProductionApp {
   const clock = input.clock ?? (() => new Date());
+  const idempotencyStore = input.idempotencyStore ?? new InMemoryIdempotencyStore();
+  const consentApprovalStore = input.consentApprovalStore ?? new InMemoryConsentApprovalStore();
+  const consentAllowedOrigins = input.consentAllowedOrigins ?? [new URL(input.publicBaseUrl).origin];
   const tenantByRequestId = new Map<string, string>();
   const pendingPublishTenants = new Map<string, string>();
   const inviteCredentialByRequest = new WeakMap<HostedProductionRequest, string>();
@@ -143,7 +160,7 @@ export function createHostedProductionBootstrapApp(
       requestVersions: input.repository,
       deliveryClient: input.deliveryClient ?? createFetchDeliveryClient(),
       ledger: input.deliveryLedger ?? createNoopDeliveryLedger(),
-      idempotencyStore: input.idempotencyStore ?? new InMemoryIdempotencyStore(),
+      idempotencyStore,
       rateLimiter: input.rateLimiter ?? new InMemorySubmissionRateLimiter({
         limit: 60,
         windowMs: 60_000,
@@ -156,9 +173,21 @@ export function createHostedProductionBootstrapApp(
       deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
       resolveSenderTrust: input.resolveSenderTrust,
       resolveCapability: input.resolveCapability,
+      consentTtlSeconds: input.consentTtlSeconds,
       resolveTenantId({ published }) {
         return tenantByRequestId.get(published.request_id);
       }
+    }),
+    consentApp: createHostedConsentApp({
+      publicBaseUrl: input.publicBaseUrl,
+      signingSecret: input.deliverySigningSecret,
+      clock,
+      allowedOrigins: consentAllowedOrigins,
+      idempotencyStore,
+      approvalStore: consentApprovalStore,
+      resolveCredentialPublicKey:
+        input.resolveConsentCredentialPublicKey ?? (() => undefined),
+      receiptTtlSeconds: input.consentReceiptTtlSeconds
     }),
     publishApp: createHostedPublishApp({
       repository: publishRepository,
