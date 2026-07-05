@@ -56,13 +56,71 @@ need **no app install** (plain browser); (5) low friction; (6) satisfy **GDPR Ar
   replacement for ordinary data.
 - **Adopt TS 27560 receipts** as the record layer regardless of signing mechanism.
 
-## Open thread (highest-value follow-up)
+## Install-free OID4VP in the browser (W3C Digital Credentials API) — RESOLVED
 
-A claim that *OID4VP has no plain-browser path* was **refuted (0–3)** — there may be an
-install-free credential presentation via the **W3C Digital Credentials API** in the browser.
-If real, it's the bridge from passkey → verifiable credential **without a wallet install** —
-i.e. converge watasu-solo and tap on one no-install surface. Worth verifying before committing
-to the passkey long-term. (See `consent-mechanisms-browser-credentials.md` once researched.)
+The "no browser path" claim was correctly refuted: the **W3C Digital Credentials API
+shipped** — Chrome 141 (Oct 2025, default-on), Safari 26 (iOS/macOS 26), same-device on
+Android, cross-device on desktop (QR + BLE/CTAP). It does OID4VP + ISO mdoc with selective
+disclosure, and OID4VP-over-DC-API carries `transaction_data` (payload binding survives).
+
+But it is **not a passkey replacement for a cold-start gate**:
+
+- **Verifier/watasu (RP) side = install-free** — pure browser `navigator.credentials.get({digital})`, no app to ship.
+- **User side needs a credential already provisioned in a wallet** — Google/Apple Wallet
+  (pre-installed) or a 3rd-party wallet app. The DC API is a browser-mediated bridge *to a
+  wallet the user already holds a credential in*, not a way to sign consent from nothing.
+
+vs passkey: a passkey needs nothing pre-provisioned (create on the spot with Face ID). DC API
+needs a pre-existing wallet credential. **Strategic upside:** it gives an install-free,
+identity-bound presentation path in a plain browser — which could let watasu do regulated-data
+consent **without shipping tap's PWA** (browser + platform wallet do the ceremony), once JP
+wallet credentials (MyNumber-in-wallet, ~2026+) land. That belongs in the §12 tap-conversion
+thinking.
+
+## Attested vs self-asserted — the real reason passkey fits ordinary data
+
+The line isn't "identity vs non-identity"; it's **attested/pre-issued vs self-asserted**:
+
+- **OID4VP presents a Verifiable Credential** = data an issuer already signed and loaded into
+  a wallet. Works for identity AND non-identity *if attested* (membership, employment,
+  diploma). Does **not** work for arbitrary self-typed data — no issuer, and no-install
+  platform wallets only hold a curated set (gov IDs, payment, passes), not app-defined blobs.
+- **A passkey signs "a human approved *this arbitrary payload*"** — no issuer, no
+  pre-provisioning. Correct tool for self-asserted form-fill data (watasu's `personal-info-mcp`
+  content: name, email, address, preferences).
+
+So they are **complementary**: passkey for ordinary self-asserted data (the form-fill wedge);
+OID4VP/DC-API for attested/identity data (KYC, gov forms, 要配慮個人情報). `transaction_data`
+can bind consent to arbitrary terms even when the *credential* is identity — but new attributes
+still can't be minted on the spot; only the terms being authorized are free-form.
+
+## Passkey adoption & UX (2025–2026 data)
+
+The concern "passkeys are unfamiliar and block registration" is real but is a **prompt-design**
+problem, not a fundamental blocker. The drop-off is concentrated at *enrollment*, worst in a
+cold first-time prompt — exactly watasu's gate:
+
+- **Forcing passkey creation at first interaction → 15–30% abandonment** (cross-vendor CIAM).
+- **No fallback → 5–10× higher abandonment** on prompt cancellation.
+- Mobile-browser **first-try** enrollment: iOS 49–83%, Android 41–67%, Windows desktop 25–39%.
+- Post-success enrollment converts **2–3× higher** than first-registration; conditional-UI
+  default-on → 30–50% adoption in 6 months vs 5–10% behind an explicit button.
+- Once enrolled the gesture is strong: **93% success, 8.5s** (vs 63% / 31s for OTP/legacy).
+
+**Japan is favorable ground:** passkeys are "mainstream" (FIDO Tokyo 2025); Mercari/DOCOMO/KDDI
+>50% of smartphone auth; Yahoo! JAPAN 27M passkey users (~50% of smartphone auth); ~75% of
+Japanese have ≥1 passkey; only 7% "don't know" (lowest surveyed). **Caveat:** those are
+consumer-fintech power users — watasu's foreigner + elderly form-filler segment is
+under-measured, so measure that cohort directly (Sota's real-user test).
+
+**Guidance for the gate:**
+1. **Never force it cold** — offer passkey, always allow skip → fallback (OTP/email). Avoids the 15–30% + 5–10× penalties.
+2. **Frame as "Face IDで承認 / 指紋で承認," never "passkey."** The gesture is familiar; the word isn't.
+3. **Tier it** — lightweight approval for demo/low-sensitivity, biometric only where §13's legal bar needs it.
+4. **Measure your segment** — 5 real target users (a foreigner, an elderly person) beats any benchmark.
+
+Note: the alternatives are worse on this exact axis — CIBA needs an authenticator app enrolled
+(worse first-time friction); OTP is universally understood but legally weak.
 
 ## Caveats
 
@@ -83,3 +141,11 @@ to the passkey long-term. (See `consent-mechanisms-browser-credentials.md` once 
 - ISO/IEC TS 27560 → GDPR (Pandit et al.): https://arxiv.org/pdf/2405.04528
 - Japan MyNumber auth-and-sign: https://services.digital.go.jp/en/auth-and-sign/
 - EUDI Wallet ARF 2.4.0: https://eu-digital-identity-wallet.github.io/eudi-doc-architecture-and-reference-framework/2.4.0/architecture-and-reference-framework-main/
+- W3C Digital Credentials API: https://www.w3.org/TR/digital-credentials/
+- Chrome DC API shipped (141): https://developer.chrome.com/blog/digital-credentials-api-shipped
+- WebKit/Safari 26 DC API: https://webkit.org/blog/17431/online-identity-verification-with-the-digital-credentials-api/
+- Corbado passkey enrollment benchmark 2026: https://www.corbado.com/passkey-benchmark-2026/passkey-enrollment-rate
+- CIAM passkey adoption do's/don'ts: https://guptadeepak.com/ciam-compass/best-practices/passkey-adoption/
+- FIDO Passkey Index 2025: https://fidoalliance.org/passkey-index-2025/
+- FIDO Tokyo Seminar 2025 (Japan adoption): https://fidoalliance.org/recap-fido-tokyo-seminar-2025-toward-a-passwordless-world-deepening-japans-leadership-and-deployment/
+- FIDO World Passkey Day 2025 consumer survey: https://fidoalliance.org/wpd-report-2025-consumer-password-passkey-trends/
