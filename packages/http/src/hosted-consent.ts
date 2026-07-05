@@ -311,6 +311,13 @@ function renderConsentPage(
     nonce: claims.nonce
   });
   const approveUrl = `${publicBaseUrl}/requests/${encodeURIComponent(claims.request_id)}/consent/${token}/approve`;
+  const userHandle = randomBytes(16).toString("base64url");
+  const rpId = new URL(publicBaseUrl).hostname;
+  const pubKeyCredParams = [
+    { type: "public-key", alg: -7 },
+    { type: "public-key", alg: -257 },
+    { type: "public-key", alg: -8 }
+  ];
   const bootstrap = JSON.stringify({
     requestId: claims.request_id,
     requestVersion: claims.request_version,
@@ -319,7 +326,10 @@ function renderConsentPage(
     fieldPurposesHash: claims.field_purposes_hash,
     destinationPolicyHash: claims.destination_policy_hash,
     challenge,
-    approveUrl
+    approveUrl,
+    userHandle,
+    rpId,
+    pubKeyCredParams
   }).replace(/</g, "\\u003c");
 
   // The global hosted CSP is `default-src 'none'`, which would block this page's
@@ -441,36 +451,85 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
     setStatus("Could not hash the payload in this browser.", "err");
   });
 
+  function regToJSON(c) {
+    return {
+      id: c.id,
+      rawId: bytesToB64url(c.rawId),
+      type: c.type,
+      response: {
+        clientDataJSON: bytesToB64url(c.response.clientDataJSON),
+        attestationObject: bytesToB64url(c.response.attestationObject),
+        transports: c.response.getTransports ? c.response.getTransports() : []
+      },
+      clientExtensionResults: c.getClientExtensionResults()
+    };
+  }
+  function authToJSON(c) {
+    return {
+      id: c.id,
+      rawId: bytesToB64url(c.rawId),
+      type: c.type,
+      response: {
+        clientDataJSON: bytesToB64url(c.response.clientDataJSON),
+        authenticatorData: bytesToB64url(c.response.authenticatorData),
+        signature: bytesToB64url(c.response.signature),
+        userHandle: c.response.userHandle ? bytesToB64url(c.response.userHandle) : undefined
+      },
+      clientExtensionResults: c.getClientExtensionResults()
+    };
+  }
+  async function post(body) {
+    var res = await fetch(cfg.approveUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    var data = await res.json();
+    if (res.ok && data.status === "approved") {
+      setStatus("Approved. You can return to your agent.", "ok");
+    } else {
+      setStatus("Approval failed: " + ((data.error && data.error.code) || res.status), "err");
+      approveBtn.disabled = false;
+    }
+  }
+  async function approve() {
+    var challenge = b64urlToBytes(cfg.challenge).buffer;
+    try {
+      // Return user: discoverable get() first.
+      var assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: challenge,
+          userVerification: "required",
+          timeout: 120000
+        }
+      });
+      return post({ type: "authentication", response: authToJSON(assertion) });
+    } catch (e) {
+      // First-time (no credential): register + consent in one gesture.
+      var cred = await navigator.credentials.create({
+        publicKey: {
+          challenge: challenge,
+          rp: { id: cfg.rpId, name: "watasu" },
+          user: {
+            id: b64urlToBytes(cfg.userHandle),
+            name: "watasu user",
+            displayName: "watasu user"
+          },
+          pubKeyCredParams: cfg.pubKeyCredParams,
+          authenticatorSelection: { residentKey: "required", userVerification: "required" },
+          attestation: "none",
+          timeout: 120000
+        }
+      });
+      return post({ type: "registration", user_handle: cfg.userHandle, response: regToJSON(cred) });
+    }
+  }
+
   approveBtn.addEventListener("click", async function () {
     approveBtn.disabled = true;
     setStatus("Waiting for your passkey…", "muted");
     try {
-      var assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: b64urlToBytes(cfg.challenge),
-          userVerification: "preferred",
-          timeout: 120000
-        }
-      });
-      var resp = assertion.response;
-      var payload = {
-        credential_id: bytesToB64url(assertion.rawId),
-        client_data_json: bytesToB64url(resp.clientDataJSON),
-        authenticator_data: bytesToB64url(resp.authenticatorData),
-        signature: bytesToB64url(resp.signature)
-      };
-      var res = await fetch(cfg.approveUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      var data = await res.json();
-      if (res.ok && data.status === "approved") {
-        setStatus("Approved. You can return to your agent.", "ok");
-      } else {
-        setStatus("Approval failed: " + ((data.error && data.error.code) || res.status), "err");
-        approveBtn.disabled = false;
-      }
+      await approve();
     } catch (e) {
       setStatus("Passkey ceremony was cancelled or failed.", "err");
       approveBtn.disabled = false;

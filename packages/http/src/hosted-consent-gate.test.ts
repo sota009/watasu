@@ -1,15 +1,19 @@
 import { describe, expect, test } from "vitest";
 import {
   canonicalizeJson,
+  InMemoryConsentApprovalStore,
+  InMemoryCredentialStore,
   InMemoryIdempotencyStore,
   InMemoryRequestVersionRepository,
   InMemorySubmissionRateLimiter,
   mintConsentReceipt,
+  mintConsentToken,
   sha256Hash,
   type DeliveryRequest,
   type RequestDefinition
 } from "@watasu/core";
 import { createHostedSubmitApp, type HostedSubmitRequest } from "./hosted-submit.js";
+import { createHostedConsentApp, type HostedConsentRequest } from "./hosted-consent.js";
 
 const signingSecret = "consent-gate-signing-secret-with-enough-entropy-000";
 
@@ -259,5 +263,59 @@ describe("hosted submit consent gate", () => {
     expect(response.status).toBe(401);
     expect(JSON.parse(response.body).status).toBe("auth_required");
     expect(deliveryRequests).toHaveLength(0);
+  });
+});
+
+describe("hosted consent page — register-or-assert bootstrap", () => {
+  test("test_consent_page_offers_both_create_and_get_with_a_bootstrap_user_handle", async () => {
+    const consentSigningSecret = "consent-page-signing-secret-with-enough-entropy-00";
+    const consentApp = createHostedConsentApp({
+      publicBaseUrl: "https://api.watasu.ai",
+      signingSecret: consentSigningSecret,
+      clock: () => new Date("2026-07-05T00:00:01.000Z"),
+      allowedOrigins: ["https://api.watasu.ai"],
+      rpID: "api.watasu.ai",
+      idempotencyStore: new InMemoryIdempotencyStore(),
+      approvalStore: new InMemoryConsentApprovalStore(),
+      credentialStore: new InMemoryCredentialStore()
+    });
+
+    const minted = await mintConsentToken(
+      {
+        tenant_id: "tenant-a",
+        request_id: "consent-gated-intake",
+        request_version: "v1",
+        idempotency_key: "submit-consent-001",
+        envelope_hash: "sha256:fixture-envelope",
+        consent_text_hash: "sha256:fixture-consent-text",
+        field_purposes_hash: "sha256:fixture-field-purposes",
+        destination_policy_hash: "sha256:fixture-destination-policy",
+        nonce: "fixture-nonce-0001",
+        issued_at: new Date("2026-07-05T00:00:00.000Z"),
+        ttl_seconds: 600
+      },
+      consentSigningSecret
+    );
+
+    const request: HostedConsentRequest = {
+      method: "GET",
+      path: `/requests/consent-gated-intake/consent/${minted.token}`,
+      headers: {},
+      body: ""
+    };
+
+    const response = await consentApp.handle(request);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toContain("navigator.credentials.create");
+    expect(response.body).toContain("navigator.credentials.get");
+
+    const bootstrapMatch = /<script type="application\/json" id="bootstrap"[^>]*>([^<]*)<\/script>/.exec(
+      response.body
+    );
+    expect(bootstrapMatch).not.toBeNull();
+    const bootstrap = JSON.parse(bootstrapMatch![1]!);
+    expect(typeof bootstrap.userHandle).toBe("string");
+    expect(bootstrap.userHandle.length).toBeGreaterThan(0);
   });
 });
