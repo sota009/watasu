@@ -613,24 +613,21 @@ describe("personal-info-mcp adapter dry run", () => {
         ledger_contains_payload_body: false
       }
     });
+    // The static consent_receipt attestation was retired (§13); the envelope now
+    // carries only the minimal consent_receipt_hash terms echo (== the published
+    // consent_text_hash). Consent binding lives in the runtime consent_receipt_token.
     expect(submittedBodies[0]).toMatchObject({
       message: {
         parts: [
           {
             data: {
-              consent_receipt: {
-                request_version: "v1",
-                consent_text_hash: "sha256:test-consent",
-                field_purposes_hash: "sha256:test-field-purposes",
-                destination_policy_hash: "sha256:test-destination-policy",
-                confirmed_at: "2026-06-15T00:00:00.000Z"
-              },
-              consent_receipt_hash: expect.stringMatching(/^sha256:/)
+              consent_receipt_hash: "sha256:test-consent"
             }
           }
         ]
       }
     });
+    expect(JSON.stringify(submittedBodies)).not.toContain("\"consent_receipt\":");
     expect(`${result.stdout}${result.stderr}${JSON.stringify(submittedBodies)}`).not.toContain(
       "CLI Submit Secret Name"
     );
@@ -787,18 +784,20 @@ describe("personal-info-mcp adapter dry run", () => {
       }
     });
     expect(reader.reads).toEqual(["full_name", "email"]);
+    // Static consent_receipt attestation retired (§13): only the minimal terms
+    // echo remains on the envelope.
     expect(submittedBodies[0]).toMatchObject({
       message: {
         parts: [
           {
             data: {
-              consent_receipt: confirmationFixture(),
-              consent_receipt_hash: expect.stringMatching(/^sha256:/)
+              consent_receipt_hash: "sha256:test-consent"
             }
           }
         ]
       }
     });
+    expect(JSON.stringify(submittedBodies)).not.toContain("\"consent_receipt\":");
     expect(JSON.stringify(submittedBodies)).not.toContain("Submit Secret Name");
     expect(JSON.stringify(submittedBodies)).not.toContain("submit.secret@example.test");
   });

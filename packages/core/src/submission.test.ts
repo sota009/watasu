@@ -101,16 +101,6 @@ function createEnvelope(
   };
 }
 
-function createConsentReceipt(published: PublishedRequestVersion) {
-  return {
-    request_version: published.request_version,
-    consent_text_hash: published.hashes.consent_text_hash,
-    field_purposes_hash: published.hashes.field_purposes_hash,
-    destination_policy_hash: published.hashes.destination_policy_hash,
-    confirmed_at: "2026-06-14T11:58:30.000Z"
-  };
-}
-
 function createContext(
   published: PublishedRequestVersion,
   overrides: Partial<SubmissionValidationContext> = {}
@@ -262,66 +252,6 @@ describe("submission envelope validation", () => {
       status: "rejected",
       error: {
         code: "service_key_id_mismatch"
-      }
-    });
-  });
-
-  test("test_consent_receipt_metadata_bound_to_published_request_is_accepted", () => {
-    const published = createPublished();
-    const consentReceipt = createConsentReceipt(published);
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: sha256Hash(canonicalizeJson(consentReceipt))
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: true,
-      status: "accepted"
-    });
-  });
-
-  test("test_consent_receipt_destination_policy_mismatch_is_rejected", () => {
-    const published = createPublished();
-    const consentReceipt = {
-      ...createConsentReceipt(published),
-      destination_policy_hash: "sha256:stale-destination-policy"
-    };
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: sha256Hash(canonicalizeJson(consentReceipt))
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "consent_receipt_destination_policy_mismatch"
-      }
-    });
-  });
-
-  test("test_consent_receipt_hash_must_match_metadata", () => {
-    const published = createPublished();
-    const consentReceipt = createConsentReceipt(published);
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: "sha256:wrong"
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "consent_receipt_hash_mismatch"
       }
     });
   });

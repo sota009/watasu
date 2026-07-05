@@ -172,6 +172,8 @@ describe("hosted submit consent gate", () => {
       {
         envelope_hash: encryptedPayloadHash,
         consent_text_hash: published.hashes.consent_text_hash,
+        field_purposes_hash: published.hashes.field_purposes_hash,
+        destination_policy_hash: published.hashes.destination_policy_hash,
         credential_id: "credential-xyz",
         approved_at: new Date("2026-07-05T00:00:00.500Z"),
         nonce: "nonce-approved",
@@ -202,6 +204,8 @@ describe("hosted submit consent gate", () => {
       {
         envelope_hash: "sha256:some-other-payload",
         consent_text_hash: published.hashes.consent_text_hash,
+        field_purposes_hash: published.hashes.field_purposes_hash,
+        destination_policy_hash: published.hashes.destination_policy_hash,
         credential_id: "credential-xyz",
         approved_at: new Date("2026-07-05T00:00:00.500Z"),
         nonce: "nonce-approved",
@@ -215,6 +219,37 @@ describe("hosted submit consent gate", () => {
     );
 
     // Mismatched receipt is treated as "no valid receipt" → re-pause.
+    expect(response.status).toBe(401);
+    expect(JSON.parse(response.body).status).toBe("auth_required");
+    expect(deliveryRequests).toHaveLength(0);
+  });
+
+  test("test_human_consent_rejects_receipt_bound_to_stale_terms", async () => {
+    const { repository, published } = createRepository();
+    const deliveryRequests: DeliveryRequest[] = [];
+    const idempotencyStore = new InMemoryIdempotencyStore();
+    const app = createApp({ deliveryRequests, idempotencyStore, repository });
+
+    // Correct payload + consent text, but the receipt was signed against a
+    // stale field-purposes hash — the gate must not accept it.
+    const receipt = await mintConsentReceipt(
+      {
+        envelope_hash: encryptedPayloadHash,
+        consent_text_hash: published.hashes.consent_text_hash,
+        field_purposes_hash: "sha256:stale-field-purposes",
+        destination_policy_hash: published.hashes.destination_policy_hash,
+        credential_id: "credential-xyz",
+        approved_at: new Date("2026-07-05T00:00:00.500Z"),
+        nonce: "nonce-approved",
+        ttl_seconds: 3600
+      },
+      signingSecret
+    );
+
+    const response = await app.handle(
+      createRequest(createA2aData(published, { consent_receipt_token: receipt }))
+    );
+
     expect(response.status).toBe(401);
     expect(JSON.parse(response.body).status).toBe("auth_required");
     expect(deliveryRequests).toHaveLength(0);

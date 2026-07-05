@@ -79,7 +79,6 @@ export function generateEncryptedEnvelopeSchema(
         type: "string",
         const: definition.encryption.service_key_id
       },
-      consent_receipt: { type: "object" },
       encrypted_payload: { type: "object" },
       encrypted_payload_hash: { type: "string" }
     },

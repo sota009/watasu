@@ -164,6 +164,8 @@ async function approveConsent(
   const expectedChallenge = buildConsentChallenge({
     envelope_hash: claims.envelope_hash,
     consent_text_hash: claims.consent_text_hash,
+    field_purposes_hash: claims.field_purposes_hash,
+    destination_policy_hash: claims.destination_policy_hash,
     nonce: claims.nonce
   });
 
@@ -215,6 +217,8 @@ async function approveConsent(
     {
       envelope_hash: claims.envelope_hash,
       consent_text_hash: claims.consent_text_hash,
+      field_purposes_hash: claims.field_purposes_hash,
+      destination_policy_hash: claims.destination_policy_hash,
       credential_id: body.credential_id,
       approved_at: now,
       nonce: claims.nonce,
@@ -265,6 +269,8 @@ function renderConsentPage(
   const challenge = buildConsentChallenge({
     envelope_hash: claims.envelope_hash,
     consent_text_hash: claims.consent_text_hash,
+    field_purposes_hash: claims.field_purposes_hash,
+    destination_policy_hash: claims.destination_policy_hash,
     nonce: claims.nonce
   });
   const approveUrl = `${publicBaseUrl}/requests/${encodeURIComponent(claims.request_id)}/consent/${token}/approve`;
@@ -273,6 +279,8 @@ function renderConsentPage(
     requestVersion: claims.request_version,
     envelopeHash: claims.envelope_hash,
     consentTextHash: claims.consent_text_hash,
+    fieldPurposesHash: claims.field_purposes_hash,
+    destinationPolicyHash: claims.destination_policy_hash,
     challenge,
     approveUrl
   }).replace(/</g, "\\u003c");
@@ -360,6 +368,8 @@ function consentPageHtml(bootstrapJson: string): string {
     row("Request", cfg.requestId + " (" + cfg.requestVersion + ")");
     row("Payload hash", cfg.envelopeHash);
     row("Consent hash", cfg.consentTextHash);
+    row("Field purposes hash", cfg.fieldPurposesHash);
+    row("Destination policy hash", cfg.destinationPolicyHash);
     what.appendChild(dl);
     var pre = document.createElement("pre");
     try { pre.textContent = JSON.stringify(JSON.parse(text), null, 2); }

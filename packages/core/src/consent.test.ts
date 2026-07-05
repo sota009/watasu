@@ -23,6 +23,8 @@ const baseTokenParams = {
   idempotency_key: "submit-001",
   envelope_hash: "sha256:envelope-hash",
   consent_text_hash: "sha256:consent-hash",
+  field_purposes_hash: "sha256:field-purposes-hash",
+  destination_policy_hash: "sha256:destination-policy-hash",
   nonce: "nonce-abc",
   ttl_seconds: 600
 };
@@ -47,6 +49,8 @@ describe("consent token", () => {
         idempotency_key: "submit-001",
         envelope_hash: "sha256:envelope-hash",
         consent_text_hash: "sha256:consent-hash",
+        field_purposes_hash: "sha256:field-purposes-hash",
+        destination_policy_hash: "sha256:destination-policy-hash",
         nonce: "nonce-abc"
       });
       expect(verified.claims.exp).toBe(Math.floor(issuedAt.getTime() / 1000) + 600);
@@ -99,6 +103,8 @@ describe("consent challenge", () => {
     const input = {
       envelope_hash: "sha256:envelope-hash",
       consent_text_hash: "sha256:consent-hash",
+      field_purposes_hash: "sha256:field-purposes-hash",
+      destination_policy_hash: "sha256:destination-policy-hash",
       nonce: "nonce-abc"
     };
 
@@ -109,15 +115,47 @@ describe("consent challenge", () => {
     const first = buildConsentChallenge({
       envelope_hash: "sha256:envelope-hash",
       consent_text_hash: "sha256:consent-hash",
+      field_purposes_hash: "sha256:field-purposes-hash",
+      destination_policy_hash: "sha256:destination-policy-hash",
       nonce: "nonce-abc"
     });
     const second = buildConsentChallenge({
       envelope_hash: "sha256:envelope-hash",
       consent_text_hash: "sha256:consent-hash",
+      field_purposes_hash: "sha256:field-purposes-hash",
+      destination_policy_hash: "sha256:destination-policy-hash",
       nonce: "nonce-def"
     });
 
     expect(first).not.toBe(second);
+  });
+
+  test("test_consent_challenge_changes_with_field_purposes_hash", () => {
+    const base = {
+      envelope_hash: "sha256:envelope-hash",
+      consent_text_hash: "sha256:consent-hash",
+      field_purposes_hash: "sha256:field-purposes-hash",
+      destination_policy_hash: "sha256:destination-policy-hash",
+      nonce: "nonce-abc"
+    };
+
+    expect(buildConsentChallenge(base)).not.toBe(
+      buildConsentChallenge({ ...base, field_purposes_hash: "sha256:other-purposes" })
+    );
+  });
+
+  test("test_consent_challenge_changes_with_destination_policy_hash", () => {
+    const base = {
+      envelope_hash: "sha256:envelope-hash",
+      consent_text_hash: "sha256:consent-hash",
+      field_purposes_hash: "sha256:field-purposes-hash",
+      destination_policy_hash: "sha256:destination-policy-hash",
+      nonce: "nonce-abc"
+    };
+
+    expect(buildConsentChallenge(base)).not.toBe(
+      buildConsentChallenge({ ...base, destination_policy_hash: "sha256:other-policy" })
+    );
   });
 });
 
@@ -158,6 +196,8 @@ describe("WebAuthn assertion (ES256)", () => {
   const challenge = buildConsentChallenge({
     envelope_hash: "sha256:envelope-hash",
     consent_text_hash: "sha256:consent-hash",
+    field_purposes_hash: "sha256:field-purposes-hash",
+    destination_policy_hash: "sha256:destination-policy-hash",
     nonce: "nonce-abc"
   });
   const origin = "https://consent.watasu.ai";
@@ -237,6 +277,8 @@ describe("consent receipt", () => {
   const receiptParams = {
     envelope_hash: "sha256:envelope-hash",
     consent_text_hash: "sha256:consent-hash",
+    field_purposes_hash: "sha256:field-purposes-hash",
+    destination_policy_hash: "sha256:destination-policy-hash",
     credential_id: "credential-xyz",
     nonce: "nonce-abc",
     ttl_seconds: 3600
@@ -257,6 +299,8 @@ describe("consent receipt", () => {
       expect(verified.receipt).toMatchObject({
         envelope_hash: "sha256:envelope-hash",
         consent_text_hash: "sha256:consent-hash",
+        field_purposes_hash: "sha256:field-purposes-hash",
+        destination_policy_hash: "sha256:destination-policy-hash",
         credential_id: "credential-xyz",
         nonce: "nonce-abc",
         approved_at: approvedAt.toISOString()

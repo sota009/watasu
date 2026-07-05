@@ -21,6 +21,8 @@ export interface ConsentTokenClaims {
   idempotency_key: string;
   envelope_hash: string;
   consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
   nonce: string;
   exp: number;
 }
@@ -32,6 +34,8 @@ export interface MintConsentTokenParams {
   idempotency_key: string;
   envelope_hash: string;
   consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
   nonce?: string | undefined;
   issued_at: Date;
   ttl_seconds: number;
@@ -72,6 +76,8 @@ export async function mintConsentToken(
     idempotency_key: params.idempotency_key,
     envelope_hash: params.envelope_hash,
     consent_text_hash: params.consent_text_hash,
+    field_purposes_hash: params.field_purposes_hash,
+    destination_policy_hash: params.destination_policy_hash,
     nonce,
     exp
   };
@@ -83,6 +89,8 @@ export async function mintConsentToken(
     idempotency_key: claims.idempotency_key,
     envelope_hash: claims.envelope_hash,
     consent_text_hash: claims.consent_text_hash,
+    field_purposes_hash: claims.field_purposes_hash,
+    destination_policy_hash: claims.destination_policy_hash,
     nonce: claims.nonce
   })
     .setProtectedHeader({ alg: "HS256", typ: consentTokenType })
@@ -131,19 +139,31 @@ export async function verifyConsentToken(
 }
 
 // ---------------------------------------------------------------------------
-// WebAuthn challenge. §7: the biometric signs over *what the user saw*, not a
-// bare random challenge — challenge = base64url(SHA-256(envelope_hash ‖
-// consent_text_hash ‖ nonce)).
+// WebAuthn challenge. §7 + §13: the biometric signs over *what the user saw*,
+// not a bare random challenge. The single signed receipt is the SOLE consent
+// mechanism, so the challenge binds all three published term-hashes (consent
+// text, field purposes, destination policy) alongside the payload — proving
+// both "a human consented" AND "consent was to the exact terms" — challenge =
+// base64url(SHA-256(envelope_hash ‖ consent_text_hash ‖ field_purposes_hash ‖
+// destination_policy_hash ‖ nonce)).
 // ---------------------------------------------------------------------------
 
 export interface ConsentChallengeInput {
   envelope_hash: string;
   consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
   nonce: string;
 }
 
 export function buildConsentChallenge(input: ConsentChallengeInput): string {
-  const material = `${input.envelope_hash}\n${input.consent_text_hash}\n${input.nonce}`;
+  const material = [
+    input.envelope_hash,
+    input.consent_text_hash,
+    input.field_purposes_hash,
+    input.destination_policy_hash,
+    input.nonce
+  ].join("\n");
   return createHash("sha256").update(material, "utf8").digest("base64url");
 }
 
@@ -265,6 +285,8 @@ export function verifyWebAuthnAssertion(
 export interface ConsentReceipt {
   envelope_hash: string;
   consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
   credential_id: string;
   approved_at: string;
   nonce: string;
@@ -274,6 +296,8 @@ export interface ConsentReceipt {
 export interface MintConsentReceiptParams {
   envelope_hash: string;
   consent_text_hash: string;
+  field_purposes_hash: string;
+  destination_policy_hash: string;
   credential_id: string;
   approved_at: Date;
   nonce: string;
@@ -302,6 +326,8 @@ export async function mintConsentReceipt(
   return new SignJWT({
     envelope_hash: params.envelope_hash,
     consent_text_hash: params.consent_text_hash,
+    field_purposes_hash: params.field_purposes_hash,
+    destination_policy_hash: params.destination_policy_hash,
     credential_id: params.credential_id,
     approved_at: params.approved_at.toISOString(),
     nonce: params.nonce
@@ -419,6 +445,8 @@ function extractConsentTokenClaims(payload: Record<string, unknown>): ConsentTok
   const idempotency_key = payload.idempotency_key;
   const envelope_hash = payload.envelope_hash;
   const consent_text_hash = payload.consent_text_hash;
+  const field_purposes_hash = payload.field_purposes_hash;
+  const destination_policy_hash = payload.destination_policy_hash;
   const nonce = payload.nonce;
   const exp = payload.exp;
 
@@ -429,6 +457,8 @@ function extractConsentTokenClaims(payload: Record<string, unknown>): ConsentTok
     typeof idempotency_key !== "string" ||
     typeof envelope_hash !== "string" ||
     typeof consent_text_hash !== "string" ||
+    typeof field_purposes_hash !== "string" ||
+    typeof destination_policy_hash !== "string" ||
     typeof nonce !== "string" ||
     typeof exp !== "number"
   ) {
@@ -442,6 +472,8 @@ function extractConsentTokenClaims(payload: Record<string, unknown>): ConsentTok
     idempotency_key,
     envelope_hash,
     consent_text_hash,
+    field_purposes_hash,
+    destination_policy_hash,
     nonce,
     exp
   };
@@ -450,6 +482,8 @@ function extractConsentTokenClaims(payload: Record<string, unknown>): ConsentTok
 function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt | undefined {
   const envelope_hash = payload.envelope_hash;
   const consent_text_hash = payload.consent_text_hash;
+  const field_purposes_hash = payload.field_purposes_hash;
+  const destination_policy_hash = payload.destination_policy_hash;
   const credential_id = payload.credential_id;
   const approved_at = payload.approved_at;
   const nonce = payload.nonce;
@@ -458,6 +492,8 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
   if (
     typeof envelope_hash !== "string" ||
     typeof consent_text_hash !== "string" ||
+    typeof field_purposes_hash !== "string" ||
+    typeof destination_policy_hash !== "string" ||
     typeof credential_id !== "string" ||
     typeof approved_at !== "string" ||
     typeof nonce !== "string" ||
@@ -469,6 +505,8 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
   return {
     envelope_hash,
     consent_text_hash,
+    field_purposes_hash,
+    destination_policy_hash,
     credential_id,
     approved_at,
     nonce,

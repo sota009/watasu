@@ -24,6 +24,8 @@ const tokenParams = {
   idempotency_key: "submit-consent-001",
   envelope_hash: "sha256:envelope-hash",
   consent_text_hash: "sha256:consent-hash",
+  field_purposes_hash: "sha256:field-purposes-hash",
+  destination_policy_hash: "sha256:destination-policy-hash",
   nonce: "nonce-approved",
   issued_at: new Date("2026-07-05T00:00:00.000Z"),
   ttl_seconds: 600

@@ -233,12 +233,18 @@ export async function createPersonalInfoAdapterSubmit(
     encryption: contract.extension.params.encryption
   });
   const encryptedPayloadHash = sha256Hash(canonicalizeJson(encryptedPayload));
+  // TODO: personal-data submits must route through the human_consent gate (see
+  // consent-gate-design.md §13). The static `consent_receipt` attestation was
+  // removed because hash-equality is not legally-sufficient consent evidence;
+  // consent binding now lives solely in the signed `consent_receipt_token`
+  // minted at watasu's runtime consent boundary. `consent_receipt_hash` remains
+  // only as a minimal terms echo (== published consent_text_hash), which the
+  // adapter still validates against the Agent Card via `validateConfirmation`.
   const envelope = {
     request_id: contract.extension.params.request_id,
     request_version: contract.extension.params.request_version,
     schema_hash: contract.extension.params.schema_hash,
-    consent_receipt_hash: sha256Hash(canonicalizeJson(input.confirmation)),
-    consent_receipt: input.confirmation,
+    consent_receipt_hash: contract.extension.params.consent_text_hash,
     idempotency_key: input.idempotencyKey,
     submitted_at: input.submittedAt,
     service_key_id: contract.extension.params.encryption.service_key_id,

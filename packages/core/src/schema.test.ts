@@ -125,13 +125,13 @@ describe("encrypted envelope schema generation", () => {
     ]);
   });
 
-  test("test_envelope_schema_allows_consent_receipt_metadata", () => {
+  test("test_envelope_schema_omits_static_consent_receipt", () => {
     const hashes = createRequestVersionHashes(baseDefinition);
     const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
 
-    expect(schema.properties.consent_receipt).toEqual({
-      type: "object"
-    });
+    // The static ConsentReceiptMetadata attestation was retired (§13); consent
+    // binding now lives solely in the signed consent_receipt_token.
+    expect(schema.properties.consent_receipt).toBeUndefined();
     expect(schema.required).not.toContain("consent_receipt");
   });
 });

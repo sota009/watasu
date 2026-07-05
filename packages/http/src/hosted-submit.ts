@@ -290,6 +290,8 @@ async function evaluateConsentGate(input: {
 }): Promise<{ ok: true } | { ok: false; response: HostedSubmitResponse }> {
   const envelopeHash = input.envelope.encrypted_payload_hash;
   const consentTextHash = input.published.hashes.consent_text_hash;
+  const fieldPurposesHash = input.published.hashes.field_purposes_hash;
+  const destinationPolicyHash = input.published.hashes.destination_policy_hash;
   const receiptToken = input.envelope.consent_receipt_token;
 
   if (receiptToken !== undefined) {
@@ -297,7 +299,9 @@ async function evaluateConsentGate(input: {
     if (
       verified.ok &&
       verified.receipt.envelope_hash === envelopeHash &&
-      verified.receipt.consent_text_hash === consentTextHash
+      verified.receipt.consent_text_hash === consentTextHash &&
+      verified.receipt.field_purposes_hash === fieldPurposesHash &&
+      verified.receipt.destination_policy_hash === destinationPolicyHash
     ) {
       const claimed = await input.idempotencyStore.claimValidation(
         `consent-receipt:${verified.receipt.nonce}`,
@@ -326,6 +330,8 @@ async function evaluateConsentGate(input: {
       idempotency_key: input.envelope.idempotency_key,
       envelope_hash: envelopeHash,
       consent_text_hash: consentTextHash,
+      field_purposes_hash: fieldPurposesHash,
+      destination_policy_hash: destinationPolicyHash,
       issued_at: input.now,
       ttl_seconds: input.consentTtlSeconds
     },
