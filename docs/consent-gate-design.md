@@ -453,10 +453,10 @@ failures, zero new):
   `consent_text_hash`) — it's load-bearing (sender-signature coverage, type guard, schema,
   ~20 files), and it only pins terms; it is explicitly **not** consent evidence (that's the
   token). Full removal was out of scope for this pass.
-- **`personal-info-adapter` (Sota's) — behavior change:** it no longer attaches an enforceable
-  consent artifact. `consent_receipt` production removed; `consent_receipt_hash` now echoes the
-  published `consent_text_hash`. **Consequence:** a headless adapter submit against a
-  `human_consent` request now pauses at the gate (`401 auth_required`) with no token to
-  resume — the adapter must be rewired to mint/carry a `consent_receipt_token` through the
-  interactive passkey gate. Marked with a `TODO` in the adapter; this is the follow-up and is
-  the headless→interactive shift flagged to Sota.
+- **`personal-info-adapter` (Sota's) — removed entirely.** Rather than rewire the adapter to
+  mint/carry a `consent_receipt_token` through the interactive passkey gate, the whole
+  `personal-info-adapter` package was deleted from this fork — it was a zero-dependent leaf with
+  no callers, and its headless submit path could no longer produce an enforceable consent
+  artifact under the token-based gate anyway. There is no adapter left to rewire; a
+  headless→interactive `human_consent` client would need to be built fresh against the token
+  gate if that path is ever wanted again.
