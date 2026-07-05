@@ -8,7 +8,7 @@ import {
   type ConsentTokenClaims,
   type WebAuthnSignatureVerifier
 } from "@watasu/core";
-import type { JsonWebKey } from "node:crypto";
+import { randomBytes, type JsonWebKey } from "node:crypto";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedConsentRequest {
@@ -285,25 +285,33 @@ function renderConsentPage(
     approveUrl
   }).replace(/</g, "\\u003c");
 
+  // The global hosted CSP is `default-src 'none'`, which would block this page's
+  // own inline style + passkey script. Scope a tight per-page CSP bound to a
+  // fresh nonce: only this page's inline blocks run, approval posts same-origin,
+  // nothing else loads. The server preserves a route-set CSP (see hosted-server).
+  const nonce = randomBytes(16).toString("base64");
   return {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
-      "referrer-policy": "no-referrer"
+      "referrer-policy": "no-referrer",
+      "content-security-policy":
+        `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; ` +
+        `connect-src 'self'; img-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`
     },
-    body: consentPageHtml(bootstrap)
+    body: consentPageHtml(bootstrap, nonce)
   };
 }
 
-function consentPageHtml(bootstrapJson: string): string {
+function consentPageHtml(bootstrapJson: string, nonce: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>watasu — approve this submission</title>
-<style>
+<style nonce="${nonce}">
   :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif; }
   body { margin: 0; padding: 1.5rem; max-width: 34rem; margin-inline: auto; line-height: 1.5; }
   h1 { font-size: 1.25rem; }
@@ -327,8 +335,8 @@ function consentPageHtml(bootstrapJson: string): string {
 <div id="detail"></div>
 <p><button id="approve" disabled>Approve with passkey</button></p>
 <div id="status" class="status muted">Verifying payload…</div>
-<script type="application/json" id="bootstrap">${bootstrapJson}</script>
-<script>
+<script type="application/json" id="bootstrap" nonce="${nonce}">${bootstrapJson}</script>
+<script nonce="${nonce}">
 (function () {
   var cfg = JSON.parse(document.getElementById("bootstrap").textContent);
   var statusEl = document.getElementById("status");

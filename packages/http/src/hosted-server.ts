@@ -215,9 +215,14 @@ const hostedSecurityHeaders = {
 export function withHostedSecurityHeaders(
   headers: HostedProductionResponse["headers"]
 ): HostedProductionResponse["headers"] {
+  // Security headers are forced globally, EXCEPT a route may declare its own
+  // Content-Security-Policy (e.g. the consent page needs a nonce'd inline
+  // script; the default `default-src 'none'` would break it). A route CSP wins.
+  const routeCsp = headers["content-security-policy"];
   return {
     ...headers,
-    ...hostedSecurityHeaders
+    ...hostedSecurityHeaders,
+    ...(routeCsp === undefined ? {} : { "content-security-policy": routeCsp })
   };
 }
 
