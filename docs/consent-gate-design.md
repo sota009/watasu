@@ -437,3 +437,26 @@ mdoc National ID (the §9 upgrade path).
 > data raises the bar) before relying on this. Concrete question for Sota's legal contacts:
 > *"For agent-mediated collection of personal data, is an unsigned agent-attached receipt
 > sufficient consent evidence, or is a signed/witnessed approval required?"*
+
+### Implemented (2026-07-05, commit `137e7cb`)
+
+The consolidation is done on this branch, green (only the 4 known-pre-existing upstream
+failures, zero new):
+
+- **Removed** the static path: `ConsentReceiptMetadata`, `validateConsentReceiptMetadata`, the
+  optional `consent_receipt` envelope field + schema property, and their tests.
+- **Token now binds all three term-hashes.** `buildConsentChallenge` hashes
+  `envelope_hash ‖ consent_text_hash ‖ field_purposes_hash ‖ destination_policy_hash ‖ nonce`,
+  so the passkey signs over the exact terms + purposes + destination + payload. The gate
+  re-pauses if a resume receipt's term-hashes don't match the published version.
+- **`consent_receipt_hash` kept** as a *minimal required terms echo* (must equal the published
+  `consent_text_hash`) — it's load-bearing (sender-signature coverage, type guard, schema,
+  ~20 files), and it only pins terms; it is explicitly **not** consent evidence (that's the
+  token). Full removal was out of scope for this pass.
+- **`personal-info-adapter` (Sota's) — behavior change:** it no longer attaches an enforceable
+  consent artifact. `consent_receipt` production removed; `consent_receipt_hash` now echoes the
+  published `consent_text_hash`. **Consequence:** a headless adapter submit against a
+  `human_consent` request now pauses at the gate (`401 auth_required`) with no token to
+  resume — the adapter must be rewired to mint/carry a `consent_receipt_token` through the
+  interactive passkey gate. Marked with a `TODO` in the adapter; this is the follow-up and is
+  the headless→interactive shift flagged to Sota.
