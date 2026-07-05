@@ -380,7 +380,7 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
 <p class="muted">watasu never receives the plaintext below — it stays in your browser (URL fragment) and is verified against the hash the server holds.</p>
 <section id="what"></section>
 <div id="detail"></div>
-<p><button id="approve" disabled>Approve with passkey</button></p>
+<p><button id="approve" disabled>Face IDで承認</button></p>
 <div id="status" class="status muted">Verifying payload…</div>
 <script type="application/json" id="bootstrap" nonce="${nonce}">${bootstrapJson}</script>
 <script nonce="${nonce}">
@@ -445,7 +445,7 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
       return;
     }
     renderPayload(fragment);
-    setStatus("Payload verified. Approve to sign with your passkey.", "ok");
+    setStatus("Payload verified. Approve with Face ID to sign.", "ok");
     approveBtn.disabled = false;
   }).catch(function () {
     setStatus("Could not hash the payload in this browser.", "err");
@@ -492,26 +492,39 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
       approveBtn.disabled = false;
     }
   }
+  // registerMode: with discoverable credentials a failing get() cannot be told
+  // apart from a user-cancelled get() — both surface as NotAllowedError. So the
+  // first get() failure does NOT silently escalate into a registration prompt
+  // (that would shove a returning user who merely cancelled into creating a new
+  // passkey). Instead it asks for an explicit second tap, which registers.
+  var registerMode = false;
+
   async function approve() {
     var challenge = b64urlToBytes(cfg.challenge).buffer;
-    var assertion = null;
-    try {
-      // Return user: discoverable get() first.
-      assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: challenge,
-          userVerification: "required",
-          timeout: 120000
-        }
-      });
-    } catch (e) {
-      // No discoverable credential — fall through to registration.
-      assertion = null;
-    }
-    if (assertion) {
+
+    if (!registerMode) {
+      // Returning user: try a discoverable get() first.
+      var assertion;
+      try {
+        assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: challenge,
+            userVerification: "required",
+            timeout: 120000
+          }
+        });
+      } catch (e) {
+        // Could be "no passkey exists" OR "user cancelled" — indistinguishable.
+        // Ask for an explicit tap to create one rather than escalating silently.
+        registerMode = true;
+        setStatus("No passkey approved this. Tap 承認 again to create one with Face ID.", "muted");
+        approveBtn.disabled = false;
+        return;
+      }
       return post({ type: "authentication", response: authToJSON(assertion) });
     }
-    // First-time (no credential): register + consent in one gesture.
+
+    // Explicit second tap: register a new passkey + consent in one gesture.
     var cred = await navigator.credentials.create({
       publicKey: {
         challenge: challenge,
@@ -532,11 +545,11 @@ function consentPageHtml(bootstrapJson: string, nonce: string): string {
 
   approveBtn.addEventListener("click", async function () {
     approveBtn.disabled = true;
-    setStatus("Waiting for your passkey…", "muted");
+    setStatus("Waiting for Face ID…", "muted");
     try {
       await approve();
     } catch (e) {
-      setStatus("Passkey ceremony was cancelled or failed.", "err");
+      setStatus("Approval was cancelled or failed. Tap to try again.", "err");
       approveBtn.disabled = false;
     }
   });
