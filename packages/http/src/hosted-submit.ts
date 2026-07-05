@@ -3,7 +3,6 @@ import {
   deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
   mintConsentToken,
-  sha256Hash,
   validateSubmissionEnvelopeAsync,
   validateSubmissionEnvelopeMetadata,
   verifyConsentReceipt,
@@ -14,14 +13,9 @@ import {
   type DeliveryConcurrencyLimiter,
   type DeliveryLedger,
   type PublishedRequestVersion,
-  type Sha256Hash,
   type SubmissionCapability,
   type SubmissionEnvelope
 } from "@watasu/core";
-import type {
-  HostedSenderTrustResolver,
-  HostedSenderTrustResult
-} from "./hosted-sender-auth.js";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedSubmitRequest {
@@ -57,7 +51,6 @@ export interface CreateHostedSubmitAppInput {
   signingSecret: string;
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
-  resolveSenderTrust?: HostedSenderTrustResolver | undefined;
   resolveCapability?: ((input: {
     capabilityUrl: string;
     published: PublishedRequestVersion;
@@ -162,14 +155,6 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         request,
         published
       });
-      const senderTrust = resolveSenderTrust({
-        resolver: input.resolveSenderTrust,
-        tenantId,
-        published,
-        capabilityHash: hashCapabilityUrl(capabilityUrl),
-        envelope: gateResult.envelopeCandidate,
-        now: input.clock()
-      });
       const capability = await resolveCapability({
         resolver: input.resolveCapability,
         capabilityUrl,
@@ -181,13 +166,10 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         capability,
         idempotencyStore: input.idempotencyStore,
         rateLimiter: input.rateLimiter,
-        clock: input.clock,
-        trustedSenderKeyIds: senderTrust.trustedSenderKeyIds,
-        trustedSenderPublicKeys: senderTrust.trustedSenderPublicKeys,
-        trustedInvites: senderTrust.trustedInvites
+        clock: input.clock
       });
       if (!validationResult.ok) {
-        return jsonResponse(validationResult.status === "auth_required" ? 401 : 400, {
+        return jsonResponse(400, {
           ok: false,
           status: validationResult.status,
           error: validationResult.error
@@ -352,42 +334,6 @@ async function evaluateConsentGate(input: {
       }
     })
   };
-}
-
-function resolveSenderTrust(input: {
-  resolver: HostedSenderTrustResolver | undefined;
-  tenantId: string | undefined;
-  published: PublishedRequestVersion;
-  capabilityHash: Sha256Hash;
-  envelope: SubmissionEnvelope;
-  now: Date;
-}): HostedSenderTrustResult {
-  if (
-    input.resolver === undefined ||
-    input.tenantId === undefined ||
-    input.published.definition.trust_profile === "public_capability" ||
-    input.published.definition.trust_profile === "local_demo"
-  ) {
-    return {
-      trustedSenderKeyIds: [],
-      trustedSenderPublicKeys: [],
-      trustedInvites: []
-    };
-  }
-
-  return input.resolver({
-    tenantId: input.tenantId,
-    requestId: input.published.request_id,
-    requestVersion: input.published.request_version,
-    capabilityHash: input.capabilityHash,
-    senderKeyId: input.envelope.sender_key_id,
-    inviteId: input.envelope.invite_id,
-    now: input.now
-  });
-}
-
-function hashCapabilityUrl(capabilityUrl: string): Sha256Hash {
-  return sha256Hash(capabilityUrl);
 }
 
 function protocolErrorResponse(error: {

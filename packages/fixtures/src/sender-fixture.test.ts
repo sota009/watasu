@@ -62,7 +62,7 @@ const requestDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "public_capability"
+  trust_profile: "human_consent"
 };
 
 const published: PublishedRequestVersion = {

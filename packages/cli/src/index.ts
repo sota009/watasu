@@ -499,9 +499,7 @@ async function runFixtureDelivery(
       submitted_at: submittedAt,
       service_key_id: definition.encryption.service_key_id,
       encrypted_payload: encryptedPayload,
-      encrypted_payload_hash: sha256Hash(canonicalizeJson(encryptedPayload)),
-      sender_key_id: "fixture-sender-key",
-      sender_signature: "fixture-sender-signature"
+      encrypted_payload_hash: sha256Hash(canonicalizeJson(encryptedPayload))
     },
     submission: {
       request_id: publishResult.published.request_id,

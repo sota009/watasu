@@ -154,44 +154,6 @@ describe("hosted production runtime package", () => {
     runtime.server.close();
   });
 
-  test("test_hosted_trial_publish_rejects_high_risk_fields", async () => {
-    const runtime = createHostedProductionServerFromEnv({
-      env: createTrialPublishEnv(),
-      now: () => new Date("2026-06-16T00:00:00.000Z")
-    });
-    const response = await postHostedPublish(runtime, {
-      bearerCredential: "trial_invite",
-      definition: createTrialRequestDefinition({
-        fields: [
-          {
-            id: "email",
-            type: "string",
-            format: "email",
-            required: true,
-            purpose: "Send smoke-test updates.",
-            sensitivity: "moderate"
-          },
-          {
-            id: "address",
-            type: "string",
-            required: true,
-            purpose: "Test high-risk policy.",
-            sensitivity: "high"
-          }
-        ]
-      })
-    });
-
-    expect(response.status).toBe(400);
-    expect(JSON.parse(response.body)).toMatchObject({
-      ok: false,
-      error: {
-        code: "public_capability_high_sensitivity"
-      }
-    });
-    runtime.server.close();
-  });
-
   test("test_hosted_production_server_from_env_mounts_mcp_auth_challenge", async () => {
     // Arrange
     const runtime = createHostedProductionServerFromEnv({
@@ -887,7 +849,7 @@ function createTrialRequestDefinition(overrides: Record<string, unknown> = {}): 
     metadata_retention: {
       days: 7
     },
-    trust_profile: "public_capability",
+    trust_profile: "human_consent",
     ...overrides
   };
 }

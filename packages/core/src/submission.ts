@@ -1,7 +1,5 @@
-import { createPublicKey, verify, type JsonWebKey } from "node:crypto";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
 import { canonicalizeJson } from "./request-definition.js";
-import type { TrustProfile } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 
 const defaultMaxSubmissionAgeMs = 15 * 60 * 1000;
@@ -23,9 +21,6 @@ export interface SubmissionEnvelope {
   service_key_id: string;
   encrypted_payload: Record<string, unknown>;
   encrypted_payload_hash: string;
-  sender_key_id?: string | undefined;
-  sender_signature?: string | undefined;
-  invite_id?: string | undefined;
   /**
    * Compact JWS consent receipt token presented on resume for the
    * `human_consent` runtime gate. This is the SOLE consent mechanism (§13):
@@ -51,17 +46,6 @@ export interface CapabilityRecord {
   status: CapabilityStatus;
   issued_at: string;
   revoked_at?: string | undefined;
-}
-
-export interface TrustedInviteBinding {
-  invite_id: string;
-  sender_key_id: string;
-}
-
-export interface TrustedSenderPublicKey {
-  sender_key_id: string;
-  alg: "ES256" | "EdDSA";
-  public_jwk: JsonWebKey;
 }
 
 export interface IdempotencyStore {
@@ -100,9 +84,6 @@ export interface SubmissionValidationContext {
   rateLimiter: SubmissionRateLimiter;
   clock: () => Date;
   maxSubmissionAgeMs?: number | undefined;
-  trustedSenderKeyIds?: string[] | undefined;
-  trustedSenderPublicKeys?: TrustedSenderPublicKey[] | undefined;
-  trustedInvites?: TrustedInviteBinding[] | undefined;
 }
 
 export interface AsyncSubmissionValidationContext extends Omit<
@@ -121,7 +102,7 @@ export type SubmissionValidationResult =
     }
   | {
       ok: false;
-      status: "rejected" | "auth_required";
+      status: "rejected";
       error: SubmissionValidationError;
     };
 
@@ -132,8 +113,6 @@ export interface AcceptedSubmission {
   submitted_at: string;
   accepted_at: string;
   capability_hash: Sha256Hash;
-  sender_key_id?: string | undefined;
-  invite_id?: string | undefined;
 }
 
 export interface SubmissionValidationError {
@@ -300,9 +279,7 @@ export function validateSubmissionEnvelope(
       idempotency_key: envelope.idempotency_key,
       submitted_at: envelope.submitted_at,
       accepted_at: acceptedAt,
-      capability_hash: sha256Hash(context.capability.url),
-      sender_key_id: envelope.sender_key_id,
-      invite_id: envelope.invite_id
+      capability_hash: sha256Hash(context.capability.url)
     }
   };
 }
@@ -344,9 +321,7 @@ export async function validateSubmissionEnvelopeAsync(
       idempotency_key: envelope.idempotency_key,
       submitted_at: envelope.submitted_at,
       accepted_at: acceptedAt,
-      capability_hash: sha256Hash(context.capability.url),
-      sender_key_id: envelope.sender_key_id,
-      invite_id: envelope.invite_id
+      capability_hash: sha256Hash(context.capability.url)
     }
   };
 }
@@ -367,14 +342,6 @@ function prepareSubmissionValidation(
     return {
       ok: false,
       result: rejected("capability_revoked", "Capability URL has been revoked.")
-    };
-  }
-
-  const trustError = validateSenderTrust(envelope, context);
-  if (trustError !== undefined) {
-    return {
-      ok: false,
-      result: authRequired(trustError.code, trustError.message)
     };
   }
 
@@ -464,173 +431,6 @@ export function validateSubmissionEnvelopeMetadata(
   return undefined;
 }
 
-function validateSenderTrust(
-  envelope: SubmissionEnvelope,
-  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">
-): SubmissionValidationError | undefined {
-  const trustProfile = context.published.definition.trust_profile;
-
-  if (
-    trustProfile === "public_capability" ||
-    trustProfile === "local_demo" ||
-    trustProfile === "human_consent"
-  ) {
-    // human_consent short-circuits sender-trust here; the runtime consent gate
-    // (packages/http/src/hosted-submit.ts) enforces the human approval instead.
-    return undefined;
-  }
-
-  if (trustProfile === "verified_sender") {
-    return validateTrustedSenderKey(envelope, context, trustProfile);
-  }
-
-  if (envelope.sender_key_id === undefined) {
-    return {
-      code: "sender_key_required",
-      message: "private_invite submissions require a sender key."
-    };
-  }
-
-  if (envelope.invite_id === undefined) {
-    return {
-      code: "invite_binding_required",
-      message: "private_invite submissions require an invite binding."
-    };
-  }
-
-  const trustedInvite = (context.trustedInvites ?? []).find(
-    (invite) =>
-      invite.invite_id === envelope.invite_id && invite.sender_key_id === envelope.sender_key_id
-  );
-  if (trustedInvite === undefined) {
-    return {
-      code: "invite_binding_mismatch",
-      message: "private_invite sender key is not bound to the invite."
-    };
-  }
-
-  return validateTrustedSenderKey(envelope, context, trustProfile);
-}
-
-function validateTrustedSenderKey(
-  envelope: SubmissionEnvelope,
-  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">,
-  trustProfile: TrustProfile
-): SubmissionValidationError | undefined {
-  if (envelope.sender_key_id === undefined) {
-    return {
-      code: "sender_key_required",
-      message: `${trustProfile} submissions require a sender key.`
-    };
-  }
-
-  const trustedSenderKeyIds = context.trustedSenderKeyIds;
-  if (trustedSenderKeyIds === undefined || !trustedSenderKeyIds.includes(envelope.sender_key_id)) {
-    return {
-      code: "sender_key_untrusted",
-      message: "Sender key is not trusted for this request."
-    };
-  }
-
-  if (envelope.sender_signature === undefined) {
-    return {
-      code: "sender_signature_required",
-      message: `${trustProfile} submissions require a sender signature.`
-    };
-  }
-
-  const trustedSenderPublicKey = context.trustedSenderPublicKeys?.find(
-    (key) => key.sender_key_id === envelope.sender_key_id
-  );
-  if (trustedSenderPublicKey === undefined) {
-    return {
-      code: "sender_public_key_required",
-      message: "Sender public key is required to verify the sender signature."
-    };
-  }
-
-  if (!verifySenderSignature({
-    envelope,
-    publicKey: trustedSenderPublicKey
-  })) {
-    return {
-      code: "sender_signature_invalid",
-      message: "Sender signature could not be verified."
-    };
-  }
-
-  return undefined;
-}
-
-export function buildSenderSignaturePayload(envelope: SubmissionEnvelope): Record<string, string> {
-  return {
-    request_id: envelope.request_id,
-    request_version: envelope.request_version,
-    schema_hash: envelope.schema_hash,
-    idempotency_key: envelope.idempotency_key,
-    encrypted_payload_hash: envelope.encrypted_payload_hash,
-    service_key_id: envelope.service_key_id,
-    consent_receipt_hash: envelope.consent_receipt_hash,
-    submitted_at: envelope.submitted_at
-  };
-}
-
-function verifySenderSignature(input: {
-  envelope: SubmissionEnvelope;
-  publicKey: TrustedSenderPublicKey;
-}): boolean {
-  if (input.envelope.sender_signature === undefined) {
-    return false;
-  }
-
-  const parts = input.envelope.sender_signature.split(".");
-  if (parts.length !== 3 || parts[1] !== "") {
-    return false;
-  }
-
-  const [encodedProtected, , encodedSignature] = parts;
-  if (encodedProtected === undefined || encodedSignature === undefined) {
-    return false;
-  }
-
-  const protectedHeader = parseProtectedHeader(encodedProtected);
-  if (protectedHeader?.alg !== input.publicKey.alg) {
-    return false;
-  }
-
-  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(input.envelope)))
-    .toString("base64url");
-  const signingInput = Buffer.from(`${encodedProtected}.${payload}`, "ascii");
-
-  try {
-    const key = createPublicKey({ key: input.publicKey.public_jwk, format: "jwk" });
-    const signature = Buffer.from(encodedSignature, "base64url");
-    if (input.publicKey.alg === "ES256") {
-      return verify("sha256", signingInput, {
-        key,
-        dsaEncoding: "ieee-p1363"
-      }, signature);
-    }
-
-    return verify(null, signingInput, key, signature);
-  } catch {
-    return false;
-  }
-}
-
-function parseProtectedHeader(encodedProtected: string): { alg?: unknown } | undefined {
-  try {
-    const value = JSON.parse(Buffer.from(encodedProtected, "base64url").toString("utf8")) as unknown;
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return undefined;
-    }
-
-    return value;
-  } catch {
-    return undefined;
-  }
-}
-
 function hashEncryptedPayload(encryptedPayload: Record<string, unknown>): Sha256Hash {
   return sha256Hash(canonicalizeJson(encryptedPayload));
 }
@@ -645,17 +445,6 @@ function rejected(code: string, message: string): SubmissionValidationResult {
   return {
     ok: false,
     status: "rejected",
-    error: {
-      code,
-      message
-    }
-  };
-}
-
-function authRequired(code: string, message: string): SubmissionValidationResult {
-  return {
-    ok: false,
-    status: "auth_required",
     error: {
       code,
       message

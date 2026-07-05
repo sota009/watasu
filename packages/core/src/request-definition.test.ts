@@ -54,7 +54,7 @@ function validRequest(overrides: Record<string, unknown> = {}): Record<string, u
     metadata_retention: {
       days: 90
     },
-    trust_profile: "public_capability",
+    trust_profile: "human_consent",
     ...overrides
   };
 }
@@ -97,7 +97,7 @@ encryption:
     y: base64url-y
 metadata_retention:
   days: 90
-trust_profile: public_capability
+trust_profile: human_consent
 `;
 
     const result = validateRequestDefinitionInput(yaml);
@@ -170,33 +170,6 @@ trust_profile: public_capability
     });
   });
 
-  test("test_public_capability_with_high_sensitivity_field_is_rejected", () => {
-    const request = validRequest({
-      fields: [
-        {
-          id: "allergies",
-          type: "string",
-          required: false,
-          purpose: "Coordinate safe meal options.",
-          sensitivity: "high"
-        }
-      ],
-      trust_profile: "public_capability"
-    });
-
-    const result = validateRequestDefinitionInput(JSON.stringify(request));
-
-    expect(result).toMatchObject({
-      ok: false,
-      errors: [
-        {
-          code: "public_capability_high_sensitivity",
-          path: "trust_profile"
-        }
-      ]
-    });
-  });
-
   test("test_authentication_secret_field_is_prohibited", () => {
     const request = validRequest({
       fields: [
@@ -258,7 +231,7 @@ trust_profile: public_capability
         purpose: `Collect ${id}.`,
         sensitivity: "low"
       })),
-      trust_profile: "private_invite"
+      trust_profile: "human_consent"
     });
 
     const result = validateRequestDefinitionInput(JSON.stringify(request));
@@ -269,92 +242,6 @@ trust_profile: public_capability
       "high",
       "high"
     ]);
-  });
-
-  test("test_government_identity_requires_private_invite", () => {
-    const request = validRequest({
-      fields: [
-        {
-          id: "government_id",
-          type: "string",
-          required: true,
-          purpose: "Collect government ID for onboarding.",
-          sensitivity: "low"
-        }
-      ],
-      trust_profile: "verified_sender"
-    });
-
-    const result = validateRequestDefinitionInput(JSON.stringify(request));
-
-    expect(result).toMatchObject({
-      ok: false,
-      errors: [
-        {
-          code: "private_invite_required_for_government_identity",
-          path: "fields[0]"
-        }
-      ]
-    });
-  });
-
-  test("test_minor_data_requires_private_invite", () => {
-    const request = validRequest({
-      fields: [
-        {
-          id: "minor_age",
-          type: "number",
-          required: true,
-          purpose: "Collect minor age and guardian context.",
-          sensitivity: "low"
-        }
-      ],
-      trust_profile: "verified_sender"
-    });
-
-    const result = validateRequestDefinitionInput(JSON.stringify(request));
-
-    expect(result).toMatchObject({
-      ok: false,
-      errors: [
-        {
-          code: "private_invite_required_for_minor_guardian",
-          path: "fields[0]"
-        }
-      ]
-    });
-  });
-
-  test("test_human_override_cannot_downgrade_to_public_capability", () => {
-    const request = validRequest({
-      fields: [
-        {
-          id: "allergies",
-          type: "string",
-          required: false,
-          purpose: "Coordinate safe meal options.",
-          sensitivity: "low"
-        }
-      ],
-      human_overrides: [
-        {
-          field_id: "allergies",
-          sensitivity: "low",
-          reason: "The organizer says this is not sensitive."
-        }
-      ],
-      trust_profile: "public_capability"
-    });
-
-    const result = validateRequestDefinitionInput(JSON.stringify(request));
-
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.errors).toContainEqual(
-      expect.objectContaining({
-        code: "human_override_cannot_downgrade_public_capability",
-        path: "human_overrides[0]"
-      })
-    );
   });
 
   test("test_canonical_json_sorts_object_keys_and_preserves_field_order", () => {

@@ -74,7 +74,7 @@ The repository now has library or runtime artifacts for these hosted trust bound
 - capability URL revoke and rotate semantics, with hosted submit able to use an injected capability resolver
 - service public key ownership verification
 - webhook domain ownership verification
-- hosted sender authentication for `verified_sender` and `private_invite`
+- ~~hosted sender authentication for `verified_sender` and `private_invite`~~ (removed 2026-07-05: collapsed to `human_consent`-only)
 - tenant and role authorization for hosted operations
 - invite-gated hosted publish for limited alpha publishers
 - request retire/unpublish state with `410 Gone` public request routes
@@ -143,7 +143,7 @@ Current repo-side status:
 - Done: hosted production exposes request-specific Agent Card JSON for published request versions at `/requests/{request_id}/agent-card.json`.
 - Done: hosted production exposes request-specific plaintext and encrypted envelope schemas for published request versions at `/requests/{request_id}/schemas/*.json`.
 - Done: hosted production accepts A2A HTTP+JSON submissions at `/requests/{request_id}/submit`, validates envelope metadata, enforces idempotency/rate-limit hooks, and delivers encrypted envelopes without retaining payload bodies.
-- Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures.
+- Done: hosted submit can receive sender-trust resolution results before enforcing `verified_sender` / `private_invite` sender signatures. **Superseded (2026-07-05):** sender-trust/invite machinery removed; `human_consent` is the sole real trust profile.
 - Done: `pnpm --silent deploy:preflight` reports repo-side Render readiness and remaining external actions without printing secret values or database URLs.
 - Done: `pnpm --silent render:brief` reports Render service names, database name, domain, account-side actions, and post-Render cutover commands without printing secret values or database URLs.
 - Done: `pnpm --silent cutover:prepare` records the cutover head, deploy preflight, and hosted smoke JSON under the gitignored `cutover-evidence/` directory.

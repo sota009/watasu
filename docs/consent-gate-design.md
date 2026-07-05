@@ -61,6 +61,9 @@ In scope:
 
 - One consent-gated trust profile (new `trust_profile` value, e.g. `human_consent`), so
   existing `public_capability` / `verified_sender` / `private_invite` flows are untouched.
+  **Update (2026-07-05):** those three profiles were subsequently *removed* — watasu is a
+  human-approved personal-info relay, so `human_consent` is the sole real profile (plus
+  `local_demo` for dev). Machine sender-trust / invite machinery was deleted with them.
 - Pause via A2A `auth_required` + an RFC 8628-style device-flow body.
 - A hosted consent web page (static, no install) that renders what/why/where, takes a plain
   WebAuthn assertion, and posts it back.
@@ -118,7 +121,7 @@ completion signal is only the fast path.
 | --- | --- | --- |
 | Gate the submit flow | `packages/http/src/hosted-submit.ts:180` | Between `validateSubmissionEnvelope` (`:172`) and `deliverAcceptedSubmission` (`:180`), branch on consent state. |
 | Runtime receipt field | `packages/core/src/submission.ts` (`consent_receipt_token`) | New field, distinct from upstream's static `consent_receipt` / `consent_receipt_hash` (§13). |
-| New trust profile | `packages/core/src/submission.ts` (`trust_profile`), `resolveSenderTrust` in `hosted-submit.ts:225` | Add `human_consent`; short-circuit sender-trust the way `public_capability`/`local_demo` already do at `:236`. |
+| New trust profile | `packages/core/src/request-definition.ts` (`trust_profile`), `hosted-submit.ts` | `human_consent` is now the sole real profile (`local_demo` for dev); the `public_capability`/`verified_sender`/`private_invite` profiles and their sender-trust machinery were removed (2026-07-05). |
 | Persistence pattern to copy | `infra/postgres/metadata-ledger.sql`, `packages/core/src/delivery.ts` (ledger row types), `packages/hosted/src/index.ts` (Postgres wiring + retention) | Add a parallel `pending_consent` table + store + retention. |
 | Consent surface (new) | new `packages/http` routes + a static page | `GET /requests/{id}/consent/{token}`, `POST …/consent/{token}/approve`. |
 | WebAuthn verify (new) | new `packages/core/src/webauthn.ts` | Verify assertion; `jose`/`node:crypto` already present, no new heavy dep. |

@@ -27,7 +27,6 @@ import {
   parseAuthorizationBearerToken,
   type TrustedServicePrincipal
 } from "./hosted-identity.js";
-import type { HostedSenderTrustResolver } from "./hosted-sender-auth.js";
 import { createHostedMetadataApp } from "./hosted-metadata.js";
 import {
   createHostedProductionApp,
@@ -59,7 +58,6 @@ export interface CreateHostedProductionBootstrapAppInput {
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
   resolveDeliveryHost?: ((hostname: string) => Promise<string[]>) | undefined;
-  resolveSenderTrust?: HostedSenderTrustResolver | undefined;
   resolveCapability?: ((input: {
     capabilityUrl: string;
     published: PublishedRequestVersion;
@@ -171,7 +169,6 @@ export function createHostedProductionBootstrapApp(
       signingSecret: input.deliverySigningSecret,
       deliveryCircuitBreaker: input.deliveryCircuitBreaker,
       deliveryConcurrencyLimiter: input.deliveryConcurrencyLimiter,
-      resolveSenderTrust: input.resolveSenderTrust,
       resolveCapability: input.resolveCapability,
       consentTtlSeconds: input.consentTtlSeconds,
       resolveTenantId({ published }) {

@@ -59,7 +59,7 @@ destination:
 encryption:
   mode: required
   algorithm: JWE
-trust_profile: verified_sender
+trust_profile: human_consent
 ```
 
 When that request is validated and published, watasu turns it into the surfaces
