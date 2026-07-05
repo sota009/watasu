@@ -294,6 +294,8 @@ export interface ConsentReceipt {
   approved_at: string;
   nonce: string;
   exp: number;
+  backup_eligible: boolean;
+  backup_state: boolean;
 }
 
 export interface MintConsentReceiptParams {
@@ -305,6 +307,8 @@ export interface MintConsentReceiptParams {
   approved_at: Date;
   nonce: string;
   ttl_seconds: number;
+  backup_eligible: boolean;
+  backup_state: boolean;
 }
 
 export interface ConsentReceiptError {
@@ -334,7 +338,9 @@ export async function mintConsentReceipt(
     destination_policy_hash: params.destination_policy_hash,
     credential_id: params.credential_id,
     approved_at: params.approved_at.toISOString(),
-    nonce: params.nonce
+    nonce: params.nonce,
+    backup_eligible: params.backup_eligible,
+    backup_state: params.backup_state
   })
     .setProtectedHeader({ alg: "HS256", typ: consentReceiptType })
     .setIssuedAt(approvedAtSeconds)
@@ -492,6 +498,8 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
   const approved_at = payload.approved_at;
   const nonce = payload.nonce;
   const exp = payload.exp;
+  const backup_eligible = payload.backup_eligible;
+  const backup_state = payload.backup_state;
 
   if (
     typeof envelope_hash !== "string" ||
@@ -501,7 +509,9 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
     typeof credential_id !== "string" ||
     typeof approved_at !== "string" ||
     typeof nonce !== "string" ||
-    typeof exp !== "number"
+    typeof exp !== "number" ||
+    typeof backup_eligible !== "boolean" ||
+    typeof backup_state !== "boolean"
   ) {
     return undefined;
   }
@@ -514,7 +524,9 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
     credential_id,
     approved_at,
     nonce,
-    exp
+    exp,
+    backup_eligible,
+    backup_state
   };
 }
 

@@ -281,7 +281,9 @@ describe("consent receipt", () => {
     destination_policy_hash: "sha256:destination-policy-hash",
     credential_id: "credential-xyz",
     nonce: "nonce-abc",
-    ttl_seconds: 3600
+    ttl_seconds: 3600,
+    backup_eligible: true,
+    backup_state: false
   };
 
   test("test_consent_receipt_round_trips", async () => {
@@ -323,6 +325,26 @@ describe("consent receipt", () => {
     expect(verified.ok).toBe(false);
     if (!verified.ok) {
       expect(verified.error.code).toBe("consent_receipt_expired");
+    }
+  });
+
+  test("test_receipt_carries_assurance_flags", async () => {
+    const secret = "test-secret";
+    const now = new Date("2026-07-05T00:00:00.000Z");
+    const token = await mintConsentReceipt(
+      {
+        envelope_hash: "sha256:e", consent_text_hash: "sha256:c",
+        field_purposes_hash: "sha256:f", destination_policy_hash: "sha256:d",
+        credential_id: "cred-1", approved_at: now, nonce: "n1", ttl_seconds: 3600,
+        backup_eligible: true, backup_state: false
+      },
+      secret
+    );
+    const verified = await verifyConsentReceipt(token, secret, now);
+    expect(verified.ok).toBe(true);
+    if (verified.ok) {
+      expect(verified.receipt.backup_eligible).toBe(true);
+      expect(verified.receipt.backup_state).toBe(false);
     }
   });
 });
