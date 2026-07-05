@@ -239,3 +239,13 @@ export type {
   CredentialRecord,
   CredentialStore
 } from "./credential-store.js";
+export {
+  verifyConsentRegistration,
+  verifyConsentAuthentication
+} from "./webauthn.js";
+export type {
+  ConsentWebAuthnResult,
+  ConsentWebAuthnCredential,
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON
+} from "./webauthn.js";
