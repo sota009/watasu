@@ -2,6 +2,7 @@ import type {
   AsyncIdempotencyStore,
   AsyncRequestVersionPublisher,
   AsyncSubmissionRateLimiter,
+  CredentialStore,
   DeliveryClient,
   DeliveryCircuitBreaker,
   DeliveryConcurrencyLimiter,
@@ -17,11 +18,11 @@ import type {
 import {
   createFetchDeliveryClient,
   InMemoryConsentApprovalStore,
+  InMemoryCredentialStore,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
   type ConsentApprovalStore
 } from "@watasu/core";
-import type { JsonWebKey } from "node:crypto";
 import {
   createTrustedServiceIdentityResolver,
   parseAuthorizationBearerToken,
@@ -36,10 +37,7 @@ import {
 import { createHostedPublishApp } from "./hosted-publish.js";
 import { createHostedRetireApp } from "./hosted-retire.js";
 import { createHostedSubmitApp } from "./hosted-submit.js";
-import {
-  createHostedConsentApp,
-  type ConsentCredentialResolverInput
-} from "./hosted-consent.js";
+import { createHostedConsentApp } from "./hosted-consent.js";
 
 export interface CreateHostedProductionBootstrapAppInput {
   repository: AsyncRequestVersionPublisher & {
@@ -67,9 +65,10 @@ export interface CreateHostedProductionBootstrapAppInput {
   consentApprovalStore?: ConsentApprovalStore | undefined;
   consentTtlSeconds?: number | undefined;
   consentReceiptTtlSeconds?: number | undefined;
-  resolveConsentCredentialPublicKey?: ((
-    input: ConsentCredentialResolverInput
-  ) => JsonWebKey | undefined | Promise<JsonWebKey | undefined>) | undefined;
+  /** Relying Party ID for the WebAuthn ceremony; defaults to the public base URL's hostname. */
+  consentRpID?: string | undefined;
+  /** Registered-credential storage; defaults to an in-memory store (not durable across restarts). */
+  consentCredentialStore?: CredentialStore | undefined;
   resolvePrincipal(request: HostedProductionRequest): TrustedServicePrincipal | undefined;
   resolveOwnershipVerification(input: {
     principal: TrustedServicePrincipal;
@@ -180,10 +179,10 @@ export function createHostedProductionBootstrapApp(
       signingSecret: input.deliverySigningSecret,
       clock,
       allowedOrigins: consentAllowedOrigins,
+      rpID: input.consentRpID ?? new URL(input.publicBaseUrl).hostname,
       idempotencyStore,
       approvalStore: consentApprovalStore,
-      resolveCredentialPublicKey:
-        input.resolveConsentCredentialPublicKey ?? (() => undefined),
+      credentialStore: input.consentCredentialStore ?? new InMemoryCredentialStore(),
       receiptTtlSeconds: input.consentReceiptTtlSeconds
     }),
     publishApp: createHostedPublishApp({

@@ -46,7 +46,6 @@ export type {
 } from "./hosted-submit.js";
 export { createHostedConsentApp } from "./hosted-consent.js";
 export type {
-  ConsentCredentialResolverInput,
   CreateHostedConsentAppInput,
   HostedConsentApp,
   HostedConsentRequest,

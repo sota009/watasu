@@ -1,14 +1,17 @@
 import {
   buildConsentChallenge,
   mintConsentReceipt,
+  verifyConsentAuthentication,
+  verifyConsentRegistration,
   verifyConsentToken,
-  verifyWebAuthnAssertion,
   type AsyncIdempotencyStore,
+  type AuthenticationResponseJSON,
   type ConsentApprovalStore,
   type ConsentTokenClaims,
-  type WebAuthnSignatureVerifier
+  type CredentialStore,
+  type RegistrationResponseJSON
 } from "@watasu/core";
-import { randomBytes, type JsonWebKey } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedConsentRequest {
@@ -28,37 +31,25 @@ export interface HostedConsentApp {
   handle(request: HostedConsentRequest): Promise<HostedConsentResponse>;
 }
 
-export interface ConsentCredentialResolverInput {
-  credentialId: string;
-  claims: ConsentTokenClaims;
-}
-
 export interface CreateHostedConsentAppInput {
   publicBaseUrl: string;
   /** Reuses the delivery signing secret to verify tokens and mint receipts. */
   signingSecret: string;
   clock: () => Date;
-  /** Origins the WebAuthn assertion may have been produced under. */
+  /** Origins the WebAuthn ceremony may have been produced under. */
   allowedOrigins: readonly string[];
+  /** Relying Party ID the WebAuthn ceremony was scoped to. */
+  rpID: string;
   idempotencyStore: AsyncIdempotencyStore;
   approvalStore: ConsentApprovalStore;
-  /**
-   * Registration is out of scope: the caller resolves the credential public key
-   * for a credential id (e.g. from a watasu-side credential registration store).
-   */
-  resolveCredentialPublicKey: (
-    input: ConsentCredentialResolverInput
-  ) => JsonWebKey | undefined | Promise<JsonWebKey | undefined>;
-  verifier?: WebAuthnSignatureVerifier | undefined;
+  /** Registered-credential storage, shared across registration and authentication approvals. */
+  credentialStore: CredentialStore;
   receiptTtlSeconds?: number | undefined;
 }
 
-interface ApproveBody {
-  credential_id: string;
-  client_data_json: string;
-  authenticator_data: string;
-  signature: string;
-}
+type ApproveBody =
+  | { type: "registration"; user_handle: string; response: RegistrationResponseJSON }
+  | { type: "authentication"; response: AuthenticationResponseJSON };
 
 const defaultReceiptTtlSeconds = 60 * 60;
 
@@ -141,22 +132,7 @@ async function approveConsent(
       status: "rejected",
       error: {
         code: "invalid_assertion_body",
-        message: "Approve body must contain credential_id, client_data_json, authenticator_data, and signature."
-      }
-    });
-  }
-
-  const credentialPublicKey = await input.resolveCredentialPublicKey({
-    credentialId: body.credential_id,
-    claims
-  });
-  if (credentialPublicKey === undefined) {
-    return jsonResponse(401, {
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "credential_unknown",
-        message: "Credential is not registered for this consent."
+        message: "Approve body must be a registration or authentication WebAuthn response."
       }
     });
   }
@@ -169,21 +145,71 @@ async function approveConsent(
     nonce: claims.nonce
   });
 
-  const assertion = verifyWebAuthnAssertion({
-    clientDataJSON: body.client_data_json,
-    authenticatorData: body.authenticator_data,
-    signature: body.signature,
-    expectedChallenge,
-    allowedOrigins: input.allowedOrigins,
-    credentialPublicKey,
-    verifier: input.verifier
-  });
-  if (!assertion.ok) {
-    return jsonResponse(401, {
-      ok: false,
-      status: "rejected",
-      error: assertion.error
+  let credentialId: string;
+  let assurance: { backupEligible: boolean; backupState: boolean };
+
+  if (body.type === "registration") {
+    const reg = await verifyConsentRegistration({
+      response: body.response,
+      expectedChallenge,
+      expectedOrigins: input.allowedOrigins,
+      expectedRPID: input.rpID
     });
+    if (!reg.ok) {
+      return jsonResponse(401, { ok: false, status: "rejected", error: reg.error });
+    }
+
+    credentialId = reg.credential.credentialId;
+    assurance = {
+      backupEligible: reg.credential.backupEligible,
+      backupState: reg.credential.backupState
+    };
+    await input.credentialStore.save({
+      credentialId,
+      publicKey: reg.credential.publicKey as Uint8Array,
+      signCount: reg.credential.signCount,
+      backupEligible: reg.credential.backupEligible,
+      backupState: reg.credential.backupState,
+      userHandle: body.user_handle,
+      ...(reg.credential.transports !== undefined ? { transports: reg.credential.transports } : {}),
+      ...(reg.credential.aaguid !== undefined ? { aaguid: reg.credential.aaguid } : {}),
+      createdAt: input.clock().toISOString()
+    });
+  } else {
+    const stored = await input.credentialStore.findByCredentialId(body.response.id);
+    if (stored === undefined) {
+      return jsonResponse(401, {
+        ok: false,
+        status: "rejected",
+        error: {
+          code: "credential_unknown",
+          message: "Credential is not registered for this consent."
+        }
+      });
+    }
+
+    const auth = await verifyConsentAuthentication({
+      response: body.response,
+      expectedChallenge,
+      expectedOrigins: input.allowedOrigins,
+      expectedRPID: input.rpID,
+      credential: {
+        id: stored.credentialId,
+        publicKey: stored.publicKey,
+        counter: stored.signCount,
+        ...(stored.transports !== undefined ? { transports: stored.transports } : {})
+      }
+    });
+    if (!auth.ok) {
+      return jsonResponse(401, { ok: false, status: "rejected", error: auth.error });
+    }
+
+    credentialId = stored.credentialId;
+    assurance = {
+      backupEligible: auth.credential.backupEligible,
+      backupState: auth.credential.backupState
+    };
+    await input.credentialStore.updateSignCount(stored.credentialId, auth.credential.signCount);
   }
 
   // Single-use / replay protection rides the existing IdempotencyStore.
@@ -213,19 +239,18 @@ async function approveConsent(
     });
   }
 
-  const backupFlags = extractBackupFlags(body.authenticator_data);
   const receipt = await mintConsentReceipt(
     {
       envelope_hash: claims.envelope_hash,
       consent_text_hash: claims.consent_text_hash,
       field_purposes_hash: claims.field_purposes_hash,
       destination_policy_hash: claims.destination_policy_hash,
-      credential_id: body.credential_id,
+      credential_id: credentialId,
       approved_at: now,
       nonce: claims.nonce,
       ttl_seconds: input.receiptTtlSeconds ?? defaultReceiptTtlSeconds,
-      backup_eligible: backupFlags.backup_eligible,
-      backup_state: backupFlags.backup_state
+      backup_eligible: assurance.backupEligible,
+      backup_state: assurance.backupState
     },
     input.signingSecret
   );
@@ -247,35 +272,30 @@ function parseApproveBody(rawBody: string): ApproveBody | undefined {
   }
 
   const record = parsed as Record<string, unknown>;
-  if (
-    typeof record.credential_id !== "string" ||
-    typeof record.client_data_json !== "string" ||
-    typeof record.authenticator_data !== "string" ||
-    typeof record.signature !== "string"
-  ) {
+  if (record.response === undefined || typeof record.response !== "object" || record.response === null) {
     return undefined;
   }
 
-  return {
-    credential_id: record.credential_id,
-    client_data_json: record.client_data_json,
-    authenticator_data: record.authenticator_data,
-    signature: record.signature
-  };
-}
+  if (record.type === "registration") {
+    if (typeof record.user_handle !== "string") {
+      return undefined;
+    }
 
-// Authenticator data layout (WebAuthn §6.1): 32-byte rpIdHash, then a 1-byte
-// flags field. Bit 3 (0x08) is Backup Eligible (BE); bit 4 (0x10) is Backup
-// State (BS) — these travel into the consent receipt as assurance signals.
-function extractBackupFlags(
-  authenticatorDataB64url: string
-): { backup_eligible: boolean; backup_state: boolean } {
-  const bytes = Buffer.from(authenticatorDataB64url, "base64url");
-  const flags = bytes.length > 32 ? bytes[32] : 0;
-  return {
-    backup_eligible: ((flags ?? 0) & 0x08) !== 0,
-    backup_state: ((flags ?? 0) & 0x10) !== 0
-  };
+    return {
+      type: "registration",
+      user_handle: record.user_handle,
+      response: record.response as RegistrationResponseJSON
+    };
+  }
+
+  if (record.type === "authentication") {
+    return {
+      type: "authentication",
+      response: record.response as AuthenticationResponseJSON
+    };
+  }
+
+  return undefined;
 }
 
 function renderConsentPage(
