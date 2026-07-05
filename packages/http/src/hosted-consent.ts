@@ -213,6 +213,7 @@ async function approveConsent(
     });
   }
 
+  const backupFlags = extractBackupFlags(body.authenticator_data);
   const receipt = await mintConsentReceipt(
     {
       envelope_hash: claims.envelope_hash,
@@ -222,7 +223,9 @@ async function approveConsent(
       credential_id: body.credential_id,
       approved_at: now,
       nonce: claims.nonce,
-      ttl_seconds: input.receiptTtlSeconds ?? defaultReceiptTtlSeconds
+      ttl_seconds: input.receiptTtlSeconds ?? defaultReceiptTtlSeconds,
+      backup_eligible: backupFlags.backup_eligible,
+      backup_state: backupFlags.backup_state
     },
     input.signingSecret
   );
@@ -258,6 +261,20 @@ function parseApproveBody(rawBody: string): ApproveBody | undefined {
     client_data_json: record.client_data_json,
     authenticator_data: record.authenticator_data,
     signature: record.signature
+  };
+}
+
+// Authenticator data layout (WebAuthn §6.1): 32-byte rpIdHash, then a 1-byte
+// flags field. Bit 3 (0x08) is Backup Eligible (BE); bit 4 (0x10) is Backup
+// State (BS) — these travel into the consent receipt as assurance signals.
+function extractBackupFlags(
+  authenticatorDataB64url: string
+): { backup_eligible: boolean; backup_state: boolean } {
+  const bytes = Buffer.from(authenticatorDataB64url, "base64url");
+  const flags = bytes.length > 32 ? bytes[32] : 0;
+  return {
+    backup_eligible: ((flags ?? 0) & 0x08) !== 0,
+    backup_state: ((flags ?? 0) & 0x10) !== 0
   };
 }
 

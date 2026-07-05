@@ -34,7 +34,9 @@ function mintBoundReceipt(published: PublishedRequestVersion): Promise<string> {
       credential_id: "credential-xyz",
       approved_at: new Date("2026-06-15T00:00:00.500Z"),
       nonce: "nonce-approved",
-      ttl_seconds: 3600
+      ttl_seconds: 3600,
+      backup_eligible: true,
+      backup_state: false
     },
     signingSecret
   );
