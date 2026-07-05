@@ -1,17 +1,10 @@
-import {
-  createHash,
-  generateKeyPairSync,
-  sign as cryptoSign,
-  type JsonWebKey
-} from "node:crypto";
 import { describe, expect, test } from "vitest";
 import {
   buildConsentChallenge,
   mintConsentReceipt,
   mintConsentToken,
   verifyConsentReceipt,
-  verifyConsentToken,
-  verifyWebAuthnAssertion
+  verifyConsentToken
 } from "./consent.js";
 
 const tokenSecret = "consent-signing-secret-with-enough-entropy-1234567890";
@@ -156,120 +149,6 @@ describe("consent challenge", () => {
     expect(buildConsentChallenge(base)).not.toBe(
       buildConsentChallenge({ ...base, destination_policy_hash: "sha256:other-policy" })
     );
-  });
-});
-
-describe("WebAuthn assertion (ES256)", () => {
-  function buildAssertion(input: {
-    challenge: string;
-    origin: string;
-  }): {
-    clientDataJSON: string;
-    authenticatorData: string;
-    signature: string;
-    credentialPublicKey: JsonWebKey;
-  } {
-    const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-    const clientData = {
-      type: "webauthn.get",
-      challenge: input.challenge,
-      origin: input.origin
-    };
-    const clientDataBytes = Buffer.from(JSON.stringify(clientData), "utf8");
-    const authenticatorData = Buffer.concat([
-      createHash("sha256").update("rp-id").digest(),
-      Buffer.from([0x05]),
-      Buffer.from([0, 0, 0, 1])
-    ]);
-    const clientDataHash = createHash("sha256").update(clientDataBytes).digest();
-    const signedData = Buffer.concat([authenticatorData, clientDataHash]);
-    const signature = cryptoSign("sha256", signedData, { key: privateKey, dsaEncoding: "der" });
-
-    return {
-      clientDataJSON: clientDataBytes.toString("base64url"),
-      authenticatorData: authenticatorData.toString("base64url"),
-      signature: signature.toString("base64url"),
-      credentialPublicKey: publicKey.export({ format: "jwk" }) as JsonWebKey
-    };
-  }
-
-  const challenge = buildConsentChallenge({
-    envelope_hash: "sha256:envelope-hash",
-    consent_text_hash: "sha256:consent-hash",
-    field_purposes_hash: "sha256:field-purposes-hash",
-    destination_policy_hash: "sha256:destination-policy-hash",
-    nonce: "nonce-abc"
-  });
-  const origin = "https://consent.watasu.ai";
-
-  test("test_es256_assertion_verifies_against_fresh_p256_key", () => {
-    const assertion = buildAssertion({ challenge, origin });
-
-    const result = verifyWebAuthnAssertion({
-      clientDataJSON: assertion.clientDataJSON,
-      authenticatorData: assertion.authenticatorData,
-      signature: assertion.signature,
-      expectedChallenge: challenge,
-      allowedOrigins: [origin],
-      credentialPublicKey: assertion.credentialPublicKey
-    });
-
-    expect(result).toEqual({ ok: true });
-  });
-
-  test("test_assertion_rejected_for_challenge_mismatch", () => {
-    const assertion = buildAssertion({ challenge, origin });
-
-    const result = verifyWebAuthnAssertion({
-      clientDataJSON: assertion.clientDataJSON,
-      authenticatorData: assertion.authenticatorData,
-      signature: assertion.signature,
-      expectedChallenge: "a-different-challenge",
-      allowedOrigins: [origin],
-      credentialPublicKey: assertion.credentialPublicKey
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("webauthn_challenge_mismatch");
-    }
-  });
-
-  test("test_assertion_rejected_for_untrusted_origin", () => {
-    const assertion = buildAssertion({ challenge, origin });
-
-    const result = verifyWebAuthnAssertion({
-      clientDataJSON: assertion.clientDataJSON,
-      authenticatorData: assertion.authenticatorData,
-      signature: assertion.signature,
-      expectedChallenge: challenge,
-      allowedOrigins: ["https://evil.example.com"],
-      credentialPublicKey: assertion.credentialPublicKey
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("webauthn_origin_untrusted");
-    }
-  });
-
-  test("test_assertion_rejected_when_signature_is_forged", () => {
-    const assertion = buildAssertion({ challenge, origin });
-    const otherKey = generateKeyPairSync("ec", { namedCurve: "P-256" });
-
-    const result = verifyWebAuthnAssertion({
-      clientDataJSON: assertion.clientDataJSON,
-      authenticatorData: assertion.authenticatorData,
-      signature: assertion.signature,
-      expectedChallenge: challenge,
-      allowedOrigins: [origin],
-      credentialPublicKey: otherKey.publicKey.export({ format: "jwk" }) as JsonWebKey
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("webauthn_signature_invalid");
-    }
   });
 });
 

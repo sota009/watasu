@@ -87,7 +87,7 @@ export function createHostedConsentApp(input: CreateHostedConsentAppInput): Host
           return notFound();
         }
 
-        return renderConsentPage(claims, input.publicBaseUrl, route.token);
+        return renderConsentPage(claims, input.publicBaseUrl, route.token, input.rpID);
       }
 
       if (route.action === "status") {
@@ -301,7 +301,8 @@ function parseApproveBody(rawBody: string): ApproveBody | undefined {
 function renderConsentPage(
   claims: ConsentTokenClaims,
   publicBaseUrl: string,
-  token: string
+  token: string,
+  rpId: string
 ): HostedConsentResponse {
   const challenge = buildConsentChallenge({
     envelope_hash: claims.envelope_hash,
@@ -312,7 +313,6 @@ function renderConsentPage(
   });
   const approveUrl = `${publicBaseUrl}/requests/${encodeURIComponent(claims.request_id)}/consent/${token}/approve`;
   const userHandle = randomBytes(16).toString("base64url");
-  const rpId = new URL(publicBaseUrl).hostname;
   const pubKeyCredParams = [
     { type: "public-key", alg: -7 },
     { type: "public-key", alg: -257 },

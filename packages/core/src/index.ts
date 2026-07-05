@@ -56,13 +56,11 @@ export {
 export {
   InMemoryConsentApprovalStore,
   buildConsentChallenge,
-  es256SignatureVerifier,
   generateConsentNonce,
   mintConsentReceipt,
   mintConsentToken,
   verifyConsentReceipt,
-  verifyConsentToken,
-  verifyWebAuthnAssertion
+  verifyConsentToken
 } from "./consent.js";
 export {
   createMetadataLedgerReader,
@@ -184,11 +182,7 @@ export type {
   ConsentTokenVerification,
   MintConsentReceiptParams,
   MintConsentTokenParams,
-  MintedConsentToken,
-  VerifyWebAuthnAssertionInput,
-  WebAuthnAssertionError,
-  WebAuthnAssertionResult,
-  WebAuthnSignatureVerifier
+  MintedConsentToken
 } from "./consent.js";
 export type {
   HostedServiceIdentity,

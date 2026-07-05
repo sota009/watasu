@@ -1,11 +1,4 @@
-import {
-  createHash,
-  createPublicKey,
-  randomBytes,
-  timingSafeEqual,
-  verify as cryptoVerify,
-  type JsonWebKey
-} from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 
 // ---------------------------------------------------------------------------
@@ -165,110 +158,6 @@ export function buildConsentChallenge(input: ConsentChallengeInput): string {
     input.nonce
   ].join("\n");
   return createHash("sha256").update(material, "utf8").digest("base64url");
-}
-
-// ---------------------------------------------------------------------------
-// WebAuthn assertion verification. Registration is out of scope: the credential
-// public key is injected. ES256 (P-256) is implemented here (the common passkey
-// algorithm); the WebAuthnSignatureVerifier interface is the seam other COSE
-// algorithms plug into.
-// ---------------------------------------------------------------------------
-
-export interface WebAuthnSignatureVerifier {
-  /** COSE algorithm identifier (e.g. -7 for ES256). */
-  readonly coseAlg: number;
-  verify(input: {
-    publicKey: JsonWebKey;
-    signedData: Buffer;
-    signature: Buffer;
-  }): boolean;
-}
-
-/** ES256 / ECDSA over P-256 with SHA-256. WebAuthn signatures are ASN.1 DER. */
-export const es256SignatureVerifier: WebAuthnSignatureVerifier = {
-  coseAlg: -7,
-  verify(input) {
-    try {
-      const key = createPublicKey({ key: input.publicKey, format: "jwk" });
-      return cryptoVerify(
-        "sha256",
-        input.signedData,
-        { key, dsaEncoding: "der" },
-        input.signature
-      );
-    } catch {
-      return false;
-    }
-  }
-};
-
-export interface VerifyWebAuthnAssertionInput {
-  /** base64url-encoded clientDataJSON produced by the authenticator. */
-  clientDataJSON: string;
-  /** base64url-encoded authenticatorData. */
-  authenticatorData: string;
-  /** base64url-encoded assertion signature. */
-  signature: string;
-  /** base64url challenge from buildConsentChallenge. */
-  expectedChallenge: string;
-  allowedOrigins: readonly string[];
-  credentialPublicKey: JsonWebKey;
-  /** Defaults to ES256; inject to support additional COSE algorithms. */
-  verifier?: WebAuthnSignatureVerifier | undefined;
-}
-
-export interface WebAuthnAssertionError {
-  code:
-    | "webauthn_client_data_invalid"
-    | "webauthn_type_mismatch"
-    | "webauthn_challenge_mismatch"
-    | "webauthn_origin_untrusted"
-    | "webauthn_signature_invalid";
-  message: string;
-}
-
-export type WebAuthnAssertionResult =
-  | { ok: true }
-  | { ok: false; error: WebAuthnAssertionError };
-
-interface WebAuthnClientData {
-  type: string;
-  challenge: string;
-  origin: string;
-}
-
-export function verifyWebAuthnAssertion(
-  input: VerifyWebAuthnAssertionInput
-): WebAuthnAssertionResult {
-  const clientDataBytes = Buffer.from(input.clientDataJSON, "base64url");
-  const clientData = parseWebAuthnClientData(clientDataBytes);
-  if (clientData === undefined) {
-    return assertionError("webauthn_client_data_invalid", "clientDataJSON is not valid WebAuthn client data.");
-  }
-
-  if (clientData.type !== "webauthn.get") {
-    return assertionError("webauthn_type_mismatch", "clientDataJSON.type must be \"webauthn.get\".");
-  }
-
-  if (!constantTimeEquals(clientData.challenge, input.expectedChallenge)) {
-    return assertionError("webauthn_challenge_mismatch", "Assertion challenge does not match the consent challenge.");
-  }
-
-  if (!input.allowedOrigins.includes(clientData.origin)) {
-    return assertionError("webauthn_origin_untrusted", "Assertion origin is not in the allowlist.");
-  }
-
-  const verifier = input.verifier ?? es256SignatureVerifier;
-  const authenticatorData = Buffer.from(input.authenticatorData, "base64url");
-  const clientDataHash = createHash("sha256").update(clientDataBytes).digest();
-  const signedData = Buffer.concat([authenticatorData, clientDataHash]);
-  const signature = Buffer.from(input.signature, "base64url");
-
-  if (!verifier.verify({ publicKey: input.credentialPublicKey, signedData, signature })) {
-    return assertionError("webauthn_signature_invalid", "Assertion signature could not be verified.");
-  }
-
-  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -441,13 +330,6 @@ function invalidConsentToken(message: string): ConsentTokenVerification {
   };
 }
 
-function assertionError(
-  code: WebAuthnAssertionError["code"],
-  message: string
-): WebAuthnAssertionResult {
-  return { ok: false, error: { code, message } };
-}
-
 function extractConsentTokenClaims(payload: Record<string, unknown>): ConsentTokenClaims | undefined {
   const tenant_id = payload.tenant_id;
   const request_id = payload.request_id;
@@ -528,42 +410,6 @@ function extractConsentReceipt(payload: Record<string, unknown>): ConsentReceipt
     backup_eligible,
     backup_state
   };
-}
-
-function parseWebAuthnClientData(bytes: Buffer): WebAuthnClientData | undefined {
-  try {
-    const parsed: unknown = JSON.parse(bytes.toString("utf8"));
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return undefined;
-    }
-
-    const record = parsed as Record<string, unknown>;
-    if (
-      typeof record.type !== "string" ||
-      typeof record.challenge !== "string" ||
-      typeof record.origin !== "string"
-    ) {
-      return undefined;
-    }
-
-    return {
-      type: record.type,
-      challenge: record.challenge,
-      origin: record.origin
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function constantTimeEquals(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 function isJoseErrorCode(error: unknown, code: string): boolean {
