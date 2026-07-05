@@ -395,18 +395,45 @@ So the two aren't redundant — they're a genuine architectural disagreement:
 - **This gate** is heavier (watasu hosts a consent surface) but produces an **enforceable,
   signed** consent receipt.
 
-### Recommendation
+### Decision (2026-07-05): tiebreaker is legal validity → the signed runtime mechanism
 
-The gate is the stronger fit for the **service-side-risk-reduction** thesis Sota framed in the
-2026-07 sync: an unenforceable client-side `--confirm` does not reduce a service's liability
-(it can't prove consent), whereas a passkey-signed receipt does. But adopting it means Sota
-**moves the "no consent UI in watasu" boundary** his brief drew. That is his call.
+The chosen criterion is **which mechanism actually works for legally-valid personal-data
+collection between agents.** On that axis the signed runtime mechanism wins decisively, and
+the static receipt is *not* a substitute.
 
-Cleanest end state (propose to Sota): keep **both**, layered — upstream's static
-`consent_receipt` stays as the version-pinning/freshness credential the autonomous adapter
-always attaches; the runtime `consent_receipt_token` is required **only** for the
-`human_consent` trust profile, when a service wants an *enforceable* consent receipt. They
-compose: freshness (static) + human approval (token). If Sota rejects hosting a consent UI in
-watasu, the gate's consent surface moves to tap's PWA (which was the plan anyway, §1) and
-watasu only mints/verifies the token — keeping his boundary intact while still producing an
-enforceable receipt.
+**Why the static `consent_receipt` fails as consent evidence.** Legal consent must be
+**demonstrable** (GDPR Art. 7(1)) and **recorded** for third-party provision (Japan APPI
+第三者提供 記録義務 — watasu relaying user data to a service is exactly this). The static
+receipt is attached by the **sending agent itself**, unsigned, unwitnessed, and forgeable
+(all inputs are public hashes + a timestamp). It proves the *terms were current*
+(version-pinning) — it does **not** prove a human consented, nor attribute the act to the data
+subject. In an agent-mediated flow, no neutral party witnessed the consent, so the service
+(the controller) cannot demonstrate it. That is not legally sufficient consent evidence.
+
+**Why the signed mechanism works.** A **neutral surface witnesses and records** the data
+subject's approval at submission, with a **passkey signature** for non-repudiation and
+attribution. That is a defensible consent artifact.
+
+**Do NOT keep both — the signed receipt subsumes the static one.** The static receipt's only
+genuine legal contribution is *terms integrity* (specific/informed binding to the exact
+consent text, field purposes, destination policy). Fold those three hashes into the signed
+challenge, and the single signed receipt proves *both* "consent was to the correct terms" and
+"a human consented." One mechanism; the static path is retired for the personal-data case.
+
+**This settles the architectural conflict.** You cannot obtain legally-robust, service-
+trustable consent purely client-side via an unenforceable `--confirm` — there is no neutral
+witness and no attribution. So Sota's "consent UI is out of watasu's scope" position does not
+meet the legal bar. The neutral consent surface may live in **watasu** OR **tap's PWA**
+(either satisfies the law, preserving room for Sota's boundary) — what is ruled out is the
+static self-asserted receipt as the consent basis.
+
+**Scaling to regulated data.** A passkey proves "a controlling human consented" + non-
+repudiation, but not "verified legal identity X." For identity-bound consent (KYC,
+要配慮個人情報, government forms — the Japan mdoc/National-ID wedge), bind the credential to a
+**verified identity credential**: OID4VP + SD-JWT-VC KB-JWT tied to an EUDI wallet or Japan's
+mdoc National ID (the §9 upgrade path).
+
+> **Not legal advice.** Confirm per jurisdiction (GDPR vs APPI 記録義務 vs US state laws; sensitive
+> data raises the bar) before relying on this. Concrete question for Sota's legal contacts:
+> *"For agent-mediated collection of personal data, is an unsigned agent-attached receipt
+> sufficient consent evidence, or is a signed/witnessed approval required?"*
