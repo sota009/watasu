@@ -16,7 +16,7 @@
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` and the session line.
 - Preserve invariants: §13 payload-binding (challenge = `buildConsentChallenge(...)` for both register and assert), no-custody (plaintext only in URL fragment), stateless consent token, per-page nonce CSP.
 - `userVerification: "required"`, `attestation: "none"`, `residentKey: "required"`.
-- OUT OF SCOPE (do not implement): OTP fallback, durable Postgres store, device-bound enforcement, identity/regulated (OID4VP) tier.
+- OUT OF SCOPE (do not implement): OTP fallback, durable Postgres store, device-bound enforcement.
 - Verify SimpleWebAuthn field names against the installed `@simplewebauthn/server` `.d.ts` when noted — do not guess if the installed types differ.
 
 ---

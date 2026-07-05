@@ -15,8 +15,7 @@ credential store, and migrates verification to a maintained library.
 
 Goal: a **watasu-solo, no-install, legally-defensible** consent gate where a first-time user
 registers a passkey inline and approves in one gesture, and returning users approve with one
-tap. Ordinary self-asserted personal data (form-fill wedge); the identity/regulated tier is
-future.
+tap. Ordinary self-asserted personal data (form-fill wedge).
 
 ## 2. Decisions (locked)
 
@@ -151,7 +150,6 @@ Agent resumes (poll/completion) → deliver encrypted envelope (unchanged, no cu
 - OTP / email fallback for no-WebAuthn devices (separate spec).
 - High-sensitivity device-bound enforcement (later pure-policy addition; `BE` already recorded).
 - Durable Postgres `CredentialStore` backend (interface now; wire when going multi-instance).
-- The identity/regulated tier (OID4VP/mdoc) formerly in tap.
 - Account recovery / cross-device passkey management / Signal API sync.
 
 ## 10. Notes

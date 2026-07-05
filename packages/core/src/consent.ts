@@ -161,17 +161,10 @@ export function buildConsentChallenge(input: ConsentChallengeInput): string {
 }
 
 // ---------------------------------------------------------------------------
-// Consent receipt. INTERIM: a JWS signed with the service secret. The claim
-// shape and mint/verify helpers are stable for callers; only the *format*
-// behind them is provisional.
-//
-// TODO(credential-receipt): the deferred upgrade is a credential-grade receipt
-// (SD-JWT-VC / KB-JWT, OID4VP `transaction_data` per RFC 9901) that watasu mints
-// and signs itself. This was previously planned via tap's @tap/schema + sealed
-// signing-worker; tap is retired (2026-07-05), so watasu owns this tier — the
-// impl source (vendor @tap/schema's TS vs generic libs) is an open decision
-// (design §9, §11). Callers of mintConsentReceipt / verifyConsentReceipt must not
-// need to change when this seam is replaced.
+// Consent receipt. A JWS signed with the service secret. The claim shape and
+// mint/verify helpers are stable for callers; the format behind them is
+// provisional and callers of mintConsentReceipt / verifyConsentReceipt must not
+// need to change when it is revised.
 // ---------------------------------------------------------------------------
 
 export interface ConsentReceipt {
@@ -218,8 +211,6 @@ export async function mintConsentReceipt(
   const approvedAtSeconds = Math.floor(params.approved_at.getTime() / 1000);
   const exp = approvedAtSeconds + params.ttl_seconds;
 
-  // TODO(credential-receipt): replace this JWS body with a watasu-owned KB-JWT
-  // credential receipt object (design §9).
   return new SignJWT({
     envelope_hash: params.envelope_hash,
     consent_text_hash: params.consent_text_hash,

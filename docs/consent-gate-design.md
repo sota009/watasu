@@ -29,13 +29,6 @@ PWA." Both are dead — see the retirement notes in §11 and §12.)
 - The genuinely new part — **browser passkey/WebAuthn signing over a payload** — is built
   fresh on watasu's own consent page (§4–§7).
 
-**Identity / regulated tier now lands on watasu too.** The credential-grade upgrade
-(OID4VP / SD-JWT-VC / KB-JWT / mdoc, §9) was previously going to lean on tap's `@tap/schema`
-+ sealed signing-worker. With tap retired, **watasu owns that tier**: a durable credential
-store and a watasu-minted, watasu-signed credential receipt are now legitimate, expected
-parts of the product (the DB-less "just a relay" posture was a relic of the old framing —
-see §6). The receipt-format *source* is an open decision (§9, §11).
-
 Stack note: watasu is a Node/Render project. A future migration to Cloudflare Workers is now
 a purely internal watasu choice (no longer tied to merging with tap's Workers stack) — decide
 on its own merits.
@@ -55,8 +48,8 @@ In scope:
 - A hash-only consent receipt persisted alongside the delivery ledger, ISO 27560-shaped.
 - Resume via completion signal **and** poll fallback.
 
-Out of scope for v1 (tracked in §9): OID4VP/KB-JWT credential receipts, MCP URL-mode
-elicitation client integration, CIBA/push, tiered "consent once vs every time" policy.
+Out of scope for v1 (tracked in §9): MCP URL-mode elicitation client integration,
+CIBA/push, tiered "consent once vs every time" policy.
 
 ## 3. Flow
 
@@ -192,8 +185,7 @@ nothing between pause and approval.
 - On approval, watasu verifies the token signature + `exp`, checks the WebAuthn assertion
   against `challenge = SHA-256(envelope_hash ‖ consent_text_hash ‖ nonce)` (all recovered
   from the token — no lookup), and mints a signed `consent_receipt_token` (a watasu-native
-  JWS in v1; watasu-owned KB-JWT credential shape in the deferred upgrade, §9) that the agent
-  presents on resume.
+  JWS) that the agent presents on resume.
 - The only durable need is **single-use / replay protection** ("has this consent_token been
   spent"), which rides the existing `IdempotencyStore` abstraction
   (`packages/http/src/hosted-submit.ts:48`). Single Render instance: in-memory is adequate
@@ -236,16 +228,6 @@ This keeps the PRD/ERD invariant intact (`docs/prd-cli-mvp.md` "No payload custo
 
 ## 9. Upgrade path & deferred work
 
-- **Credential-grade receipts — watasu-owned, deferred past v1.** v1 ships the watasu-native
-  signed receipt token (§6); the upgrade is a credential-grade receipt (OID4VP 1.0
-  `transaction_data` + SD-JWT-VC KB-JWT per RFC 9901). With tap retired (§1), **watasu mints
-  and signs this itself** rather than depending on tap's `@tap/schema` / signing-worker.
-  Separation of concerns still holds: the **passkey assertion** is the signing gesture (plain
-  WebAuthn — no browser-native OID4VP signing exists yet, §8); the **receipt** is the record,
-  wrapped in a KB-JWT credential shape. **Open decision (§11):** where watasu's SD-JWT-VC /
-  KB-JWT implementation comes from — vendor/fork the (retired) `@tap/schema` pure-TS code into
-  a watasu package, or build on generic libs (`jose`, `@noble/*`). EUDI KB-JWT mandate:
-  2026-12-24.
 - **MCP-native trigger:** emit `URLElicitationRequiredError` (-32042) for MCP clients that
   advertise URL-mode elicitation, in addition to the A2A/device-flow body.
 - **Push resume (CIBA):** later; requires an authenticator app → violates no-install for v1.
@@ -277,10 +259,7 @@ commoditize).
 4. **Consent surface — RESOLVED 2026-07-05: a watasu-hosted static consent page** (§2, §6),
    not an external PWA. (Supersedes the 2026-07-04→05 "full conversion onto tap's PWA" plan,
    now dead with tap's retirement — see §12.)
-5. **Credential-receipt format source (deferred, §9):** when the credential-grade upgrade is
-   built, does watasu vendor/fork the retired `@tap/schema` pure-TS SD-JWT-VC / KB-JWT code
-   into its own package, or build on generic libs (`jose`, `@noble/*`)? Decide at that time.
-6. **Migrate to Workers?** Now a standalone watasu question (no longer tied to merging with
+5. **Migrate to Workers?** Now a standalone watasu question (no longer tied to merging with
    tap) — decide on its own merits if/when Render becomes a constraint.
 
 ## 12. ~~Full-conversion ledger (KEEP / DELETE / CHANGE)~~ — OBSOLETE (tap retired 2026-07-05)
@@ -294,8 +273,6 @@ directly (§1). What survives conceptually:
 - The **consent surface is watasu-native** (§2, §6) — no tap PWA to rewire.
 - watasu **owns delivery, discovery / Agent Card, and service onboarding** (`publish`)
   outright — the old "consolidate with tap's fanout / console" questions are gone.
-- The **credential / receipt tier is watasu-owned** (§9); if tap's `@tap/schema` pure-TS code
-  is still useful, it would be *vendored into watasu*, not depended on across repos (§11.5).
 
 The original KEEP / DELETE / CHANGE ledger has been removed to avoid implying tap work is
 still pending; see this doc's git history (pre-2026-07-05) if that detail is ever needed.
@@ -365,12 +342,6 @@ trustable consent purely client-side via an unenforceable `--confirm` — there 
 witness and no attribution. So the "consent UI is out of watasu's scope" position does not
 meet the legal bar. The neutral consent surface lives in **watasu itself** (tap retired, §1)
 — what is ruled out is the static self-asserted receipt as the consent basis.
-
-**Scaling to regulated data.** A passkey proves "a controlling human consented" + non-
-repudiation, but not "verified legal identity X." For identity-bound consent (KYC,
-要配慮個人情報, government forms — the Japan mdoc/National-ID wedge), bind the credential to a
-**verified identity credential**: OID4VP + SD-JWT-VC KB-JWT tied to an EUDI wallet or Japan's
-mdoc National ID (the §9 upgrade path).
 
 > **Not legal advice.** Confirm per jurisdiction (GDPR vs APPI 記録義務 vs US state laws; sensitive
 > data raises the bar) before relying on this. Concrete question for Sota's legal contacts:
