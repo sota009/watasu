@@ -26,6 +26,30 @@ describe("parseAuthRequired", () => {
     expect(parseAuthRequired({ status: "auth_required" })).toBeUndefined();
     expect(parseAuthRequired(null)).toBeUndefined();
   });
+
+  test("test_non_finite_expires_in_returns_undefined", () => {
+    const bodyNaN = {
+      status: "auth_required",
+      consent: { consent_url: "https://x/consent/t", poll_url: "https://x/consent/t/status", expires_in: NaN }
+    };
+    expect(parseAuthRequired(bodyNaN)).toBeUndefined();
+
+    const bodyInfinity = {
+      status: "auth_required",
+      consent: { consent_url: "https://x/consent/t", poll_url: "https://x/consent/t/status", expires_in: Infinity }
+    };
+    expect(parseAuthRequired(bodyInfinity)).toBeUndefined();
+
+    const bodyFinite = {
+      status: "auth_required",
+      consent: { consent_url: "https://x/consent/t", poll_url: "https://x/consent/t/status", expires_in: 600 }
+    };
+    expect(parseAuthRequired(bodyFinite)).toEqual({
+      consentUrl: "https://x/consent/t",
+      pollUrl: "https://x/consent/t/status",
+      expiresIn: 600
+    });
+  });
 });
 
 describe("parseConsentStatus", () => {
@@ -113,6 +137,47 @@ describe("runConsentHandoff", () => {
         sleep: async () => {}
       },
       { plaintext: "{}", pollIntervalMs: 100, maxWaitMs: 250 }
+    );
+    expect(result).toEqual({ ok: false, code: "consent_timeout" });
+  });
+
+  test("test_default_wait_derives_from_server_expires_in", async () => {
+    // No maxWaitMs option: the wait bound must come from consent.expiresIn (1s -> 1000ms),
+    // not the (old 2 minute, new 10 minute) hardcoded default. pollIntervalMs is explicit
+    // only to keep the iteration count small; sleep is injected/mocked so wall time is ~0.
+    let polls = 0;
+    const result = await runConsentHandoff(
+      {
+        submit: async () => ({
+          httpStatus: 401,
+          body: {
+            ok: false,
+            status: "auth_required",
+            consent: { consent_url: "https://x/consent/t", poll_url: "https://x/consent/t/status", expires_in: 1 }
+          }
+        }),
+        openConsentUrl: () => {},
+        pollConsent: async () => {
+          polls += 1;
+          return { status: "pending" };
+        },
+        sleep: async () => {}
+      },
+      { plaintext: "{}", pollIntervalMs: 100 }
+    );
+    expect(result).toEqual({ ok: false, code: "consent_timeout" });
+    expect(polls).toBeGreaterThan(0);
+  });
+
+  test("test_zero_poll_interval_does_not_hang", async () => {
+    const result = await runConsentHandoff(
+      {
+        submit: async () => authRequiredResponse(),
+        openConsentUrl: () => {},
+        pollConsent: async () => ({ status: "pending" }),
+        sleep: async () => {}
+      },
+      { plaintext: "{}", pollIntervalMs: 0, maxWaitMs: 50 }
     );
     expect(result).toEqual({ ok: false, code: "consent_timeout" });
   });

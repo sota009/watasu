@@ -33,7 +33,17 @@ export interface SubmitWithConsentInput {
   submitUrl: string;
   /** The caller's already-encrypted A2A submission body. */
   envelope: unknown;
-  /** Plaintext for the consent page — only ever placed in the URL fragment. */
+  /**
+   * Plaintext for the consent page — only ever placed in the URL fragment, never in the
+   * submit body (see `test_plaintext_never_enters_submit_body`).
+   *
+   * Note this still touches the local machine outside the encrypted envelope: the fragment
+   * URL is printed to stdout (`print`) and passed as a process argument to the opener command
+   * (`openImpl`/`defaultOpenUrl`), so it can land in terminal scrollback, captured logs, and
+   * the local process table (e.g. `ps`). That exposure stays on the user's machine — it never
+   * reaches watasu's server — so no-custody is preserved, but callers logging stdout or process
+   * args should be aware plaintext PII may appear there.
+   */
   plaintext: string;
   /** Attach the minted consent receipt token to the envelope for resubmission. */
   withReceipt(envelope: unknown, consentReceiptToken: string): unknown;

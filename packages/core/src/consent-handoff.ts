@@ -24,7 +24,8 @@ export function parseAuthRequired(body: unknown): AuthRequiredConsent | undefine
     consent === undefined ||
     typeof consent.consent_url !== "string" ||
     typeof consent.poll_url !== "string" ||
-    typeof consent.expires_in !== "number"
+    typeof consent.expires_in !== "number" ||
+    !Number.isFinite(consent.expires_in)
   ) {
     return undefined;
   }
@@ -76,7 +77,8 @@ export type RunConsentHandoffResult =
   | { ok: false; code: "consent_timeout" | "submit_failed"; detail?: unknown };
 
 const defaultPollIntervalMs = 1500;
-const defaultMaxWaitMs = 120000;
+// Ultimate fallback only: normally the server's advertised consent.expiresIn wins (see below).
+const defaultMaxWaitMs = 600000;
 
 function isDelivered(httpStatus: number): boolean {
   return httpStatus >= 200 && httpStatus < 300;
@@ -86,8 +88,8 @@ export async function runConsentHandoff(
   deps: RunConsentHandoffDeps,
   options: RunConsentHandoffOptions
 ): Promise<RunConsentHandoffResult> {
-  const pollIntervalMs = options.pollIntervalMs ?? defaultPollIntervalMs;
-  const maxWaitMs = options.maxWaitMs ?? defaultMaxWaitMs;
+  // Guard against a zero (or negative) interval, which would leave `waited` stuck and loop forever.
+  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? defaultPollIntervalMs);
 
   const first = await deps.submit();
   if (isDelivered(first.httpStatus)) {
@@ -97,6 +99,11 @@ export async function runConsentHandoff(
   if (consent === undefined) {
     return { ok: false, code: "submit_failed", detail: first.body };
   }
+
+  // Default the wait bound to the server's advertised consent window (consent.expiresIn) so a
+  // slow-to-approve user isn't cut off while the consent is still valid server-side. Only fall
+  // back to defaultMaxWaitMs when the server didn't give us a usable (positive) window.
+  const maxWaitMs = options.maxWaitMs ?? (consent.expiresIn > 0 ? consent.expiresIn * 1000 : defaultMaxWaitMs);
 
   await deps.openConsentUrl(buildConsentFragmentUrl(consent.consentUrl, options.plaintext));
 
