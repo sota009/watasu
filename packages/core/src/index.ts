@@ -257,3 +257,8 @@ export type {
   RunConsentHandoffOptions,
   RunConsentHandoffResult
 } from "./consent-handoff.js";
+export {
+  resolveOpenCommand,
+  defaultOpenUrl
+} from "./consent-handoff-runtime.js";
+export type { OpenCommand } from "./consent-handoff-runtime.js";
