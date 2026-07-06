@@ -243,3 +243,12 @@ export type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON
 } from "./webauthn.js";
+export {
+  parseAuthRequired,
+  parseConsentStatus,
+  buildConsentFragmentUrl
+} from "./consent-handoff.js";
+export type {
+  AuthRequiredConsent,
+  ConsentPollResult
+} from "./consent-handoff.js";
