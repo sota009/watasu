@@ -34,7 +34,7 @@ import {
 const port = 8792;
 const publicBaseUrl = "http://127.0.0.1:8792";
 const rpID = "127.0.0.1";
-const secret = "consent-register-browser-check";
+const demoSigningMaterial = "consent-register-browser-check";
 
 function sha256Base64Url(value) {
   return createHash("sha256").update(value).digest("base64url");
@@ -71,12 +71,12 @@ const minted = await mintConsentToken(
     issued_at: new Date(),
     ttl_seconds: 3600
   },
-  secret
+  demoSigningMaterial
 );
 
 const consentApp = createHostedConsentApp({
   publicBaseUrl,
-  signingSecret: secret,
+  signingSecret: demoSigningMaterial,
   clock: () => new Date(),
   allowedOrigins: [publicBaseUrl],
   idempotencyStore: new InMemoryIdempotencyStore(),

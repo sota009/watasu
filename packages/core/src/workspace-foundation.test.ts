@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { findSecretLikeValues } from "../../../scripts/secret-scan.mjs";
@@ -184,6 +185,16 @@ describe("workspace foundation", () => {
     writeFileSync(join(fixtureDir, "safe.md"), "API key guidance without a value is safe.");
 
     expect(findSecretLikeValues(fixtureDir)).toEqual([]);
+  });
+
+  test("test_manual_browser_check_has_no_secret_like_assignment", () => {
+    const scriptsDir = fileURLToPath(new URL("../../../scripts/", import.meta.url));
+
+    const findings = findSecretLikeValues(scriptsDir).filter(
+      (finding) => finding.path === "consent-register-browser-check.mjs"
+    );
+
+    expect(findings).toEqual([]);
   });
 
   test("secret_scan_reports_env_files_and_secret_like_assignments", () => {
