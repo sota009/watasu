@@ -10,11 +10,11 @@ Instead of building a human-facing form, a service publishes a request definitio
 
 If you are new to watasu, start with the Japanese user guide: [docs/user-guide.ja.md](docs/user-guide.ja.md).
 
-This README is the project entry point. The user guide is the zero-background walkthrough. Product and engineering contracts live in [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md), [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md), and [docs/mvp-plan.md](docs/mvp-plan.md).
+This README is the project entry point. The user guide is the zero-background walkthrough. Current implementation status lives in [docs/mvp-plan.md](docs/mvp-plan.md); the consent-gate and agent-handoff contracts live in [docs/consent-gate-design.md](docs/consent-gate-design.md) and [the zero-install handoff design](docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md).
 
 ## Current status
 
-As of 2026-06-16 JST:
+As of 2026-07-05:
 
 | Surface | Status | Try it |
 | --- | --- | --- |
@@ -23,19 +23,22 @@ As of 2026-06-16 JST:
 | Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
 | Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
 | Hosted MCP | Auth required | `/mcp` returns 401 without Bearer credentials |
+| Passkey consent gate | Implemented, pre-production | Hosted `human_consent` requests pause for passkey registration/authentication |
+| CLI/cloud-agent consent handoff | Core helper implemented | `submitWithConsent` handles submit, browser approval, polling, and resubmission |
+| Browser-agent WebMCP handoff | Design only | Do not ship; the browser API is still experimental |
 | Human dashboard UI | Not in scope | Not part of the MVP |
 | User-side personal vault / agent | Not in scope | Owned by another product or adapter |
 
-Latest verified evidence:
+Latest deployed evidence is still from 2026-06-16 JST; it does not verify the newer consent-gate changes:
 
-- `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 37 test files, 457 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`
 - `pnpm --silent cutover:verify` returned `decision: "go"` for `https://api.watasu.ai`
 - live `/health` returned `{"ok":true,"service":"watasu-hosted"}`
 - hosted MCP returned unauthenticated `401` with `WWW-Authenticate`, as intended
+
+The current checkout must pass `pnpm loop` and fresh hosted smoke/cutover checks before the newer consent flow is treated as deployed evidence.
 
 ## How it works
 
@@ -128,6 +131,14 @@ pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event
 ```
 
 `submit-fixture` is a local learning fixture. It is not a production submission flow.
+
+## Consent handoff
+
+Hosted requests use the single `human_consent` trust profile. A submission without a valid consent receipt returns `401` with `status: "auth_required"`, a browser consent URL, a polling URL, and an expiry. The consent page registers a passkey when needed or authenticates an existing passkey, then returns a payload-bound, single-use receipt. The agent resubmits the same encrypted envelope with that receipt.
+
+`@watasu/core` exports `submitWithConsent` for the interim CLI/cloud-agent path. It performs the submit → open/print consent URL → poll → resubmit sequence. This is a library API in the private workspace today; there is not yet a released `watasu submit --wait` command.
+
+The plaintext used for review is placed in the consent URL fragment, so it is not sent to the watasu server. It can still appear locally in terminal output, process arguments, browser history, or captured logs. Callers must treat the printed URL as sensitive. The planned browser-native WebMCP path remains design-only and must not be presented as production-ready.
 
 ## Local HTTP demo
 
@@ -229,7 +240,7 @@ The trial allowance is exact-match only and applies only to low-risk fields such
 as `email` and `display_name`; it does not disable hosted ownership checks
 globally.
 
-The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions, invite records, retirement state, and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, invite, retirement, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
+The hosted private-alpha runtime is intentionally not a durable multi-tenant production service yet. The live web process keeps published request versions, invite records, retirement state, passkey credentials, consent approvals, and default replay/rate-limit state in memory unless explicit dependencies are injected, while PostgreSQL is currently wired for retention dry-run evidence plus durable request-version, invite, retirement, capability, idempotency, and rate-limit metadata primitives rather than full web read/write custody. Live DB-backed runtime wiring, durable consent storage, and production capability administration remain production work. Publish a real private-alpha request only when the design partner flow is ready.
 
 ## Verification
 
@@ -290,8 +301,8 @@ Cutover evidence is written to the gitignored `cutover-evidence/` directory. Mai
 - [docs-site/](docs-site/): Rspress public docs source. `pnpm docs:build` generates a static site with `llms.txt` and `llms-full.txt`.
 - [docs/user-guide.ja.md](docs/user-guide.ja.md): zero-background user guide
 - [docs/mvp-plan.md](docs/mvp-plan.md): current status, manual checks, production cutover evidence
-- [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
-- [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
+- [docs/consent-gate-design.md](docs/consent-gate-design.md): current consent-gate security and protocol design
+- [docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md](docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md): agent-handoff direction and maturity limits
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol and dependency baseline
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 
