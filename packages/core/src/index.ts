@@ -246,9 +246,14 @@ export type {
 export {
   parseAuthRequired,
   parseConsentStatus,
-  buildConsentFragmentUrl
+  buildConsentFragmentUrl,
+  runConsentHandoff
 } from "./consent-handoff.js";
 export type {
   AuthRequiredConsent,
-  ConsentPollResult
+  ConsentPollResult,
+  HandoffSubmitResponse,
+  RunConsentHandoffDeps,
+  RunConsentHandoffOptions,
+  RunConsentHandoffResult
 } from "./consent-handoff.js";

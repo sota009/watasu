@@ -52,3 +52,73 @@ export function parseConsentStatus(body: unknown): ConsentPollResult | undefined
 export function buildConsentFragmentUrl(consentUrl: string, plaintext: string): string {
   return `${consentUrl}#${encodeURIComponent(plaintext)}`;
 }
+
+export interface HandoffSubmitResponse {
+  httpStatus: number;
+  body: unknown;
+}
+
+export interface RunConsentHandoffDeps {
+  submit(consentReceiptToken?: string): Promise<HandoffSubmitResponse>;
+  openConsentUrl(url: string): void | Promise<void>;
+  pollConsent(pollUrl: string): Promise<ConsentPollResult>;
+  sleep(ms: number): Promise<void>;
+}
+
+export interface RunConsentHandoffOptions {
+  plaintext: string;
+  pollIntervalMs?: number;
+  maxWaitMs?: number;
+}
+
+export type RunConsentHandoffResult =
+  | { ok: true; body: unknown }
+  | { ok: false; code: "consent_timeout" | "submit_failed"; detail?: unknown };
+
+const defaultPollIntervalMs = 1500;
+const defaultMaxWaitMs = 120000;
+
+function isDelivered(httpStatus: number): boolean {
+  return httpStatus >= 200 && httpStatus < 300;
+}
+
+export async function runConsentHandoff(
+  deps: RunConsentHandoffDeps,
+  options: RunConsentHandoffOptions
+): Promise<RunConsentHandoffResult> {
+  const pollIntervalMs = options.pollIntervalMs ?? defaultPollIntervalMs;
+  const maxWaitMs = options.maxWaitMs ?? defaultMaxWaitMs;
+
+  const first = await deps.submit();
+  if (isDelivered(first.httpStatus)) {
+    return { ok: true, body: first.body };
+  }
+  const consent = first.httpStatus === 401 ? parseAuthRequired(first.body) : undefined;
+  if (consent === undefined) {
+    return { ok: false, code: "submit_failed", detail: first.body };
+  }
+
+  await deps.openConsentUrl(buildConsentFragmentUrl(consent.consentUrl, options.plaintext));
+
+  let waited = 0;
+  let receipt: string | undefined;
+  // Poll first, then wait — so an already-approved consent resolves immediately.
+  for (;;) {
+    const status = await deps.pollConsent(consent.pollUrl);
+    if (status.status === "approved") {
+      receipt = status.receipt;
+      break;
+    }
+    if (waited >= maxWaitMs) {
+      return { ok: false, code: "consent_timeout" };
+    }
+    await deps.sleep(pollIntervalMs);
+    waited += pollIntervalMs;
+  }
+
+  const second = await deps.submit(receipt);
+  if (isDelivered(second.httpStatus)) {
+    return { ok: true, body: second.body };
+  }
+  return { ok: false, code: "submit_failed", detail: second.body };
+}
