@@ -143,8 +143,9 @@ describe("runConsentHandoff", () => {
 
   test("test_default_wait_derives_from_server_expires_in", async () => {
     // No maxWaitMs option: the wait bound must come from consent.expiresIn (1s -> 1000ms),
-    // not the (old 2 minute, new 10 minute) hardcoded default. pollIntervalMs is explicit
-    // only to keep the iteration count small; sleep is injected/mocked so wall time is ~0.
+    // not the hardcoded default (defaultMaxWaitMs).
+    // With expiresIn=1 and pollIntervalMs=100, and never-approving polls:
+    // polls at waited=0,100,...,900 (10 polls each check fails), then at waited=1000 (check passes) → 11 polls total.
     let polls = 0;
     const result = await runConsentHandoff(
       {
@@ -165,8 +166,8 @@ describe("runConsentHandoff", () => {
       },
       { plaintext: "{}", pollIntervalMs: 100 }
     );
+    expect(polls).toBe(11);
     expect(result).toEqual({ ok: false, code: "consent_timeout" });
-    expect(polls).toBeGreaterThan(0);
   });
 
   test("test_zero_poll_interval_does_not_hang", async () => {
