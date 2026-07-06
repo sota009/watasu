@@ -107,7 +107,7 @@ describe("buildConsentFragmentUrl", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff.test.ts`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff.test.ts`
 Expected: FAIL — cannot find module `./consent-handoff.js`.
 
 - [ ] **Step 3: Implement** — `packages/core/src/consent-handoff.ts`
@@ -185,8 +185,8 @@ export type {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff.test.ts`
-Expected: PASS (7 tests).
+Run: `pnpm exec vitest run packages/core/src/consent-handoff.test.ts`
+Expected: PASS (6 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -301,7 +301,7 @@ describe("runConsentHandoff", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff.test.ts -t runConsentHandoff`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff.test.ts -t runConsentHandoff`
 Expected: FAIL — `runConsentHandoff` is not exported.
 
 - [ ] **Step 3: Implement** — append to `packages/core/src/consent-handoff.ts`
@@ -401,7 +401,7 @@ export type {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff.test.ts`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff.test.ts`
 Expected: PASS (11 tests total).
 
 - [ ] **Step 6: Commit**
@@ -455,7 +455,7 @@ describe("resolveOpenCommand", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff-runtime.test.ts`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff-runtime.test.ts`
 Expected: FAIL — cannot find module `./consent-handoff-runtime.js`.
 
 - [ ] **Step 3: Implement** — `packages/core/src/consent-handoff-runtime.ts`
@@ -498,7 +498,7 @@ export type { OpenCommand } from "./consent-handoff-runtime.js";
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff-runtime.test.ts`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff-runtime.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 6: Commit**
@@ -603,7 +603,7 @@ describe("submitWithConsent", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff-runtime.test.ts -t submitWithConsent`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff-runtime.test.ts -t submitWithConsent`
 Expected: FAIL — `submitWithConsent` is not exported.
 
 - [ ] **Step 3: Implement** — add this import at the **top** of
@@ -700,7 +700,7 @@ export type { SubmitWithConsentInput } from "./consent-handoff-runtime.js";
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pnpm --filter @watasu/core exec vitest run src/consent-handoff-runtime.test.ts`
+Run: `pnpm exec vitest run packages/core/src/consent-handoff-runtime.test.ts`
 Expected: PASS (5 tests total).
 
 - [ ] **Step 6: Full green gate**
