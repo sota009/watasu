@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { resolveOpenCommand, submitWithConsent } from "./consent-handoff-runtime.js";
+import {
+  watasuA2aHttpJsonContentType,
+  watasuA2aProtocolVersion
+} from "./a2a.js";
+import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
 
 describe("resolveOpenCommand", () => {
   test("test_macos_uses_open", () => {
@@ -11,7 +16,19 @@ describe("resolveOpenCommand", () => {
   test("test_windows_uses_cmd_start", () => {
     const c = resolveOpenCommand("win32");
     expect(c.command).toBe("cmd");
-    expect(c.args("https://x")).toEqual(["/c", "start", "", "https://x"]);
+    expect(c.args("https://x")).toEqual(["/c", "start", "", '"https://x"']);
+  });
+
+  test("test_windows_quotes_url_so_metacharacters_do_not_split_command", () => {
+    // cmd.exe's `start` treats `&`, `|`, `^` as command separators; quoting the
+    // URL keeps a stray metacharacter from splitting into a second command.
+    const c = resolveOpenCommand("win32");
+    expect(c.args("https://x/consent#a&b")).toEqual([
+      "/c",
+      "start",
+      "",
+      '"https://x/consent#a&b"'
+    ]);
   });
 
   test("test_linux_uses_xdg_open", () => {
@@ -65,6 +82,39 @@ describe("submitWithConsent", () => {
     expect(result).toEqual({ ok: true, body: { ok: true, status: "delivered" } });
     expect(opened).toEqual(["https://x/consent/t#" + encodeURIComponent('{"name":"Alice"}')]);
     expect(posted[1]).toEqual({ message: { parts: [{ data: { request_id: "r" } }] }, _token: "RCPT" });
+  });
+
+  test("test_submit_sends_a2a_protocol_headers", async () => {
+    const postHeaders: Array<Record<string, string> | undefined> = [];
+    const fetchImpl = (async (
+      _url: string,
+      init?: { method?: string; headers?: Record<string, string> }
+    ) => {
+      if (init?.method === "POST") {
+        postHeaders.push(init.headers);
+        return jsonResponse(202, { ok: true, status: "delivered" });
+      }
+      return jsonResponse(200, { ok: true, status: "pending" });
+    }) as unknown as typeof fetch;
+
+    await submitWithConsent({
+      submitUrl: "https://x/requests/r/submit",
+      envelope: { message: { parts: [{ data: { request_id: "r" } }] } },
+      plaintext: '{"name":"Alice"}',
+      withReceipt: (env) => env,
+      fetchImpl,
+      openImpl: () => {},
+      sleepImpl: async () => {}
+    });
+
+    // The hosted submit endpoint is behind the A2A protocol gate, which rejects
+    // anything that is not application/a2a+json with the version + extension
+    // headers before the request ever reaches the consent gate.
+    expect(postHeaders[0]).toEqual({
+      "content-type": watasuA2aHttpJsonContentType,
+      "a2a-version": watasuA2aProtocolVersion,
+      "a2a-extensions": watasuEncryptedIntakeExtensionUri
+    });
   });
 
   test("test_plaintext_never_enters_submit_body", async () => {

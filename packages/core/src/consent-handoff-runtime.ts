@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { watasuA2aHttpJsonContentType, watasuA2aProtocolVersion } from "./a2a.js";
+import { watasuEncryptedIntakeExtensionUri } from "./agent-card.js";
 import {
   parseConsentStatus,
   runConsentHandoff,
@@ -17,8 +19,9 @@ export function resolveOpenCommand(platform: NodeJS.Platform): OpenCommand {
     return { command: "open", args: (url) => [url] };
   }
   if (platform === "win32") {
-    // Empty "" is the required title argument for `start`.
-    return { command: "cmd", args: (url) => ["/c", "start", "", url] };
+    // Empty "" is the required title argument for `start`. The URL is quoted so
+    // cmd.exe does not treat `&`/`|`/`^` in it as command separators.
+    return { command: "cmd", args: (url) => ["/c", "start", "", `"${url}"`] };
   }
   return { command: "xdg-open", args: (url) => [url] };
 }
@@ -76,7 +79,14 @@ export async function submitWithConsent(
     const envelope = token === undefined ? input.envelope : input.withReceipt(input.envelope, token);
     const response = await fetchImpl(input.submitUrl, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      // The hosted submit endpoint is behind the A2A protocol gate; it rejects
+      // anything that is not application/a2a+json carrying the version and
+      // required-extension headers before the consent gate is ever reached.
+      headers: {
+        "content-type": watasuA2aHttpJsonContentType,
+        "a2a-version": watasuA2aProtocolVersion,
+        "a2a-extensions": watasuEncryptedIntakeExtensionUri
+      },
       body: JSON.stringify(envelope)
     });
     return { httpStatus: response.status, body: await readJson(response) };

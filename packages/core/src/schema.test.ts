@@ -125,6 +125,18 @@ describe("encrypted envelope schema generation", () => {
     ]);
   });
 
+  test("test_envelope_schema_allows_optional_consent_receipt_token", () => {
+    const hashes = createRequestVersionHashes(baseDefinition);
+    const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
+
+    // The schema forbids additional properties, so a resubmission that attaches
+    // the signed consent_receipt_token (which the server accepts) must be a
+    // declared property — otherwise clients validating against the published
+    // schema would reject the very envelope the server expects.
+    expect(schema.properties.consent_receipt_token).toEqual({ type: "string" });
+    expect(schema.required).not.toContain("consent_receipt_token");
+  });
+
   test("test_envelope_schema_omits_static_consent_receipt", () => {
     const hashes = createRequestVersionHashes(baseDefinition);
     const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);

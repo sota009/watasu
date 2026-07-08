@@ -70,6 +70,10 @@ export function generateEncryptedEnvelopeSchema(
         const: hashes.schema_hash
       },
       consent_receipt_hash: { type: "string" },
+      // Optional: a resubmission attaches the signed runtime consent token
+      // (§13). additionalProperties is false, so it must be declared here or a
+      // schema-validating client would reject an envelope the server accepts.
+      consent_receipt_token: { type: "string" },
       idempotency_key: { type: "string" },
       submitted_at: {
         type: "string",
