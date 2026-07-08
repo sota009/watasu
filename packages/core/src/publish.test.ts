@@ -42,7 +42,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "verified_sender"
+  trust_profile: "human_consent"
 };
 
 function definitionWith(overrides: Partial<RequestDefinition>): RequestDefinition {
@@ -107,7 +107,7 @@ describe("request publishing", () => {
         type: "webhook",
         url: "http://localhost:8787/watasu/intake"
       },
-      trust_profile: "verified_sender"
+      trust_profile: "human_consent"
     });
 
     const result = publishRequestVersion({

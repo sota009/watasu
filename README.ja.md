@@ -16,11 +16,11 @@ watasu は、サービス側が「個人データをどう受け取るか」を�
 - production private-alpha endpoint の生存確認
 - payload を watasu に預けないことの確認ポイント
 
-README は入口です。実際の利用手順は [利用者向けガイド](docs/user-guide.ja.md)、深い product / engineering contract は [PRD](docs/prd-cli-mvp.md)、[ERD](docs/erd-cli-mvp.md)、[MVP plan](docs/mvp-plan.md) に分けています。
+README は入口です。実際の利用手順は [利用者向けガイド](docs/user-guide.ja.md)、実装状況は [MVP plan](docs/mvp-plan.md)、consent gate と agent handoff の contract は [consent gate design](docs/consent-gate-design.md) と [zero-install handoff design](docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md) に分けています。
 
 ## いま使える状態
 
-2026-06-16 JST 時点の current status:
+2026-07-05 時点の current status:
 
 | Surface | Status | 使い方 |
 | --- | --- | --- |
@@ -29,19 +29,22 @@ README は入口です。実際の利用手順は [利用者向けガイド](doc
 | Local HTTP demo | Ready | `pnpm --filter @watasu/http demo` |
 | Hosted API | Private-alpha ready | `https://api.watasu.ai/health` |
 | Hosted MCP | Auth required | `https://api.watasu.ai/mcp` は Bearer token なしで 401 |
+| Passkey consent gate | Implemented, pre-production | Hosted `human_consent` request を passkey 登録または認証まで pause |
+| CLI / cloud-agent consent handoff | Core helper implemented | `submitWithConsent` が submit、browser 承認、poll、再 submit を処理 |
+| Browser-agent WebMCP handoff | Design only | browser API が experimental のため production 利用不可 |
 | Human dashboard UI | Not in scope | MVP では作らない |
 | User-side personal vault / agent | Not in scope | 別プロダクトまたは adapter が担当 |
 
-Latest verified evidence:
+最新の deployed evidence は 2026-06-16 JST 時点のままで、新しい consent-gate 変更は検証していません。
 
-- `pnpm loop` passed: typecheck, tests, secret scan, self-review preflight
-- test suite passed: 37 test files, 457 tests
 - `pnpm demo:handoff` returned `ok: true`
 - handoff evidence showed `ledger_contains_payload_body: false`
 - handoff evidence showed `response_contains_plaintext_payload: false`
 - `pnpm --silent cutover:verify` returned `decision: "go"` for `https://api.watasu.ai`
 - live `/health` returned `{"ok":true,"service":"watasu-hosted"}`
 - hosted MCP returned unauthenticated `401` with `WWW-Authenticate`, as intended
+
+新しい consent flow を deployed evidence として扱う前に、current checkout で `pnpm loop` と hosted smoke / cutover checks を再実行する必要があります。
 
 ## しくみ
 
@@ -135,6 +138,14 @@ pnpm --filter @watasu/cli watasu submit-fixture packages/fixtures/requests/event
 
 `submit-fixture` は学習用の local fixture です。production に payload を送る操作ではありません。
 
+## Consent handoff
+
+Hosted request の trust profile は `human_consent` のみです。有効な consent receipt がない submission は、`status: "auth_required"`、browser consent URL、poll URL、有効期限を含む `401` を返します。Consent page は必要なら passkey を登録し、既存 passkey があれば認証して、payload-bound かつ single-use の receipt を返します。Agent は同じ encrypted envelope に receipt を付けて再 submit します。
+
+Interim の CLI / cloud-agent path 向けに、`@watasu/core` は `submitWithConsent` を export しています。submit → consent URL の表示・open → poll → receipt 付き再 submit を処理します。現時点では private workspace の library API であり、公開済みの `watasu submit --wait` command ではありません。
+
+Review 用 plaintext は consent URL fragment に入るため watasu server には送信されません。ただし、local の terminal output、process arguments、browser history、captured logs に残る可能性があります。表示された URL は機密情報として扱ってください。Browser-native WebMCP path は design-only で、production-ready ではありません。
+
 ## Local HTTP demo
 
 ```bash
@@ -194,7 +205,7 @@ Bearer token なしでは `401` が正しい挙動です。
 
 Hosted publish / ledger 操作は private-alpha の authenticated MCP / service identity 境界の内側で使います。まだ一般公開の self-serve UI ではありません。
 
-Hosted private-alpha runtime は、まだ durable multi-tenant production service ではありません。live web process は explicit dependencies が注入されない限り published request versions と default replay / rate-limit state を memory に保持し、PostgreSQL は現時点では full web read/write custody ではなく retention dry-run evidence と durable request-version / capability / idempotency / rate-limit metadata primitives に使っています。DB-backed live runtime wiring と production capability administration はまだ production work です。実 private-alpha request の publish は design partner flow が決まってから行います。
+Hosted private-alpha runtime は、まだ durable multi-tenant production service ではありません。live web process は explicit dependencies が注入されない限り published request versions、invite / retirement state、passkey credentials、consent approvals、default replay / rate-limit state を memory に保持し、PostgreSQL は現時点では full web read/write custody ではなく retention dry-run evidence と durable request-version / invite / retirement / capability / idempotency / rate-limit metadata primitives に使っています。DB-backed live runtime wiring、durable consent storage、production capability administration はまだ production work です。実 private-alpha request の publish は design partner flow が決まってから行います。
 
 ## Verification loop
 
@@ -255,8 +266,8 @@ cutover evidence は gitignored の `cutover-evidence/` に保存します。主
 - [docs-site/](docs-site/): Rspress public docs source. `pnpm docs:build` で `llms.txt` / `llms-full.txt` つきの static site を生成します。
 - [docs/user-guide.ja.md](docs/user-guide.ja.md): 予備知識なしの利用者向けガイド
 - [docs/mvp-plan.md](docs/mvp-plan.md): current status、manual checks、production cutover evidence
-- [docs/prd-cli-mvp.md](docs/prd-cli-mvp.md): product requirements
-- [docs/erd-cli-mvp.md](docs/erd-cli-mvp.md): engineering requirements
+- [docs/consent-gate-design.md](docs/consent-gate-design.md): current consent-gate security / protocol design
+- [docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md](docs/superpowers/specs/2026-07-05-watasu-zero-install-agent-handoff-design.md): agent-handoff direction と maturity limits
 - [docs/protocol-baseline.md](docs/protocol-baseline.md): protocol / dependency baseline
 - [docs/loop-engineering.md](docs/loop-engineering.md): Codex / gstack loop rules
 

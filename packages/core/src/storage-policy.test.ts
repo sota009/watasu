@@ -99,7 +99,7 @@ function createPublishedRequest(): PublishedRequestVersion {
       metadata_retention: {
         days: 90
       },
-      trust_profile: "public_capability"
+      trust_profile: "human_consent"
     },
     hashes: {
       request_version_hash: sha256Hash("request-version"),

@@ -37,18 +37,6 @@ export type {
   HostedRetireRequest,
   HostedRetireResponse
 } from "./hosted-retire.js";
-export {
-  InMemoryHostedSenderKeyRegistry,
-  createHostedSenderTrustResolver
-} from "./hosted-sender-auth.js";
-export type {
-  HostedPrivateInviteRecord,
-  HostedSenderKeyRecord,
-  HostedSenderTrustInput,
-  HostedSenderTrustRecordStatus,
-  HostedSenderTrustResolver,
-  HostedSenderTrustResult
-} from "./hosted-sender-auth.js";
 export { createHostedSubmitApp } from "./hosted-submit.js";
 export type {
   CreateHostedSubmitAppInput,
@@ -56,6 +44,13 @@ export type {
   HostedSubmitRequest,
   HostedSubmitResponse
 } from "./hosted-submit.js";
+export { createHostedConsentApp } from "./hosted-consent.js";
+export type {
+  CreateHostedConsentAppInput,
+  HostedConsentApp,
+  HostedConsentRequest,
+  HostedConsentResponse
+} from "./hosted-consent.js";
 export { createHostedProductionApp } from "./hosted-production.js";
 export type {
   HostedProductionApp,

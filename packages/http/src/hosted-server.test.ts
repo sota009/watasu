@@ -320,6 +320,23 @@ describe("hosted production server runtime", () => {
     expect(headers["cache-control"]).toBe("no-store");
   });
 
+  test("test_with_hosted_security_headers_preserves_route_csp", () => {
+    const routeCsp =
+      "default-src 'none'; script-src 'nonce-abc123'; base-uri 'none'; frame-ancestors 'none'";
+    const headers = withHostedSecurityHeaders({
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": routeCsp
+    });
+
+    // A route may declare its own CSP (e.g. the consent page needs a nonce'd
+    // inline script); that CSP must win over the default `default-src 'none'`.
+    expect(headers["content-security-policy"]).toBe(routeCsp);
+    // ...while the other forced security headers still apply.
+    expect(headers["cache-control"]).toBe("no-store");
+    expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+  });
+
   test("test_read_hosted_request_body_rejects_body_over_limit", async () => {
     const stream = Readable.from(["123", "45"]);
 

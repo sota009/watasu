@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
-  canonicalizeJson,
   sha256Hash,
   type DeliveryRequest,
   type JsonSchemaObject

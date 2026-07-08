@@ -64,7 +64,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "verified_sender"
+  trust_profile: "human_consent"
 };
 
 describe("plaintext payload schema generation", () => {
@@ -125,13 +125,25 @@ describe("encrypted envelope schema generation", () => {
     ]);
   });
 
-  test("test_envelope_schema_allows_consent_receipt_metadata", () => {
+  test("test_envelope_schema_allows_optional_consent_receipt_token", () => {
     const hashes = createRequestVersionHashes(baseDefinition);
     const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
 
-    expect(schema.properties.consent_receipt).toEqual({
-      type: "object"
-    });
+    // The schema forbids additional properties, so a resubmission that attaches
+    // the signed consent_receipt_token (which the server accepts) must be a
+    // declared property — otherwise clients validating against the published
+    // schema would reject the very envelope the server expects.
+    expect(schema.properties.consent_receipt_token).toEqual({ type: "string" });
+    expect(schema.required).not.toContain("consent_receipt_token");
+  });
+
+  test("test_envelope_schema_omits_static_consent_receipt", () => {
+    const hashes = createRequestVersionHashes(baseDefinition);
+    const schema = generateEncryptedEnvelopeSchema(baseDefinition, hashes);
+
+    // The static ConsentReceiptMetadata attestation was retired (§13); consent
+    // binding now lives solely in the signed consent_receipt_token.
+    expect(schema.properties.consent_receipt).toBeUndefined();
     expect(schema.required).not.toContain("consent_receipt");
   });
 });

@@ -57,7 +57,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "public_capability"
+  trust_profile: "human_consent"
 };
 
 const encryptedPayload = {
@@ -417,7 +417,7 @@ describe("webhook delivery and metadata-only ledger", () => {
         retry_after_source: "webhook_failure",
         idempotency_key_policy: "reuse_for_same_payload",
         payload_policy: "sender_resubmits_payload",
-        refresh_fields: ["submitted_at", "expires_at", "sender_signature"]
+        refresh_fields: ["submitted_at", "expires_at"]
       }
     });
     expect(resultJson).not.toContain("base64url-ciphertext");

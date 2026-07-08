@@ -218,7 +218,7 @@ async function handleSubmit(
   });
 
   if (!validationResult.ok) {
-    return jsonResponse(validationResult.status === "auth_required" ? 401 : 400, {
+    return jsonResponse(400, {
       ok: false,
       status: validationResult.status,
       error: validationResult.error

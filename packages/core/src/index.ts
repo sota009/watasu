@@ -38,7 +38,6 @@ export {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
-  buildSenderSignaturePayload,
   createIdempotencyClaimKey,
   validateSubmissionEnvelope,
   validateSubmissionEnvelopeAsync,
@@ -54,6 +53,15 @@ export {
   decryptJsonPayload,
   encryptJsonPayload
 } from "./jwe.js";
+export {
+  InMemoryConsentApprovalStore,
+  buildConsentChallenge,
+  generateConsentNonce,
+  mintConsentReceipt,
+  mintConsentToken,
+  verifyConsentReceipt,
+  verifyConsentToken
+} from "./consent.js";
 export {
   createMetadataLedgerReader,
   createMigratedPostgresCapabilityRegistry,
@@ -140,9 +148,7 @@ export type {
   SubmissionRateLimiter,
   SubmissionValidationContext,
   SubmissionValidationError,
-  SubmissionValidationResult,
-  TrustedInviteBinding,
-  TrustedSenderPublicKey
+  SubmissionValidationResult
 } from "./submission.js";
 export type {
   DeliveryClient,
@@ -165,6 +171,19 @@ export type {
   WatasuJweAlgorithm,
   WatasuJweContentEncryption
 } from "./jwe.js";
+export type {
+  ConsentApprovalStore,
+  ConsentChallengeInput,
+  ConsentReceipt,
+  ConsentReceiptError,
+  ConsentReceiptVerification,
+  ConsentTokenClaims,
+  ConsentTokenError,
+  ConsentTokenVerification,
+  MintConsentReceiptParams,
+  MintConsentTokenParams,
+  MintedConsentToken
+} from "./consent.js";
 export type {
   HostedServiceIdentity,
   HostedServiceRole,
@@ -207,3 +226,40 @@ export type {
   ServiceKeyRecordStatus,
   ServiceKeyRegistryResult
 } from "./service-key.js";
+export {
+  InMemoryCredentialStore
+} from "./credential-store.js";
+export type {
+  CredentialRecord,
+  CredentialStore
+} from "./credential-store.js";
+export {
+  verifyConsentRegistration,
+  verifyConsentAuthentication
+} from "./webauthn.js";
+export type {
+  ConsentWebAuthnResult,
+  ConsentWebAuthnCredential,
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON
+} from "./webauthn.js";
+export {
+  parseAuthRequired,
+  parseConsentStatus,
+  buildConsentFragmentUrl,
+  runConsentHandoff
+} from "./consent-handoff.js";
+export type {
+  AuthRequiredConsent,
+  ConsentPollResult,
+  HandoffSubmitResponse,
+  RunConsentHandoffDeps,
+  RunConsentHandoffOptions,
+  RunConsentHandoffResult
+} from "./consent-handoff.js";
+export {
+  resolveOpenCommand,
+  defaultOpenUrl,
+  submitWithConsent
+} from "./consent-handoff-runtime.js";
+export type { OpenCommand, SubmitWithConsentInput } from "./consent-handoff-runtime.js";

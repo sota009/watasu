@@ -2,12 +2,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
 const sensitivityLevels = ["low", "moderate", "high", "prohibited"] as const;
-const trustProfiles = [
-  "public_capability",
-  "verified_sender",
-  "private_invite",
-  "local_demo"
-] as const;
+const trustProfiles = ["local_demo", "human_consent"] as const;
 const privateJwkMembers = new Set(["d", "p", "q", "dp", "dq", "qi", "oth", "k"]);
 
 export type Sensitivity = (typeof sensitivityLevels)[number];
@@ -57,13 +52,6 @@ export interface RequestDefinition {
     days: number;
   };
   trust_profile: TrustProfile;
-  human_overrides?: HumanOverride[] | undefined;
-}
-
-interface HumanOverride {
-  field_id: string;
-  sensitivity: Sensitivity;
-  reason: string;
 }
 
 export type RequestDefinitionValidationResult =
@@ -116,16 +104,7 @@ const requestDefinitionSchema = z.object({
   metadata_retention: z.object({
     days: z.number().int().positive()
   }),
-  trust_profile: z.enum(trustProfiles),
-  human_overrides: z
-    .array(
-      z.object({
-        field_id: z.string().min(1),
-        sensitivity: z.enum(sensitivityLevels),
-        reason: z.string().min(1)
-      })
-    )
-    .optional()
+  trust_profile: z.enum(trustProfiles)
 });
 
 const sensitivityRank: Record<Sensitivity, number> = {
@@ -135,20 +114,21 @@ const sensitivityRank: Record<Sensitivity, number> = {
   prohibited: 3
 };
 
+// Each rule tags a field with the highest sensitivity its label/purpose implies.
+// The comment on each entry names the category the patterns detect.
 const inferenceRules: Array<{
-  code: string;
   sensitivity: Sensitivity;
   patterns: RegExp[];
 }> = [
   {
-    code: "authentication_secret",
+    // authentication_secret
     sensitivity: "prohibited",
     patterns: [
       /\b(api[_ -]?key|password|token|private[_ -]?key|recovery[_ -]?code|secret)\b/i
     ]
   },
   {
-    code: "safety_sensitive_metadata",
+    // safety_sensitive_metadata
     sensitivity: "prohibited",
     patterns: [
       /\b(political|religious|union)(?:\b|[_ -])/i,
@@ -156,32 +136,32 @@ const inferenceRules: Array<{
     ]
   },
   {
-    code: "government_identity",
+    // government_identity
     sensitivity: "high",
     patterns: [/\b(government[_ -]?id|passport|driver'?s?[_ -]?license|national[_ -]?id|kyc)\b/i]
   },
   {
-    code: "financial_tax",
+    // financial_tax
     sensitivity: "high",
     patterns: [/\b(tax[_ -]?id|bank[_ -]?account|income|invoice|payment[_ -]?credential)\b/i]
   },
   {
-    code: "minor_guardian",
+    // minor_guardian
     sensitivity: "high",
     patterns: [/\b(minor[_ -]?age|under[_ -]?18|guardian|school|child)\b/i]
   },
   {
-    code: "health_safety",
+    // health_safety
     sensitivity: "high",
     patterns: [/\b(allerg(y|ies)|medication|symptom|disability|emergency[_ -]?contact)\b/i]
   },
   {
-    code: "location_address",
+    // location_address
     sensitivity: "high",
     patterns: [/\b(address|postal[_ -]?code|precise[_ -]?location|workplace[_ -]?location)\b/i]
   },
   {
-    code: "contact",
+    // contact
     sensitivity: "moderate",
     patterns: [/\b(email|phone|full[_ -]?name|name|social[_ -]?handle)\b/i]
   }
@@ -203,7 +183,7 @@ export function validateRequestDefinitionInput(input: string): RequestDefinition
   }
 
   const normalizedDefinition = normalizeSensitivity(structuralValidation.data);
-  const policyErrors = validatePolicy(normalizedDefinition, structuralValidation.data);
+  const policyErrors = validatePolicy(normalizedDefinition);
 
   if (policyErrors.length > 0) {
     return { ok: false, errors: policyErrors, warnings: [] };
@@ -256,8 +236,7 @@ function normalizeSensitivity(definition: RequestDefinition): RequestDefinition 
 }
 
 function validatePolicy(
-  normalizedDefinition: RequestDefinition,
-  originalDefinition: RequestDefinition
+  normalizedDefinition: RequestDefinition
 ): RequestDefinitionError[] {
   const errors: RequestDefinitionError[] = [];
 
@@ -269,41 +248,7 @@ function validatePolicy(
         message: `${field.id} is prohibited for the MVP request definition.`
       });
     }
-
-    const inferenceCodes = inferFieldPolicyCodes(field);
-    if (
-      normalizedDefinition.trust_profile !== "private_invite" &&
-      inferenceCodes.includes("government_identity")
-    ) {
-      errors.push({
-        code: "private_invite_required_for_government_identity",
-        path: `fields[${index}]`,
-        message: `${field.id} requires the private_invite trust profile.`
-      });
-    }
-
-    if (
-      normalizedDefinition.trust_profile !== "private_invite" &&
-      inferenceCodes.includes("minor_guardian")
-    ) {
-      errors.push({
-        code: "private_invite_required_for_minor_guardian",
-        path: `fields[${index}]`,
-        message: `${field.id} requires the private_invite trust profile.`
-      });
-    }
   });
-
-  if (
-    normalizedDefinition.trust_profile === "public_capability" &&
-    normalizedDefinition.fields.some((field) => field.sensitivity === "high")
-  ) {
-    errors.push({
-      code: "public_capability_high_sensitivity",
-      path: "trust_profile",
-      message: "public_capability cannot be used with high sensitivity fields."
-    });
-  }
 
   for (const key of Object.keys(normalizedDefinition.encryption.public_key_jwk)) {
     if (privateJwkMembers.has(key)) {
@@ -314,24 +259,6 @@ function validatePolicy(
       });
     }
   }
-
-  const overrides = originalDefinition.human_overrides ?? [];
-  overrides.forEach((override, index) => {
-    const originalField = originalDefinition.fields.find((field) => field.id === override.field_id);
-    const normalizedField = normalizedDefinition.fields.find((field) => field.id === override.field_id);
-    if (
-      originalDefinition.trust_profile === "public_capability" &&
-      originalField !== undefined &&
-      normalizedField !== undefined &&
-      sensitivityRank[override.sensitivity] < sensitivityRank[normalizedField.sensitivity]
-    ) {
-      errors.push({
-        code: "human_override_cannot_downgrade_public_capability",
-        path: `human_overrides[${index}]`,
-        message: "Human override cannot downgrade inferred sensitivity for public_capability."
-      });
-    }
-  });
 
   return errors;
 }
@@ -345,13 +272,6 @@ function inferFieldSensitivity(field: RequestFieldDefinition): Sensitivity {
 
     return maxSensitivity(current, rule.sensitivity);
   }, "low");
-}
-
-function inferFieldPolicyCodes(field: RequestFieldDefinition): string[] {
-  const haystack = buildFieldPolicyHaystack(field);
-  return inferenceRules
-    .filter((rule) => rule.patterns.some((pattern) => pattern.test(haystack)))
-    .map((rule) => rule.code);
 }
 
 function buildFieldPolicyHaystack(field: RequestFieldDefinition): string {

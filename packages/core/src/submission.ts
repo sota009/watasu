@@ -1,7 +1,5 @@
-import { createPublicKey, verify, type JsonWebKey } from "node:crypto";
 import { sha256Hash, type Sha256Hash } from "./hash.js";
 import { canonicalizeJson } from "./request-definition.js";
-import type { TrustProfile } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 
 const defaultMaxSubmissionAgeMs = 15 * 60 * 1000;
@@ -11,24 +9,27 @@ export interface SubmissionEnvelope {
   request_id: string;
   request_version: string;
   schema_hash: string;
+  /**
+   * Minimal terms echo: must equal the published `consent_text_hash`. This
+   * only pins the envelope to the current consent text — it is NOT consent
+   * evidence. Enforceable, human-attributed consent for personal data lives
+   * solely in `consent_receipt_token` (the signed runtime gate, §13).
+   */
   consent_receipt_hash: string;
-  consent_receipt?: ConsentReceiptMetadata | undefined;
   idempotency_key: string;
   submitted_at: string;
   service_key_id: string;
   encrypted_payload: Record<string, unknown>;
   encrypted_payload_hash: string;
-  sender_key_id?: string | undefined;
-  sender_signature?: string | undefined;
-  invite_id?: string | undefined;
-}
-
-export interface ConsentReceiptMetadata {
-  request_version: string;
-  consent_text_hash: string;
-  field_purposes_hash: string;
-  destination_policy_hash: string;
-  confirmed_at: string;
+  /**
+   * Compact JWS consent receipt token presented on resume for the
+   * `human_consent` runtime gate. This is the SOLE consent mechanism (§13):
+   * the passkey signature it records binds the payload to the exact
+   * consent-text / field-purposes / destination-policy hashes, proving both
+   * "a human consented" and "consent was to the exact terms." Absent on the
+   * first (pausing) submission.
+   */
+  consent_receipt_token?: string | undefined;
 }
 
 export interface SubmissionCapability {
@@ -45,17 +46,6 @@ export interface CapabilityRecord {
   status: CapabilityStatus;
   issued_at: string;
   revoked_at?: string | undefined;
-}
-
-export interface TrustedInviteBinding {
-  invite_id: string;
-  sender_key_id: string;
-}
-
-export interface TrustedSenderPublicKey {
-  sender_key_id: string;
-  alg: "ES256" | "EdDSA";
-  public_jwk: JsonWebKey;
 }
 
 export interface IdempotencyStore {
@@ -94,9 +84,6 @@ export interface SubmissionValidationContext {
   rateLimiter: SubmissionRateLimiter;
   clock: () => Date;
   maxSubmissionAgeMs?: number | undefined;
-  trustedSenderKeyIds?: string[] | undefined;
-  trustedSenderPublicKeys?: TrustedSenderPublicKey[] | undefined;
-  trustedInvites?: TrustedInviteBinding[] | undefined;
 }
 
 export interface AsyncSubmissionValidationContext extends Omit<
@@ -115,7 +102,7 @@ export type SubmissionValidationResult =
     }
   | {
       ok: false;
-      status: "rejected" | "auth_required";
+      status: "rejected";
       error: SubmissionValidationError;
     };
 
@@ -126,8 +113,6 @@ export interface AcceptedSubmission {
   submitted_at: string;
   accepted_at: string;
   capability_hash: Sha256Hash;
-  sender_key_id?: string | undefined;
-  invite_id?: string | undefined;
 }
 
 export interface SubmissionValidationError {
@@ -294,9 +279,7 @@ export function validateSubmissionEnvelope(
       idempotency_key: envelope.idempotency_key,
       submitted_at: envelope.submitted_at,
       accepted_at: acceptedAt,
-      capability_hash: sha256Hash(context.capability.url),
-      sender_key_id: envelope.sender_key_id,
-      invite_id: envelope.invite_id
+      capability_hash: sha256Hash(context.capability.url)
     }
   };
 }
@@ -338,9 +321,7 @@ export async function validateSubmissionEnvelopeAsync(
       idempotency_key: envelope.idempotency_key,
       submitted_at: envelope.submitted_at,
       accepted_at: acceptedAt,
-      capability_hash: sha256Hash(context.capability.url),
-      sender_key_id: envelope.sender_key_id,
-      invite_id: envelope.invite_id
+      capability_hash: sha256Hash(context.capability.url)
     }
   };
 }
@@ -361,14 +342,6 @@ function prepareSubmissionValidation(
     return {
       ok: false,
       result: rejected("capability_revoked", "Capability URL has been revoked.")
-    };
-  }
-
-  const trustError = validateSenderTrust(envelope, context);
-  if (trustError !== undefined) {
-    return {
-      ok: false,
-      result: authRequired(trustError.code, trustError.message)
     };
   }
 
@@ -441,9 +414,11 @@ export function validateSubmissionEnvelopeMetadata(
     };
   }
 
-  const consentReceiptError = validateConsentReceiptMetadata(envelope, published);
-  if (consentReceiptError !== undefined) {
-    return consentReceiptError;
+  if (envelope.consent_receipt_hash !== published.hashes.consent_text_hash) {
+    return {
+      code: "consent_receipt_hash_mismatch",
+      message: "Envelope consent_receipt_hash does not match the published consent text."
+    };
   }
 
   if (hashEncryptedPayload(envelope.encrypted_payload) !== envelope.encrypted_payload_hash) {
@@ -454,222 +429,6 @@ export function validateSubmissionEnvelopeMetadata(
   }
 
   return undefined;
-}
-
-function validateConsentReceiptMetadata(
-  envelope: SubmissionEnvelope,
-  published: PublishedRequestVersion
-): SubmissionValidationError | undefined {
-  const receipt = envelope.consent_receipt;
-
-  if (receipt === undefined) {
-    if (envelope.consent_receipt_hash !== published.hashes.consent_text_hash) {
-      return {
-        code: "consent_receipt_hash_mismatch",
-        message: "Envelope consent_receipt_hash does not match the published consent text."
-      };
-    }
-
-    return undefined;
-  }
-
-  if (receipt.request_version !== published.request_version) {
-    return {
-      code: "consent_receipt_request_version_mismatch",
-      message: "Envelope consent_receipt request_version does not match the published request."
-    };
-  }
-
-  if (receipt.consent_text_hash !== published.hashes.consent_text_hash) {
-    return {
-      code: "consent_receipt_consent_text_mismatch",
-      message: "Envelope consent_receipt consent_text_hash does not match the published request."
-    };
-  }
-
-  if (receipt.field_purposes_hash !== published.hashes.field_purposes_hash) {
-    return {
-      code: "consent_receipt_field_purposes_mismatch",
-      message: "Envelope consent_receipt field_purposes_hash does not match the published request."
-    };
-  }
-
-  if (receipt.destination_policy_hash !== published.hashes.destination_policy_hash) {
-    return {
-      code: "consent_receipt_destination_policy_mismatch",
-      message: "Envelope consent_receipt destination_policy_hash does not match the published request."
-    };
-  }
-
-  if (sha256Hash(canonicalizeJson(receipt)) !== envelope.consent_receipt_hash) {
-    return {
-      code: "consent_receipt_hash_mismatch",
-      message: "Envelope consent_receipt_hash does not match consent_receipt metadata."
-    };
-  }
-
-  return undefined;
-}
-
-function validateSenderTrust(
-  envelope: SubmissionEnvelope,
-  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">
-): SubmissionValidationError | undefined {
-  const trustProfile = context.published.definition.trust_profile;
-
-  if (trustProfile === "public_capability" || trustProfile === "local_demo") {
-    return undefined;
-  }
-
-  if (trustProfile === "verified_sender") {
-    return validateTrustedSenderKey(envelope, context, trustProfile);
-  }
-
-  if (envelope.sender_key_id === undefined) {
-    return {
-      code: "sender_key_required",
-      message: "private_invite submissions require a sender key."
-    };
-  }
-
-  if (envelope.invite_id === undefined) {
-    return {
-      code: "invite_binding_required",
-      message: "private_invite submissions require an invite binding."
-    };
-  }
-
-  const trustedInvite = (context.trustedInvites ?? []).find(
-    (invite) =>
-      invite.invite_id === envelope.invite_id && invite.sender_key_id === envelope.sender_key_id
-  );
-  if (trustedInvite === undefined) {
-    return {
-      code: "invite_binding_mismatch",
-      message: "private_invite sender key is not bound to the invite."
-    };
-  }
-
-  return validateTrustedSenderKey(envelope, context, trustProfile);
-}
-
-function validateTrustedSenderKey(
-  envelope: SubmissionEnvelope,
-  context: Omit<SubmissionValidationContext, "idempotencyStore" | "rateLimiter">,
-  trustProfile: TrustProfile
-): SubmissionValidationError | undefined {
-  if (envelope.sender_key_id === undefined) {
-    return {
-      code: "sender_key_required",
-      message: `${trustProfile} submissions require a sender key.`
-    };
-  }
-
-  const trustedSenderKeyIds = context.trustedSenderKeyIds;
-  if (trustedSenderKeyIds === undefined || !trustedSenderKeyIds.includes(envelope.sender_key_id)) {
-    return {
-      code: "sender_key_untrusted",
-      message: "Sender key is not trusted for this request."
-    };
-  }
-
-  if (envelope.sender_signature === undefined) {
-    return {
-      code: "sender_signature_required",
-      message: `${trustProfile} submissions require a sender signature.`
-    };
-  }
-
-  const trustedSenderPublicKey = context.trustedSenderPublicKeys?.find(
-    (key) => key.sender_key_id === envelope.sender_key_id
-  );
-  if (trustedSenderPublicKey === undefined) {
-    return {
-      code: "sender_public_key_required",
-      message: "Sender public key is required to verify the sender signature."
-    };
-  }
-
-  if (!verifySenderSignature({
-    envelope,
-    publicKey: trustedSenderPublicKey
-  })) {
-    return {
-      code: "sender_signature_invalid",
-      message: "Sender signature could not be verified."
-    };
-  }
-
-  return undefined;
-}
-
-export function buildSenderSignaturePayload(envelope: SubmissionEnvelope): Record<string, string> {
-  return {
-    request_id: envelope.request_id,
-    request_version: envelope.request_version,
-    schema_hash: envelope.schema_hash,
-    idempotency_key: envelope.idempotency_key,
-    encrypted_payload_hash: envelope.encrypted_payload_hash,
-    service_key_id: envelope.service_key_id,
-    consent_receipt_hash: envelope.consent_receipt_hash,
-    submitted_at: envelope.submitted_at
-  };
-}
-
-function verifySenderSignature(input: {
-  envelope: SubmissionEnvelope;
-  publicKey: TrustedSenderPublicKey;
-}): boolean {
-  if (input.envelope.sender_signature === undefined) {
-    return false;
-  }
-
-  const parts = input.envelope.sender_signature.split(".");
-  if (parts.length !== 3 || parts[1] !== "") {
-    return false;
-  }
-
-  const [encodedProtected, , encodedSignature] = parts;
-  if (encodedProtected === undefined || encodedSignature === undefined) {
-    return false;
-  }
-
-  const protectedHeader = parseProtectedHeader(encodedProtected);
-  if (protectedHeader?.alg !== input.publicKey.alg) {
-    return false;
-  }
-
-  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(input.envelope)))
-    .toString("base64url");
-  const signingInput = Buffer.from(`${encodedProtected}.${payload}`, "ascii");
-
-  try {
-    const key = createPublicKey({ key: input.publicKey.public_jwk, format: "jwk" });
-    const signature = Buffer.from(encodedSignature, "base64url");
-    if (input.publicKey.alg === "ES256") {
-      return verify("sha256", signingInput, {
-        key,
-        dsaEncoding: "ieee-p1363"
-      }, signature);
-    }
-
-    return verify(null, signingInput, key, signature);
-  } catch {
-    return false;
-  }
-}
-
-function parseProtectedHeader(encodedProtected: string): { alg?: unknown } | undefined {
-  try {
-    const value = JSON.parse(Buffer.from(encodedProtected, "base64url").toString("utf8")) as unknown;
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return undefined;
-    }
-
-    return value;
-  } catch {
-    return undefined;
-  }
 }
 
 function hashEncryptedPayload(encryptedPayload: Record<string, unknown>): Sha256Hash {
@@ -686,17 +445,6 @@ function rejected(code: string, message: string): SubmissionValidationResult {
   return {
     ok: false,
     status: "rejected",
-    error: {
-      code,
-      message
-    }
-  };
-}
-
-function authRequired(code: string, message: string): SubmissionValidationResult {
-  return {
-    ok: false,
-    status: "auth_required",
     error: {
       code,
       message

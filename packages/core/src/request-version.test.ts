@@ -56,7 +56,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "verified_sender"
+  trust_profile: "human_consent"
 };
 
 function definitionWith(overrides: Partial<RequestDefinition>): RequestDefinition {

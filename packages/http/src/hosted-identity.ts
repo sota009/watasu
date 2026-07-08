@@ -2,10 +2,6 @@ import type {
   HostedServiceIdentity,
   HostedServiceRole
 } from "@watasu/core";
-import type {
-  PublishInviteResolutionResult,
-  PublishInviteStore
-} from "@watasu/core";
 import type { HostedMetadataRequest } from "./hosted-metadata.js";
 
 export interface TrustedServicePrincipal {
@@ -53,32 +49,6 @@ export function createTrustedServiceIdentityResolver(
       owner_id: principal.owner_id,
       roles: normalizeRoles(principal.roles)
     };
-  };
-}
-
-export function createInviteServiceIdentityResolver(input: {
-  inviteStore: PublishInviteStore;
-  now?: (() => Date) | undefined;
-  onResult?: ((result: PublishInviteResolutionResult, bearerCredential: string | undefined) => void) | undefined;
-}): HostedServiceIdentityResolver {
-  return (request) => {
-    const bearerCredential = parseAuthorizationBearerToken(request.headers.authorization);
-    if (bearerCredential === undefined) {
-      input.onResult?.({
-        ok: false,
-        status: "auth_required",
-        error: {
-          code: "invalid_invite_token",
-          message: "Invite token is invalid."
-        }
-      }, undefined);
-      return undefined;
-    }
-
-    const result = input.inviteStore.resolveToken(bearerCredential, input.now?.());
-    input.onResult?.(result, bearerCredential);
-
-    return result.ok ? result.identity : undefined;
   };
 }
 

@@ -2,9 +2,10 @@ import {
   createIdempotencyClaimKey,
   deliverAcceptedSubmission,
   gateA2aSubmissionProtocol,
-  sha256Hash,
+  mintConsentToken,
   validateSubmissionEnvelopeAsync,
   validateSubmissionEnvelopeMetadata,
+  verifyConsentReceipt,
   type AsyncIdempotencyStore,
   type AsyncSubmissionRateLimiter,
   type DeliveryCircuitBreaker,
@@ -12,14 +13,9 @@ import {
   type DeliveryConcurrencyLimiter,
   type DeliveryLedger,
   type PublishedRequestVersion,
-  type Sha256Hash,
   type SubmissionCapability,
   type SubmissionEnvelope
 } from "@watasu/core";
-import type {
-  HostedSenderTrustResolver,
-  HostedSenderTrustResult
-} from "./hosted-sender-auth.js";
 import { decodeHostedRequestIdSegment } from "./hosted-route.js";
 
 export interface HostedSubmitRequest {
@@ -55,7 +51,6 @@ export interface CreateHostedSubmitAppInput {
   signingSecret: string;
   deliveryCircuitBreaker?: DeliveryCircuitBreaker | undefined;
   deliveryConcurrencyLimiter?: DeliveryConcurrencyLimiter | undefined;
-  resolveSenderTrust?: HostedSenderTrustResolver | undefined;
   resolveCapability?: ((input: {
     capabilityUrl: string;
     published: PublishedRequestVersion;
@@ -66,7 +61,11 @@ export interface CreateHostedSubmitAppInput {
     request: HostedSubmitRequest;
     published: PublishedRequestVersion;
   }) => string | undefined) | undefined;
+  /** TTL for a minted consent token (human_consent trust profile). */
+  consentTtlSeconds?: number | undefined;
 }
+
+const defaultConsentTtlSeconds = 10 * 60;
 
 export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): HostedSubmitApp {
   return {
@@ -156,14 +155,6 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         request,
         published
       });
-      const senderTrust = resolveSenderTrust({
-        resolver: input.resolveSenderTrust,
-        tenantId,
-        published,
-        capabilityHash: hashCapabilityUrl(capabilityUrl),
-        envelope: gateResult.envelopeCandidate,
-        now: input.clock()
-      });
       const capability = await resolveCapability({
         resolver: input.resolveCapability,
         capabilityUrl,
@@ -175,17 +166,33 @@ export function createHostedSubmitApp(input: CreateHostedSubmitAppInput): Hosted
         capability,
         idempotencyStore: input.idempotencyStore,
         rateLimiter: input.rateLimiter,
-        clock: input.clock,
-        trustedSenderKeyIds: senderTrust.trustedSenderKeyIds,
-        trustedSenderPublicKeys: senderTrust.trustedSenderPublicKeys,
-        trustedInvites: senderTrust.trustedInvites
+        clock: input.clock
       });
       if (!validationResult.ok) {
-        return jsonResponse(validationResult.status === "auth_required" ? 401 : 400, {
+        return jsonResponse(400, {
           ok: false,
           status: validationResult.status,
           error: validationResult.error
         });
+      }
+
+      if (published.definition.trust_profile === "human_consent") {
+        const consentGate = await evaluateConsentGate({
+          envelope: gateResult.envelopeCandidate,
+          published,
+          tenantId,
+          secret: input.signingSecret,
+          idempotencyStore: input.idempotencyStore,
+          now: input.clock(),
+          publicBaseUrl: input.publicBaseUrl,
+          consentTtlSeconds: input.consentTtlSeconds ?? defaultConsentTtlSeconds
+        });
+        if (!consentGate.ok) {
+          // Release the submission validation claim so the resume (same
+          // idempotency_key) is not rejected as a replay after the human approves.
+          await input.idempotencyStore.releaseValidation(createIdempotencyClaimKey(validationResult.submission));
+          return consentGate.response;
+        }
       }
 
       const deliveryResult = await deliverAcceptedSubmission({
@@ -253,40 +260,80 @@ async function resolveCapability(input: {
   };
 }
 
-function resolveSenderTrust(input: {
-  resolver: HostedSenderTrustResolver | undefined;
-  tenantId: string | undefined;
-  published: PublishedRequestVersion;
-  capabilityHash: Sha256Hash;
+async function evaluateConsentGate(input: {
   envelope: SubmissionEnvelope;
+  published: PublishedRequestVersion;
+  tenantId: string | undefined;
+  secret: string;
+  idempotencyStore: AsyncIdempotencyStore;
   now: Date;
-}): HostedSenderTrustResult {
-  if (
-    input.resolver === undefined ||
-    input.tenantId === undefined ||
-    input.published.definition.trust_profile === "public_capability" ||
-    input.published.definition.trust_profile === "local_demo"
-  ) {
-    return {
-      trustedSenderKeyIds: [],
-      trustedSenderPublicKeys: [],
-      trustedInvites: []
-    };
+  publicBaseUrl: string;
+  consentTtlSeconds: number;
+}): Promise<{ ok: true } | { ok: false; response: HostedSubmitResponse }> {
+  const envelopeHash = input.envelope.encrypted_payload_hash;
+  const consentTextHash = input.published.hashes.consent_text_hash;
+  const fieldPurposesHash = input.published.hashes.field_purposes_hash;
+  const destinationPolicyHash = input.published.hashes.destination_policy_hash;
+  const receiptToken = input.envelope.consent_receipt_token;
+
+  if (receiptToken !== undefined) {
+    const verified = await verifyConsentReceipt(receiptToken, input.secret, input.now);
+    if (
+      verified.ok &&
+      verified.receipt.envelope_hash === envelopeHash &&
+      verified.receipt.consent_text_hash === consentTextHash &&
+      verified.receipt.field_purposes_hash === fieldPurposesHash &&
+      verified.receipt.destination_policy_hash === destinationPolicyHash
+    ) {
+      const claimed = await input.idempotencyStore.claimValidation(
+        `consent-receipt:${verified.receipt.nonce}`,
+        {
+          request_id: input.envelope.request_id,
+          request_version: input.envelope.request_version,
+          idempotency_key: input.envelope.idempotency_key,
+          submitted_at: input.envelope.submitted_at,
+          claimed_at: input.now.toISOString(),
+          status: "validation_accepted"
+        }
+      );
+      if (claimed) {
+        // Valid, payload-bound, unspent receipt: fall through to delivery.
+        return { ok: true };
+      }
+    }
   }
 
-  return input.resolver({
-    tenantId: input.tenantId,
-    requestId: input.published.request_id,
-    requestVersion: input.published.request_version,
-    capabilityHash: input.capabilityHash,
-    senderKeyId: input.envelope.sender_key_id,
-    inviteId: input.envelope.invite_id,
-    now: input.now
-  });
-}
+  // No valid receipt: pause the agent with a fresh consent token.
+  const minted = await mintConsentToken(
+    {
+      tenant_id: input.tenantId ?? "",
+      request_id: input.published.request_id,
+      request_version: input.published.request_version,
+      idempotency_key: input.envelope.idempotency_key,
+      envelope_hash: envelopeHash,
+      consent_text_hash: consentTextHash,
+      field_purposes_hash: fieldPurposesHash,
+      destination_policy_hash: destinationPolicyHash,
+      issued_at: input.now,
+      ttl_seconds: input.consentTtlSeconds
+    },
+    input.secret
+  );
 
-function hashCapabilityUrl(capabilityUrl: string): Sha256Hash {
-  return sha256Hash(capabilityUrl);
+  const requestIdSegment = encodeURIComponent(input.published.request_id);
+  const consentBase = `${input.publicBaseUrl}/requests/${requestIdSegment}/consent/${minted.token}`;
+  return {
+    ok: false,
+    response: jsonResponse(401, {
+      ok: false,
+      status: "auth_required",
+      consent: {
+        consent_url: consentBase,
+        poll_url: `${consentBase}/status`,
+        expires_in: minted.expires_in_seconds
+      }
+    })
+  };
 }
 
 function protocolErrorResponse(error: {
@@ -352,7 +399,8 @@ function isSubmissionEnvelope(value: unknown): value is SubmissionEnvelope {
     typeof value.submitted_at === "string" &&
     typeof value.service_key_id === "string" &&
     isRecord(value.encrypted_payload) &&
-    typeof value.encrypted_payload_hash === "string"
+    typeof value.encrypted_payload_hash === "string" &&
+    (value.consent_receipt_token === undefined || typeof value.consent_receipt_token === "string")
   );
 }
 

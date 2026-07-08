@@ -4,12 +4,43 @@ import {
   InMemoryIdempotencyStore,
   InMemoryRequestVersionRepository,
   InMemorySubmissionRateLimiter,
+  mintConsentReceipt,
   sha256Hash,
   type DeliveryLedgerRow,
   type DeliveryRequest,
+  type PublishedRequestVersion,
   type RequestDefinition
 } from "@watasu/core";
 import { createHostedSubmitApp, type HostedSubmitRequest } from "./hosted-submit.js";
+
+const signingSecret = "test-deployment-signing-secret-with-enough-entropy";
+
+const encryptedPayload = {
+  protected: "base64url-protected",
+  iv: "base64url-iv",
+  ciphertext: "base64url-ciphertext",
+  tag: "base64url-tag"
+};
+const encryptedPayloadHash = sha256Hash(canonicalizeJson(encryptedPayload));
+
+/** Mints a payload-bound human-consent receipt so a submit reaches delivery. */
+function mintBoundReceipt(published: PublishedRequestVersion): Promise<string> {
+  return mintConsentReceipt(
+    {
+      envelope_hash: encryptedPayloadHash,
+      consent_text_hash: published.hashes.consent_text_hash,
+      field_purposes_hash: published.hashes.field_purposes_hash,
+      destination_policy_hash: published.hashes.destination_policy_hash,
+      credential_id: "credential-xyz",
+      approved_at: new Date("2026-06-15T00:00:00.500Z"),
+      nonce: "nonce-approved",
+      ttl_seconds: 3600,
+      backup_eligible: true,
+      backup_state: false
+    },
+    signingSecret
+  );
+}
 
 const definition: RequestDefinition = {
   name: "event-attendee-intake",
@@ -51,7 +82,7 @@ const definition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "public_capability"
+  trust_profile: "human_consent"
 };
 
 function createRequest(input: {
@@ -84,14 +115,8 @@ function createRepository() {
 function createA2aBody(input: {
   published: ReturnType<typeof createRepository>["published"];
   idempotencyKey?: string | undefined;
+  consentReceiptToken?: string | undefined;
 }) {
-  const encryptedPayload = {
-    protected: "base64url-protected",
-    iv: "base64url-iv",
-    ciphertext: "base64url-ciphertext",
-    tag: "base64url-tag"
-  };
-
   return {
     message: {
       role: "ROLE_USER",
@@ -109,7 +134,8 @@ function createA2aBody(input: {
             submitted_at: "2026-06-15T00:00:00.000Z",
             service_key_id: input.published.definition.encryption.service_key_id,
             encrypted_payload: encryptedPayload,
-            encrypted_payload_hash: sha256Hash(canonicalizeJson(encryptedPayload))
+            encrypted_payload_hash: encryptedPayloadHash,
+            consent_receipt_token: input.consentReceiptToken
           }
         }
       ]
@@ -147,13 +173,13 @@ describe("hosted submit HTTP app", () => {
       }),
       resolveDeliveryHost: async () => ["203.0.113.10"],
       clock: () => new Date("2026-06-15T00:00:01.000Z"),
-      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
+      signingSecret,
       tenantId: "tenant-a"
     });
 
     // Act
     const response = await app.handle(createRequest({
-      body: createA2aBody({ published })
+      body: createA2aBody({ published, consentReceiptToken: await mintBoundReceipt(published) })
     }));
 
     // Assert
@@ -204,12 +230,12 @@ describe("hosted submit HTTP app", () => {
       }),
       resolveDeliveryHost: async () => ["203.0.113.10"],
       clock: () => new Date("2026-06-15T00:00:01.000Z"),
-      signingSecret: "test-deployment-signing-secret-with-enough-entropy"
+      signingSecret
     });
 
     // Act
     const response = await app.handle(createRequest({
-      body: createA2aBody({ published })
+      body: createA2aBody({ published, consentReceiptToken: await mintBoundReceipt(published) })
     }));
 
     // Assert
@@ -382,164 +408,6 @@ describe("hosted submit HTTP app", () => {
       `rate:event-attendee-intake:v1:${sha256Hash("https://api.watasu.ai/requests/event-attendee-intake/submit")}`,
       "event-attendee-intake:v1:submit-001:validation_accepted"
     ]);
-    expect(deliveryRequests).toHaveLength(0);
-  });
-
-  test("test_hosted_submit_uses_sender_trust_resolver_before_verified_sender_signature_check", async () => {
-    // Arrange
-    const verifiedSenderDefinition: RequestDefinition = {
-      ...definition,
-      trust_profile: "verified_sender"
-    };
-    const repository = new InMemoryRequestVersionRepository();
-    const published = repository.publish("event-attendee-intake", verifiedSenderDefinition);
-    const deliveryRequests: DeliveryRequest[] = [];
-    const trustInputs: unknown[] = [];
-    const body = createA2aBody({ published }) as unknown as {
-      message: {
-        parts: [
-          {
-            data: Record<string, unknown>;
-          }
-        ];
-      };
-    };
-    body.message.parts[0].data = {
-      ...body.message.parts[0].data,
-      sender_key_id: "sender-key-active"
-    };
-    const app = createHostedSubmitApp({
-      publicBaseUrl: "https://api.watasu.ai",
-      requestVersions: repository,
-      deliveryClient: {
-        async post(request) {
-          deliveryRequests.push(request);
-          return {
-            status: 204
-          };
-        }
-      },
-      ledger: {
-        writeDeliveryAttempt() {}
-      },
-      idempotencyStore: new InMemoryIdempotencyStore(),
-      rateLimiter: new InMemorySubmissionRateLimiter({
-        limit: 60,
-        windowMs: 60_000,
-        clock: () => new Date("2026-06-15T00:00:01.000Z")
-      }),
-      resolveDeliveryHost: async () => ["203.0.113.10"],
-      resolveSenderTrust(input) {
-        trustInputs.push(input);
-        return {
-          trustedSenderKeyIds: ["sender-key-active"],
-          trustedSenderPublicKeys: [],
-          trustedInvites: []
-        };
-      },
-      clock: () => new Date("2026-06-15T00:00:01.000Z"),
-      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
-      tenantId: "tenant-a"
-    });
-
-    // Act
-    const response = await app.handle(createRequest({
-      body
-    }));
-
-    // Assert
-    expect(response.status).toBe(401);
-    expect(JSON.parse(response.body)).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_required"
-      }
-    });
-    expect(trustInputs).toMatchObject([
-      {
-        tenantId: "tenant-a",
-        requestId: "event-attendee-intake",
-        requestVersion: "v1",
-        senderKeyId: "sender-key-active"
-      }
-    ]);
-    expect(deliveryRequests).toHaveLength(0);
-  });
-
-  test("test_hosted_submit_rejects_metadata_mismatch_before_sender_trust_lookup", async () => {
-    // Arrange
-    const verifiedSenderDefinition: RequestDefinition = {
-      ...definition,
-      trust_profile: "verified_sender"
-    };
-    const repository = new InMemoryRequestVersionRepository();
-    const published = repository.publish("event-attendee-intake", verifiedSenderDefinition);
-    const deliveryRequests: DeliveryRequest[] = [];
-    const trustInputs: unknown[] = [];
-    const body = createA2aBody({ published }) as unknown as {
-      message: {
-        parts: [
-          {
-            data: Record<string, unknown>;
-          }
-        ];
-      };
-    };
-    body.message.parts[0].data = {
-      ...body.message.parts[0].data,
-      schema_hash: "sha256:wrong",
-      sender_key_id: "sender-key-active"
-    };
-    const app = createHostedSubmitApp({
-      publicBaseUrl: "https://api.watasu.ai",
-      requestVersions: repository,
-      deliveryClient: {
-        async post(request) {
-          deliveryRequests.push(request);
-          return {
-            status: 204
-          };
-        }
-      },
-      ledger: {
-        writeDeliveryAttempt() {}
-      },
-      idempotencyStore: new InMemoryIdempotencyStore(),
-      rateLimiter: new InMemorySubmissionRateLimiter({
-        limit: 60,
-        windowMs: 60_000,
-        clock: () => new Date("2026-06-15T00:00:01.000Z")
-      }),
-      resolveDeliveryHost: async () => ["203.0.113.10"],
-      resolveSenderTrust(input) {
-        trustInputs.push(input);
-        return {
-          trustedSenderKeyIds: ["sender-key-active"],
-          trustedSenderPublicKeys: [],
-          trustedInvites: []
-        };
-      },
-      clock: () => new Date("2026-06-15T00:00:01.000Z"),
-      signingSecret: "test-deployment-signing-secret-with-enough-entropy",
-      tenantId: "tenant-a"
-    });
-
-    // Act
-    const response = await app.handle(createRequest({
-      body
-    }));
-
-    // Assert
-    expect(response.status).toBe(400);
-    expect(JSON.parse(response.body)).toMatchObject({
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "schema_hash_mismatch"
-      }
-    });
-    expect(trustInputs).toHaveLength(0);
     expect(deliveryRequests).toHaveLength(0);
   });
 

@@ -430,6 +430,7 @@ export function createHostedProductionServerFromEnv(input: {
     publishInviteStore,
     requestRegistry,
     publicBaseUrl: config.publicBaseUrl,
+    clock: input.now,
     deliverySigningSecret: identityProviderConfig.signingSecret,
     ledgerReader: createMetadataLedgerReader({
       rows: [],

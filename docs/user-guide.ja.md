@@ -105,7 +105,7 @@ fields:
     type: string
     format: email
     required: true
-trust_profile: verified_sender
+trust_profile: human_consent
 ```
 
 ### 3. CLI で検証する

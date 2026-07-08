@@ -55,7 +55,7 @@ const definition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "verified_sender"
+  trust_profile: "human_consent"
 };
 
 function createRequest(headers: Record<string, string | undefined>): HostedProductionRequest {

@@ -61,7 +61,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "verified_sender"
+  trust_profile: "human_consent"
 };
 
 const encryptedPayload = {
@@ -262,7 +262,7 @@ describe("security regression suite", () => {
       metadata_retention: {
         days: 90
       },
-      trust_profile: "verified_sender"
+      trust_profile: "human_consent"
     };
 
     // Act

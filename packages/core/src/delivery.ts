@@ -215,7 +215,7 @@ export interface ResubmissionGuidance {
   retry_after_source: ResubmissionRetryAfterSource;
   idempotency_key_policy: "reuse_for_same_payload";
   payload_policy: "sender_resubmits_payload";
-  refresh_fields: ["submitted_at", "expires_at", "sender_signature"];
+  refresh_fields: ["submitted_at", "expires_at"];
 }
 
 export type DeliveryResult =
@@ -653,7 +653,7 @@ function buildResubmissionGuidance(errorCode: string): ResubmissionGuidance {
     retry_after_source: retryAfterSource(errorCode),
     idempotency_key_policy: "reuse_for_same_payload",
     payload_policy: "sender_resubmits_payload",
-    refresh_fields: ["submitted_at", "expires_at", "sender_signature"]
+    refresh_fields: ["submitted_at", "expires_at"]
   };
 }
 

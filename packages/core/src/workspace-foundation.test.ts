@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { findSecretLikeValues } from "../../../scripts/secret-scan.mjs";
@@ -140,11 +141,11 @@ describe("workspace foundation", () => {
       "smoke:hosted": "node scripts/hosted-start-smoke.mjs",
       test: "pnpm typecheck && vitest run",
       typecheck:
-        "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted packages/personal-info-adapter"
+        "tsc -b packages/core packages/cli packages/fixtures packages/http packages/mcp packages/hosted"
     });
   });
 
-  test("test_package_exports_core_cli_fixtures_and_adapter_packages", async () => {
+  test("test_package_exports_core_cli_fixtures_and_service_packages", async () => {
     const corePackageJson = readJson("packages/core/package.json") as {
       exports: Record<string, string>;
     };
@@ -165,13 +166,6 @@ describe("workspace foundation", () => {
     const hostedPackageJson = readJson("packages/hosted/package.json") as {
       exports: Record<string, string>;
     };
-    const personalInfoAdapterPackageJson = readJson(
-      "packages/personal-info-adapter/package.json"
-    ) as {
-      bin: Record<string, string>;
-      exports: Record<string, string>;
-      scripts: Record<string, string>;
-    };
 
     expect(corePackageJson.exports).toHaveProperty(".");
     expect(cliPackageJson.exports).toHaveProperty(".");
@@ -184,18 +178,6 @@ describe("workspace foundation", () => {
     expect(httpPackageJson.exports).toHaveProperty(".");
     expect(mcpPackageJson.exports).toHaveProperty(".");
     expect(hostedPackageJson.exports).toHaveProperty(".");
-    expect(personalInfoAdapterPackageJson.exports).toHaveProperty(".");
-    expect(personalInfoAdapterPackageJson.bin).toEqual({
-      "watasu-personal-info-adapter": "./dist/bin.js"
-    });
-    expect(personalInfoAdapterPackageJson.scripts).toHaveProperty(
-      "dry-run",
-      "pnpm --dir ../.. typecheck && node dist/bin.js dry-run"
-    );
-    expect(personalInfoAdapterPackageJson.scripts).toHaveProperty(
-      "submit",
-      "pnpm --dir ../.. typecheck && node dist/bin.js submit"
-    );
   });
 
   test("test_no_env_files_or_secret_like_values_are_committed", () => {
@@ -203,6 +185,16 @@ describe("workspace foundation", () => {
     writeFileSync(join(fixtureDir, "safe.md"), "API key guidance without a value is safe.");
 
     expect(findSecretLikeValues(fixtureDir)).toEqual([]);
+  });
+
+  test("test_manual_browser_check_has_no_secret_like_assignment", () => {
+    const scriptsDir = fileURLToPath(new URL("../../../scripts/", import.meta.url));
+
+    const findings = findSecretLikeValues(scriptsDir).filter(
+      (finding) => finding.path === "consent-register-browser-check.mjs"
+    );
+
+    expect(findings).toEqual([]);
   });
 
   test("secret_scan_reports_env_files_and_secret_like_assignments", () => {

@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { createPrivateKey, generateKeyPairSync, sign, type JsonWebKey } from "node:crypto";
 import type { RequestDefinition, TrustProfile } from "./request-definition.js";
 import type { PublishedRequestVersion } from "./request-version.js";
 import { createRequestVersionHashes } from "./request-version.js";
@@ -9,7 +8,6 @@ import {
   InMemoryCapabilityRegistry,
   InMemoryIdempotencyStore,
   InMemorySubmissionRateLimiter,
-  buildSenderSignaturePayload,
   validateSubmissionEnvelope,
   validateSubmissionEnvelopeAsync,
   type AsyncSubmissionValidationContext,
@@ -58,7 +56,7 @@ const baseDefinition: RequestDefinition = {
   metadata_retention: {
     days: 90
   },
-  trust_profile: "public_capability"
+  trust_profile: "human_consent"
 };
 
 const encryptedPayload = {
@@ -68,7 +66,7 @@ const encryptedPayload = {
   tag: "base64url-tag"
 };
 
-function createPublished(trustProfile: TrustProfile = "public_capability"): PublishedRequestVersion {
+function createPublished(trustProfile: TrustProfile = "human_consent"): PublishedRequestVersion {
   const definition = {
     ...structuredClone(baseDefinition),
     trust_profile: trustProfile
@@ -101,16 +99,6 @@ function createEnvelope(
   };
 }
 
-function createConsentReceipt(published: PublishedRequestVersion) {
-  return {
-    request_version: published.request_version,
-    consent_text_hash: published.hashes.consent_text_hash,
-    field_purposes_hash: published.hashes.field_purposes_hash,
-    destination_policy_hash: published.hashes.destination_policy_hash,
-    confirmed_at: "2026-06-14T11:58:30.000Z"
-  };
-}
-
 function createContext(
   published: PublishedRequestVersion,
   overrides: Partial<SubmissionValidationContext> = {}
@@ -132,69 +120,8 @@ function createContext(
   };
 }
 
-function createSenderKeyPair() {
-  const { privateKey, publicKey } = generateKeyPairSync("ec", {
-    namedCurve: "P-256"
-  });
-
-  return {
-    privateJwk: privateKey.export({ format: "jwk" }),
-    publicJwk: publicKey.export({ format: "jwk" })
-  };
-}
-
-function createEd25519SenderKeyPair() {
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-
-  return {
-    privateJwk: privateKey.export({ format: "jwk" }),
-    publicJwk: publicKey.export({ format: "jwk" })
-  };
-}
-
-function signSenderEnvelope(
-  envelope: SubmissionEnvelope,
-  privateJwk: JsonWebKey,
-  protectedHeaderOverrides: Record<string, unknown> = {}
-): string {
-  const protectedHeader = Buffer.from(JSON.stringify({
-    alg: "ES256",
-    typ: "watasu-sender-signature+jws",
-    ...protectedHeaderOverrides
-  })).toString("base64url");
-  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(envelope)))
-    .toString("base64url");
-  const signingInput = `${protectedHeader}.${payload}`;
-  const signature = sign("sha256", Buffer.from(signingInput, "ascii"), {
-    key: createPrivateKey({ key: privateJwk, format: "jwk" }),
-    dsaEncoding: "ieee-p1363"
-  }).toString("base64url");
-
-  return `${protectedHeader}..${signature}`;
-}
-
-function signEdDsaSenderEnvelope(
-  envelope: SubmissionEnvelope,
-  privateJwk: JsonWebKey,
-  protectedHeaderOverrides: Record<string, unknown> = {}
-): string {
-  const protectedHeader = Buffer.from(JSON.stringify({
-    alg: "EdDSA",
-    typ: "watasu-sender-signature+jws",
-    ...protectedHeaderOverrides
-  })).toString("base64url");
-  const payload = Buffer.from(canonicalizeJson(buildSenderSignaturePayload(envelope)))
-    .toString("base64url");
-  const signingInput = `${protectedHeader}.${payload}`;
-  const signature = sign(null, Buffer.from(signingInput, "ascii"), {
-    key: createPrivateKey({ key: privateJwk, format: "jwk" })
-  }).toString("base64url");
-
-  return `${protectedHeader}..${signature}`;
-}
-
 describe("submission envelope validation", () => {
-  test("test_valid_public_capability_envelope_is_accepted", () => {
+  test("test_valid_envelope_is_accepted", () => {
     const published = createPublished();
     const envelope = createEnvelope(published);
     const context = createContext(published);
@@ -262,66 +189,6 @@ describe("submission envelope validation", () => {
       status: "rejected",
       error: {
         code: "service_key_id_mismatch"
-      }
-    });
-  });
-
-  test("test_consent_receipt_metadata_bound_to_published_request_is_accepted", () => {
-    const published = createPublished();
-    const consentReceipt = createConsentReceipt(published);
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: sha256Hash(canonicalizeJson(consentReceipt))
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: true,
-      status: "accepted"
-    });
-  });
-
-  test("test_consent_receipt_destination_policy_mismatch_is_rejected", () => {
-    const published = createPublished();
-    const consentReceipt = {
-      ...createConsentReceipt(published),
-      destination_policy_hash: "sha256:stale-destination-policy"
-    };
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: sha256Hash(canonicalizeJson(consentReceipt))
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "consent_receipt_destination_policy_mismatch"
-      }
-    });
-  });
-
-  test("test_consent_receipt_hash_must_match_metadata", () => {
-    const published = createPublished();
-    const consentReceipt = createConsentReceipt(published);
-    const envelope = createEnvelope(published, {
-      consent_receipt: consentReceipt,
-      consent_receipt_hash: "sha256:wrong"
-    });
-    const context = createContext(published);
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "rejected",
-      error: {
-        code: "consent_receipt_hash_mismatch"
       }
     });
   });
@@ -576,302 +443,6 @@ describe("submission envelope validation", () => {
       status: "accepted",
       submission: {
         request_version: "v1"
-      }
-    });
-  });
-
-  test("test_verified_sender_without_signature_returns_auth_required", () => {
-    const published = createPublished("verified_sender");
-    const envelope = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_required"
-      }
-    });
-  });
-
-  test("test_verified_sender_without_resolved_public_key_returns_auth_required", () => {
-    const published = createPublished("verified_sender");
-    const envelope = createEnvelope(published, {
-      sender_key_id: "sender-key-001",
-      sender_signature: "base64url-signature"
-    });
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_public_key_required"
-      }
-    });
-  });
-
-  test("test_verified_sender_with_valid_es256_detached_signature_is_accepted", () => {
-    const published = createPublished("verified_sender");
-    const senderKeys = createSenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-001",
-          alg: "ES256",
-          public_jwk: senderKeys.publicJwk
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: true,
-      status: "accepted",
-      submission: {
-        sender_key_id: "sender-key-001"
-      }
-    });
-  });
-
-  test("test_verified_sender_with_valid_eddsa_detached_signature_is_accepted", () => {
-    const published = createPublished("verified_sender");
-    const senderKeys = createEd25519SenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-eddsa-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      sender_signature: signEdDsaSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-eddsa-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-eddsa-001",
-          alg: "EdDSA",
-          public_jwk: senderKeys.publicJwk
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: true,
-      status: "accepted",
-      submission: {
-        sender_key_id: "sender-key-eddsa-001"
-      }
-    });
-  });
-
-  test("test_verified_sender_rejects_eddsa_header_for_es256_key", () => {
-    const published = createPublished("verified_sender");
-    const senderKeys = createEd25519SenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      sender_signature: signEdDsaSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-001",
-          alg: "ES256",
-          public_jwk: senderKeys.publicJwk
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_invalid"
-      }
-    });
-  });
-
-  test("test_verified_sender_with_tampered_detached_signature_returns_auth_required", () => {
-    const published = createPublished("verified_sender");
-    const senderKeys = createSenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      idempotency_key: "submit-tampered",
-      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-001",
-          alg: "ES256",
-          public_jwk: senderKeys.publicJwk
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_invalid"
-      }
-    });
-  });
-
-  test("test_verified_sender_with_unsupported_jws_alg_returns_auth_required", () => {
-    const published = createPublished("verified_sender");
-    const senderKeys = createSenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk, {
-        alg: "HS256"
-      })
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-001",
-          alg: "ES256",
-          public_jwk: senderKeys.publicJwk
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_invalid"
-      }
-    });
-  });
-
-  test("test_private_invite_requires_sender_key_and_invite_binding", () => {
-    const published = createPublished("private_invite");
-    const envelope = createEnvelope(published, {
-      sender_key_id: "sender-key-001"
-    });
-    const context = createContext(published, {
-      trustedInvites: [
-        {
-          invite_id: "invite-001",
-          sender_key_id: "sender-key-001"
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "invite_binding_required"
-      }
-    });
-  });
-
-  test("test_private_invite_without_signature_returns_auth_required", () => {
-    const published = createPublished("private_invite");
-    const envelope = createEnvelope(published, {
-      sender_key_id: "sender-key-001",
-      invite_id: "invite-001"
-    });
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedInvites: [
-        {
-          invite_id: "invite-001",
-          sender_key_id: "sender-key-001"
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: false,
-      status: "auth_required",
-      error: {
-        code: "sender_signature_required"
-      }
-    });
-  });
-
-  test("test_private_invite_with_valid_signature_and_invite_binding_is_accepted", () => {
-    const published = createPublished("private_invite");
-    const senderKeys = createSenderKeyPair();
-    const envelopeWithoutSignature = createEnvelope(published, {
-      sender_key_id: "sender-key-001",
-      invite_id: "invite-001"
-    });
-    const envelope = {
-      ...envelopeWithoutSignature,
-      sender_signature: signSenderEnvelope(envelopeWithoutSignature, senderKeys.privateJwk)
-    };
-    const context = createContext(published, {
-      trustedSenderKeyIds: ["sender-key-001"],
-      trustedSenderPublicKeys: [
-        {
-          sender_key_id: "sender-key-001",
-          alg: "ES256",
-          public_jwk: senderKeys.publicJwk
-        }
-      ],
-      trustedInvites: [
-        {
-          invite_id: "invite-001",
-          sender_key_id: "sender-key-001"
-        }
-      ]
-    });
-
-    const result = validateSubmissionEnvelope(envelope, context);
-
-    expect(result).toMatchObject({
-      ok: true,
-      status: "accepted",
-      submission: {
-        sender_key_id: "sender-key-001",
-        invite_id: "invite-001"
       }
     });
   });
